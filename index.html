@@ -790,6 +790,7 @@ h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:600;letter-spacing:-.0
 :where(input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea){font-family:inherit;background:var(--field-bg);color:var(--text-main);border:1px solid var(--border-color);border-radius:8px;padding:8px 11px;font-size:.92rem}
 :where(input,select,textarea):focus{outline:none;border-color:var(--accent-primary);box-shadow:0 0 0 3px var(--ring)}
 input[type=checkbox],input[type=radio]{accent-color:var(--accent-primary)}
+.form-group input[type=checkbox],.form-group input[type=radio]{width:auto;padding:0;flex-shrink:0}
 /* header + brand */
 header{background:var(--frame);border-bottom:1px solid rgba(255,255,255,.07)}
 .brand{display:flex;align-items:center;gap:10px}
@@ -864,6 +865,20 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
  .header-company-info{padding:4px 8px;min-width:0}.header-company-title{max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  .welcome-banner{padding:1.3rem}
  .login-card{padding:2rem 1.4rem}
+}
+</style>
+<style>
+/* ===== Print / PDF export fixes ===== */
+@media print{
+ @page{size:A4;margin:0}
+ html,body,.app-body,main.main-content{background:#fff!important}
+ .report-paper{padding:16mm 15mm!important;font-size:11pt;box-shadow:none!important;border-radius:0!important;font-family:'Figtree','Segoe UI',Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ .report-paper table{display:table!important;width:100%!important;white-space:normal!important;margin-top:.5rem}
+ .report-paper th,.report-paper td{padding:6px 8px}
+ .report-paper tfoot td{border-top:2px solid #00325b!important;font-weight:700}
+ .report-paper tr{page-break-inside:avoid}
+ .report-header{margin-bottom:1.2rem}
+ .report-footer{margin-top:3rem;page-break-inside:avoid}
 }
 </style>
 </head>
