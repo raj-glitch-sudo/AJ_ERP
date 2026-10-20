@@ -1347,6 +1347,13 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                                     <label>Opening Balance Date</label>
                                     <input type="date" id="setCompOpeningDate">
                                 </div>
+                                <div class="form-group">
+                                    <label>Fiscal Year Starts In</label>
+                                    <select id="setCompFyStart" onchange="updateFyHint()">
+                                        <option value="1">January (calendar year)</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                                    </select>
+                                    <small id="setCompFyHint" style="color: var(--text-muted);"></small>
+                                </div>
                             </div>
 
                             <div class="form-group card" style="background: rgba(0,0,0,0.02); padding: 1rem; border: 1px solid var(--border-color);">
@@ -2586,6 +2593,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             const canCmp = ['is','bs'].includes(type);
             document.getElementById('rptCompareGroup').classList.toggle('hidden', !canCmp);
             if (!canCmp) document.getElementById('rptCompare').value = 'none';
+            const _fc = activeCompany(); if (_fc) document.getElementById('rptFiscalYear').value = defaultFyYear(_fc);
             handleRptPeriodTypeChange();
             document.getElementById('reportPromptModal').classList.remove('hidden');
         }
@@ -2597,6 +2605,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             document.getElementById('rptQuarterGroup').classList.toggle('hidden', pType !== 'INTERIM_Q');
             document.getElementById('rptMonthGroup').classList.toggle('hidden', pType !== 'INTERIM_M');
             document.getElementById('rptCustomDateGroup').classList.toggle('hidden', pType !== 'CUSTOM');
+            refreshFyUI();
         }
 
         // ---- Comparative statement helpers ----
@@ -2623,54 +2632,12 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             const year = document.getElementById('rptFiscalYear').value;
 
             let periodLabel = "", startDateStr = "", endDateStr = "";
-
-            // BALANCE SHEET USES "As of" LABEL
-            if (targetType === 'bs') {
-                if (pType === 'ANNUAL') {
-                    periodLabel = `As of December 31, ${year}`;
-                    startDateStr = `${year}-01-01`; endDateStr = `${year}-12-31`;
-                } else if (pType === 'INTERIM_Q') {
-                    const q = parseInt(document.getElementById('rptQuarter').value.slice(1)) - 1;
-                    const sm = q * 3, em = sm + 2, ld = new Date(year, em + 1, 0).getDate();
-                    const mn = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-                    periodLabel = `As of ${mn[em]} ${ld}, ${year}`;
-                    startDateStr = `${year}-${String(sm + 1).padStart(2,'0')}-01`;
-                    endDateStr = `${year}-${String(em + 1).padStart(2,'0')}-${ld}`;
-                } else if (pType === 'INTERIM_M') {
-                    const mIdx = parseInt(document.getElementById('rptMonth').value);
-                    const lastDay = new Date(year, mIdx + 1, 0).getDate();
-                    const mNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-                    periodLabel = `As of ${mNames[mIdx]} ${lastDay}, ${year}`;
-                    startDateStr = `${year}-${String(mIdx + 1).padStart(2,'0')}-01`;
-                    endDateStr = `${year}-${String(mIdx + 1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
-                } else {
-                    startDateStr = document.getElementById('rptStartDate').value || '1900-01-01';
-                    endDateStr = document.getElementById('rptEndDate').value || '2099-12-31';
-                    periodLabel = `As of ${endDateStr}`;
-                }
+            if (pType === 'CUSTOM') {
+                startDateStr = document.getElementById('rptStartDate').value || '1900-01-01';
+                endDateStr = document.getElementById('rptEndDate').value || '2099-12-31';
+                periodLabel = targetType === 'bs' ? `As of ${endDateStr}` : `For Period ${startDateStr} to ${endDateStr}`;
             } else {
-                if (pType === 'ANNUAL') {
-                    periodLabel = `For the Year Ended December 31, ${year}`;
-                    startDateStr = `${year}-01-01`; endDateStr = `${year}-12-31`;
-                } else if (pType === 'INTERIM_Q') {
-                    const q = parseInt(document.getElementById('rptQuarter').value.slice(1)) - 1;
-                    const sm = q * 3, em = sm + 2, ld = new Date(year, em + 1, 0).getDate();
-                    const mn = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-                    periodLabel = `For the Quarter Ended ${mn[em]} ${ld}, ${year}`;
-                    startDateStr = `${year}-${String(sm + 1).padStart(2,'0')}-01`;
-                    endDateStr = `${year}-${String(em + 1).padStart(2,'0')}-${ld}`;
-                } else if (pType === 'INTERIM_M') {
-                    const mIdx = parseInt(document.getElementById('rptMonth').value);
-                    const lastDay = new Date(year, mIdx + 1, 0).getDate();
-                    const mNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-                    periodLabel = `For the Month Ended ${mNames[mIdx]} ${lastDay}, ${year}`;
-                    startDateStr = `${year}-${String(mIdx + 1).padStart(2,'0')}-01`;
-                    endDateStr = `${year}-${String(mIdx + 1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
-                } else {
-                    startDateStr = document.getElementById('rptStartDate').value || '1900-01-01';
-                    endDateStr = document.getElementById('rptEndDate').value || '2099-12-31';
-                    periodLabel = `For Period ${startDateStr} to ${endDateStr}`;
-                }
+                ({ periodLabel, startDateStr, endDateStr } = fyPeriod(comp, targetType, pType, year));
             }
 
             const compare = (document.getElementById('rptCompare') || {}).value || 'none';
@@ -2888,6 +2855,8 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             document.getElementById('setCompVatRate').value = comp.vatRate ?? 12;
             toggleVatRateField();
             document.getElementById('setCompOpeningDate').value = getOpeningDate(comp);
+            document.getElementById('setCompFyStart').value = String(comp.fyStart || 1);
+            updateFyHint();
             document.getElementById('setCompAddress').value = comp.address || '';
             document.getElementById('setCompEnablePass').checked = !!comp.passwordHash;
             toggleSettingPasswordFields();
@@ -2911,6 +2880,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             comp.vatRate = Number.isFinite(vr) && vr >= 0 && vr <= 100 ? vr : 12;
             const od = document.getElementById('setCompOpeningDate').value;
             if (od) comp.openingDate = od;
+            comp.fyStart = parseInt(document.getElementById('setCompFyStart').value) || 1;
             comp.address = document.getElementById('setCompAddress').value;
 
             if (document.getElementById('setCompEnablePass').checked) {
@@ -3303,6 +3273,49 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             const manual = comp.journalEntries.filter(e => !isInit(e)).map(e => e.date).sort();
             return (manual.length ? manual[0].slice(0, 4) : String(new Date().getFullYear())) + '-01-01';
         }
+        // ===== FISCAL YEAR HELPERS =====
+        const FY_MN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        function fyStartStr(comp, d) {
+            const s = (comp && comp.fyStart) || 1; let y = d.getFullYear();
+            if (d.getMonth() + 1 < s) y--;
+            return y + '-' + String(s).padStart(2, '0') + '-01';
+        }
+        function defaultFyYear(comp) {
+            const s = (comp && comp.fyStart) || 1, n = new Date();
+            return s > 1 && n.getMonth() + 1 >= s ? n.getFullYear() + 1 : n.getFullYear();
+        }
+        // The "Fiscal Year" number is the calendar year in which the fiscal year ENDS.
+        function fyPeriod(comp, targetType, pType, year) {
+            const s = (comp && comp.fyStart) || 1, Y = parseInt(year), sy = s === 1 ? Y : Y - 1, bs = targetType === 'bs';
+            const p2 = n => String(n).padStart(2, '0'), ds = d => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+            const fmt = d => `${FY_MN[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+            let a, b, pre;
+            if (pType === 'ANNUAL') { a = new Date(sy, s - 1, 1); b = new Date(sy, s - 1 + 12, 0); pre = bs ? 'As of ' : 'For the Year Ended '; }
+            else if (pType === 'INTERIM_Q') {
+                const q = parseInt(document.getElementById('rptQuarter').value.slice(1)) - 1;
+                a = new Date(sy, s - 1 + q * 3, 1); b = new Date(sy, s - 1 + q * 3 + 3, 0); pre = bs ? 'As of ' : 'For the Quarter Ended ';
+            } else {
+                const m = parseInt(document.getElementById('rptMonth').value), my = m >= s - 1 ? sy : sy + 1;
+                a = new Date(my, m, 1); b = new Date(my, m + 1, 0); pre = bs ? 'As of ' : 'For the Month Ended ';
+            }
+            return { periodLabel: pre + fmt(b), startDateStr: ds(a), endDateStr: ds(b) };
+        }
+        function refreshFyUI() {
+            const comp = activeCompany(); if (!comp) return;
+            const s = comp.fyStart || 1, MS = FY_MN.map(n => n.slice(0, 3));
+            [...document.getElementById('rptQuarter').options].forEach((o, q) => {
+                const a = (s - 1 + q * 3) % 12, b = (a + 2) % 12;
+                o.textContent = `Q${q + 1} (${MS[a]} - ${MS[b]})`;
+            });
+            const lab = document.getElementById('rptFiscalYear').previousElementSibling;
+            if (lab) lab.textContent = s === 1 ? 'Fiscal Year *' : 'Fiscal Year * (the year it ends)';
+        }
+        function updateFyHint() {
+            const sel = document.getElementById('setCompFyStart'), h = document.getElementById('setCompFyHint'); if (!sel || !h) return;
+            const s = parseInt(sel.value) || 1, e = (s + 10) % 12;
+            h.textContent = s === 1 ? 'Calendar year: January 1 to December 31.' : `Fiscal year runs ${FY_MN[s - 1]} 1 to ${FY_MN[e]} ${new Date(2001, e + 1, 0).getDate()}, and is named after the year it ends.`;
+        }
+
         function normalizeAccount(a) {
             const validSub = ['Current Asset','Non-Current Asset','Current Liability','Non-Current Liability','Equity','Operating Revenue','Operating Expense'];
             const out = {
@@ -3333,6 +3346,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 contact: String(d.contact || ''), address: String(d.address || ''), passwordHash: /^[0-9a-f]{64}$/.test(d.passwordHash || '') ? d.passwordHash : null,
                 logo: typeof d.logo === 'string' && d.logo.startsWith('data:image/') ? d.logo : null,
                 openingDate: DATE.test(d.openingDate || '') ? d.openingDate : undefined,
+                fyStart: Number.isInteger(+d.fyStart) && +d.fyStart >= 1 && +d.fyStart <= 12 ? +d.fyStart : 1,
                 coaSetupDone: d.coaSetupDone !== false, installedExtensions: (d.installedExtensions || []).map(String),
                 chartOfAccounts: d.chartOfAccounts.map(normalizeAccount), journalEntries: [], reportsHistory: []
             };
@@ -3758,7 +3772,7 @@ function replay(docs){
  });
  return{st,po,led,sales,res,err};
 }
-function post(d){
+function post(d,batch){
  const c=C(),X=I(),R=replay(X.docs.concat([d]));if(R.err)return toast(R.err),false;
  ACC.forEach(a=>{if(!c.chartOfAccounts.some(x=>x.code===a.code))c.chartOfAccounts.push({...a})});c.chartOfAccounts.sort((a,b)=>a.code-b.code);
  const role=t=>(c.chartOfAccounts.find(a=>a.roleTag===t)||{}).code;
@@ -3772,7 +3786,7 @@ function post(d){
  X.docs.push(d);const m=/^[A-Z]+/.exec(d.id)[0];X.seq[m]=+d.id.split('-')[1];
  ls=ls.filter(l=>l.debit||l.credit);
  if(ls.length)c.journalEntries.push({id:'entry_inv_'+d.id,date:d.date,ref:d.id,desc,lines:ls,fileAttachment:null,src:'inv',docId:d.id});
- saveToLocalStorage();renderInv();calculateDashboardMetrics();return true;
+ if(!batch){saveToLocalStorage();renderInv();calculateDashboardMetrics()}return true;
 }
 function cancel(id){
  const c=C(),X=I(),docs=X.docs.filter(d=>d.id!==id),R=replay(docs);
@@ -3811,7 +3825,7 @@ function delItem(k){const X=I();if(X.docs.some(d=>d.lines.some(l=>l.sku===k)))re
 
 let view='items';
 const T=(h,r,f)=>'<div style="overflow-x:auto"><table><thead><tr>'+h.map(x=>x[0]==='#'?'<th class="number">'+x.slice(1)+'</th>':'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(r.length?r.map(a=>'<tr>'+a.map((x,i)=>'<td'+(h[i][0]==='#'?' class="number"':'')+'>'+x+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" style="text-align:center;color:var(--text-muted)">Nothing here yet.</td></tr>')+'</tbody>'+(f?'<tfoot><tr style="font-weight:700">'+f.map((x,i)=>'<td'+(h[i][0]==='#'?' class="number"':'')+'>'+x+'</td>').join('')+'</tr></tfoot>':'')+'</table></div>';
-const bar=b=>'<div class="inv-bar">'+b.map(x=>'<button class="btn btn-sm" onclick="INV.open(\''+x+'\')">+ '+TITLES[x]+'</button>').join('')+'</div>';
+const bar=b=>'<div class="inv-bar">'+b.map(x=>'<button class="btn btn-sm" onclick="INV.open(\''+x+'\')">+ '+TITLES[x]+'</button>').join('')+'<button class="btn btn-outline btn-sm" onclick="INV.imp()">Import / template</button></div>';
 function docTable(types,R){const X=I();
  return T(['Date','Document','Party','Detail','#Amount',''],X.docs.filter(d=>types.includes(d.type)).slice().reverse().map(d=>{const r=R.res[d.id],p=R.po[d.id];
   const amt=d.type==='PO'?d.lines.reduce((t,l)=>t+Math.round(l.qty*l.amt*100),0):(d.type==='PINV'||d.type==='SALE')?r.b:r.v;
@@ -3820,12 +3834,12 @@ function docTable(types,R){const X=I();
   return[esc(d.date),'<strong>'+d.id+'</strong>',esc(d.party),esc(det),fm(amt),'<button class="btn btn-outline btn-sm" onclick="INV.cancel(\''+d.id+'\')">Cancel</button>']}))}
 function renderInv(){const c=C();if(!c||!on()||!$('invBody'))return;const X=I(),R=replay(X.docs),b=$('invBody');
  ['items','buy','sell','adj','rep'].forEach(v=>$('invNav-'+v).classList.toggle('active',v===view));
- if(view==='items'){let tv=0;b.innerHTML='<form class="inv-bar" style="align-items:flex-end" onsubmit="INV.addItem(event)"><div class="form-group"><label>SKU *</label><input id="iSku" required style="width:100px"></div><div class="form-group"><label>Item name *</label><input id="iName" required></div><div class="form-group"><label>Unit</label><input id="iUom" value="pc" style="width:64px"></div><div class="form-group"><label>Reorder level</label><input id="iRl" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Reorder qty</label><input id="iRq" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Selling price</label><input id="iPr" type="number" min="0" step="0.01" style="width:100px"></div><button class="btn">Add item</button></form>'+
+ if(view==='items'){let tv=0;b.innerHTML='<form class="inv-bar" style="align-items:flex-end" onsubmit="INV.addItem(event)"><div class="form-group"><label>SKU *</label><input id="iSku" required style="width:100px"></div><div class="form-group"><label>Item name *</label><input id="iName" required></div><div class="form-group"><label>Unit</label><input id="iUom" value="pc" style="width:64px"></div><div class="form-group"><label>Reorder level</label><input id="iRl" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Reorder qty</label><input id="iRq" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Selling price</label><input id="iPr" type="number" min="0" step="0.01" style="width:100px"></div><button class="btn">Add item</button><button type="button" class="btn btn-outline" onclick="INV.imp()">Import / template</button></form>'+
   T(['SKU','Item','#On hand','#Avg cost','#Stock value','#Selling price','Status',''],X.items.map(i=>{const s=R.st[i.sku]||{q:0,v:0};tv+=s.v;return[esc(i.sku),esc(i.name),nf(s.q)+' '+esc(i.uom),s.q?fm(s.v/s.q):'-',fm(s.v),fm(i.price*100),i.rl>0&&s.q<=i.rl?'<span class="badge badge-contra">Reorder</span>':'<span class="badge badge-vat">OK</span>','<button class="btn btn-outline btn-sm" onclick="INV.del(\''+esc(i.sku)+'\')">Delete</button>']}),['','Total','','',fm(tv),'','',''])}
  if(view==='buy')b.innerHTML=bar(['PO','GRN','PINV'])+'<p class="inv-note">Order → receive → invoice. Receipts cannot exceed the order, and invoices cannot exceed receipts. Pay suppliers with a normal journal entry (Dr Accounts Payable).</p>'+docTable(['PO','GRN','PINV'],R);
  if(view==='sell')b.innerHTML=bar(['SALE'])+'<p class="inv-note">Each sale records revenue and issues stock at moving average cost to COGS. Stock cannot go negative.</p>'+docTable(['SALE'],R);
  if(view==='adj')b.innerHTML=bar(['ADJ'])+'<p class="inv-note">Enter the counted quantity. The difference from system stock is posted to Inventory Adjustments at average cost.</p>'+docTable(['ADJ'],R);
- if(view==='rep'){const y=new Date().getFullYear();b.innerHTML='<div class="filter-bar"><label>Report</label><select id="rK" onchange="INV.rep()"><option value="bal">Stock balance</option><option value="led">Stock ledger</option><option value="val">Stock vs general ledger</option><option value="po">Purchase order status</option><option value="sales">Sales and margin by item</option><option value="ro">Reorder report</option></select><label>Item</label><select id="rS" onchange="INV.rep()"><option value="">All</option>'+X.items.map(i=>'<option>'+esc(i.sku)+'</option>').join('')+'</select><label>From</label><input type="date" id="rF" value="'+y+'-01-01" onchange="INV.rep()"><label>To</label><input type="date" id="rT" value="'+localDateStr(new Date())+'" onchange="INV.rep()"><button class="btn btn-sm" style="margin-left:auto" onclick="window.print()">Print</button></div><div id="rOut"></div>';rep()}}
+ if(view==='rep'){const y=new Date().getFullYear();b.innerHTML='<div class="filter-bar"><label>Report</label><select id="rK" onchange="INV.rep()"><option value="bal">Stock balance</option><option value="led">Stock ledger</option><option value="val">Stock vs general ledger</option><option value="po">Purchase order status</option><option value="sales">Sales and margin by item</option><option value="ro">Reorder report</option></select><label>Item</label><select id="rS" onchange="INV.rep()"><option value="">All</option>'+X.items.map(i=>'<option>'+esc(i.sku)+'</option>').join('')+'</select><label>From</label><input type="date" id="rF" value="'+fyStartStr(c,new Date())+'" onchange="INV.rep()"><label>To</label><input type="date" id="rT" value="'+localDateStr(new Date())+'" onchange="INV.rep()"><button class="btn btn-sm" style="margin-left:auto" onclick="window.print()">Print</button></div><div id="rOut"></div>';rep()}}
 function rep(){const c=C(),X=I(),R=replay(X.docs),k=$('rK').value,f=$('rF').value||'0000',t=$('rT').value||'9999',sk=$('rS').value,it=X.items;let h='',ti={bal:'Stock Balance',led:'Stock Ledger',val:'Stock vs General Ledger',po:'Purchase Order Status',sales:'Sales and Margin by Item',ro:'Reorder Report'}[k];
  const nm=s=>{const x=it.find(i=>i.sku===s);return x?esc(x.name):''},st=s=>R.st[s]||{q:0,v:0};
  if(k==='bal'){let tv=0;h=T(['SKU','Item','#Quantity','#Avg cost','#Value'],it.filter(i=>!sk||i.sku===sk).map(i=>{const s=st(i.sku);tv+=s.v;return[esc(i.sku),esc(i.name),nf(s.q),s.q?fm(s.v/s.q):'-',fm(s.v)]}),['Total','','','',fm(tv)])}
@@ -3840,12 +3854,117 @@ function rep(){const c=C(),X=I(),R=replay(X.docs),k=$('rK').value,f=$('rF').valu
 
 // Dashboard KPIs
 function invDash(){const box=$('widget-section-inventory');if(!box)return;const show=on();box.classList.toggle('hidden',!show);if(!show)return;
- const X=I(),R=replay(X.docs),now=new Date(),ms=localDateStr(now).slice(0,7),ys=now.getFullYear()+'-01-01';let val=0;Object.values(R.st).forEach(s=>val+=s.v);
+ const X=I(),R=replay(X.docs),now=new Date(),ms=localDateStr(now).slice(0,7),ys=fyStartStr(C(),now);let val=0;Object.values(R.st).forEach(s=>val+=s.v);
  const mo=R.sales.filter(s=>s.d.startsWith(ms)),rev=mo.reduce((a,s)=>a+s.rev,0),cg=mo.reduce((a,s)=>a+s.cogs,0),yc=R.sales.filter(s=>s.d>=ys).reduce((a,s)=>a+s.cogs,0);
- const day=Math.max(1,Math.ceil((now-new Date(now.getFullYear(),0,1))/864e5)),turn=val?yc*(365/day)/val:0,low=X.items.filter(i=>i.rl>0&&(R.st[i.sku]?R.st[i.sku].q:0)<=i.rl).length;
+ const day=Math.max(1,Math.ceil((now-new Date(ys+'T00:00'))/864e5)),turn=val?yc*(365/day)/val:0,low=X.items.filter(i=>i.rl>0&&(R.st[i.sku]?R.st[i.sku].q:0)<=i.rl).length;
  let g=0,op=0;Object.values(R.po).forEach(p=>{if(Object.keys(p.ord).some(k=>(p.rec[k]||0)<p.ord[k]))op++;Object.keys(p.ord).forEach(k=>g+=Math.round(((p.rec[k]||0)-(p.bil[k]||0))*p.cost[k]*100))});
  const K=(t,v,s)=>'<div class="metric-card"><h4>'+t+'</h4><div class="value">'+v+'</div><div class="sub-text">'+s+'</div></div>';
- $('invKpis').innerHTML=K('Inventory value',fm(val),X.items.length+' items in stock ledger')+K('Gross margin (month)',rev?((rev-cg)/rev*100).toFixed(1)+'%':'n/a',rev?fm(rev-cg)+' on '+fm(rev)+' sales':'No sales this month')+K('Inventory turnover',turn?turn.toFixed(2)+'×':'n/a',turn?'Days on hand: '+Math.round(365/turn):'COGS this year ÷ inventory, annualised')+K('Items to reorder',low,'At or below reorder level')+K('Open purchase orders',op,'Waiting for goods')+K('Received, not invoiced',fm(g),'GR/IR clearing')}
+ $('invKpis').innerHTML=K('Inventory value',fm(val),X.items.length+' items in stock ledger')+K('Gross margin (month)',rev?((rev-cg)/rev*100).toFixed(1)+'%':'n/a',rev?fm(rev-cg)+' on '+fm(rev)+' sales':'No sales this month')+K('Inventory turnover',turn?turn.toFixed(2)+'×':'n/a',turn?'Days on hand: '+Math.round(365/turn):'COGS this fiscal year ÷ inventory, annualised')+K('Items to reorder',low,'At or below reorder level')+K('Open purchase orders',op,'Waiting for goods')+K('Received, not invoiced',fm(g),'GR/IR clearing')}
+
+// ---- Import from CSV (items, opening stock, purchase orders, sales) ----
+const NRM=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
+const IMP={
+ items:{label:'Items (product list)',note:'One row per item. SKU and item name are required. Existing SKUs are skipped unless you tick the box below.',
+  cols:[['SKU','sku',1],['Item name','name',1,'item','description'],['Unit','uom',0,'uom','unitofmeasure'],['Reorder level','rl',0],['Reorder qty','rq',0,'reorderquantity'],['Selling price','price',0,'price','unitprice']],
+  ex:[['EXAMPLE-1','Sample item','pc','10','50','150.00'],['EXAMPLE-2','Another sample','box','5','20','320.00']]},
+ open:{label:'Opening stock (quantities on hand)',note:'Items must already exist. Each date is posted as one stock count: Dr Merchandise Inventory, Cr Inventory Adjustments. Heads-up: that credit lowers expenses, so if your inventory is already in your opening balances, importing it here would count it twice. Check the "Stock vs general ledger" report afterwards.',
+  cols:[['Date','date',1],['SKU','sku',1],['Counted quantity','qty',1,'quantity','qty'],['Unit cost','cost',0,'cost']],
+  ex:[['2026-01-01','EXAMPLE-1','25','90.00'],['2026-01-01','EXAMPLE-2','10','210.00']]},
+ po:{label:'Purchase orders',note:'Rows with the same Reference become one purchase order (without a Reference, rows with the same date and supplier are grouped). Items must already exist.',
+  cols:[['Reference','ref',0],['Date','date',1],['Supplier','party',1,'vendor'],['SKU','sku',1],['Quantity','qty',1,'qty'],['Unit cost','cost',1,'cost']],
+  ex:[['PO-A','2026-01-05','Sample Supplier','EXAMPLE-1','100','90.00'],['PO-A','2026-01-05','Sample Supplier','EXAMPLE-2','40','210.00']]},
+ sale:{label:'Sales',note:'Rows with the same Reference become one sale (without a Reference, each row is its own sale). Leave Unit price empty to use the item selling price. Payment: cash or credit (on account). Stock must be on hand on the sale date.',
+  cols:[['Reference','ref',0],['Date','date',1],['Customer','party',0,'customername'],['Payment (cash or credit)','pay',0,'payment'],['SKU','sku',1],['Quantity','qty',1,'qty'],['Unit price','price',0,'price']],
+  ex:[['S-1','2026-01-10','Walk-in','cash','EXAMPLE-1','2','150.00'],['S-1','2026-01-10','Walk-in','cash','EXAMPLE-2','1','320.00']]}
+};
+let IM=null;
+function csvParse(t){t=String(t).replace(/^\uFEFF/,'');const first=t.split(/\r?\n/)[0]||'',dl=[',',';','\t'].map(d=>[d,first.split(d).length]).sort((a,b)=>b[1]-a[1])[0][0];
+ const rows=[];let r=[],c='',q=false;
+ for(let i=0;i<t.length;i++){const ch=t[i];
+  if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}
+  else if(ch==='"')q=true;
+  else if(ch===dl){r.push(c);c=''}
+  else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;r.push(c);rows.push(r);r=[];c=''}
+  else c+=ch}
+ if(c!==''||r.length){r.push(c);rows.push(r)}
+ return rows.filter(r=>r.some(x=>String(x).trim()!==''))}
+function pDate(v){v=String(v||'').trim();let m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v),y,mo,d;
+ if(m){y=+m[1];mo=+m[2];d=+m[3]}
+ else if(m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v)){const a=+m[1],b=+m[2];y=+m[3];if(a>12){d=a;mo=b}else{mo=a;d=b}}
+ else return null;
+ const dt=new Date(y,mo-1,d);if(dt.getFullYear()!==y||dt.getMonth()!==mo-1||dt.getDate()!==d)return null;
+ return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
+const pNum=v=>{const s=String(v==null?'':v).replace(/[₱$,\s]/g,'');return s===''?null:(/^-?\d*\.?\d+$/.test(s)?parseFloat(s):NaN)};
+function impBuild(type,rows){
+ const X=I(),sp=IMP[type],e=[],w=[],R={type,docs:[],items:[],upd:[],n:0};
+ if(rows.length<2)return{err:['The file has no data rows.']};
+ const hd=rows[0].map(NRM),ix={},miss=[];
+ sp.cols.forEach(c=>{const names=[NRM(c[0])].concat(c.slice(3).map(NRM)),i=hd.findIndex(h=>names.includes(h));if(i<0&&c[2])miss.push(c[0]);ix[c[1]]=i});
+ if(miss.length)return{err:['Missing column(s): '+miss.join(', ')+'. Please use the headings from the downloaded template.']};
+ const out=[];
+ rows.slice(1).forEach((r,n)=>{const o={_n:n+2};sp.cols.forEach(c=>o[c[1]]=ix[c[1]]<0?'':String(r[ix[c[1]]]==null?'':r[ix[c[1]]]).trim());if(/^EXAMPLE-\d+$/i.test(o.sku))return;out.push(o)});
+ if(!out.length)return{err:['No data rows found. Rows with SKU EXAMPLE-1, EXAMPLE-2 are the template samples and are ignored.']};
+ R.n=out.length;
+ const skus=new Set(X.items.map(i=>i.sku)),bad=(o,m)=>{e.push('Row '+o._n+': '+m)};
+ const okSku=o=>{o.sku=o.sku.toUpperCase();if(!o.sku){bad(o,'SKU is empty.');return false}if(!/^[A-Z0-9_-]+$/.test(o.sku)){bad(o,'SKU "'+o.sku+'" may use letters, numbers, - and _ only.');return false}return true};
+ if(type==='items'){const seen=new Set(),upd=$('imU')&&$('imU').checked;
+  out.forEach(o=>{if(!okSku(o))return;if(!o.name)return bad(o,'Item name is empty.');if(seen.has(o.sku))return bad(o,'SKU '+o.sku+' appears more than once in the file.');seen.add(o.sku);
+   const n={};for(const [k,l] of [['rl','Reorder level'],['rq','Reorder qty'],['price','Selling price']]){const v=o[k]===''?0:pNum(o[k]);if(!(v>=0))return bad(o,l+' must be a number, 0 or more.');n[k]=v}
+   const it={sku:o.sku,name:o.name,uom:o.uom||'pc',rl:n.rl,rq:n.rq,price:n.price};
+   if(skus.has(o.sku)){if(upd)R.upd.push(it);else w.push('Row '+o._n+': '+o.sku+' already exists, skipped.')}else R.items.push(it)})}
+ else if(type==='open'){const g={},seen=new Set();
+  out.forEach(o=>{if(!okSku(o))return;const d=pDate(o.date);if(!d)return bad(o,'Date "'+o.date+'" is not valid. Use YYYY-MM-DD.');if(!skus.has(o.sku))return bad(o,'SKU '+o.sku+' is not in your items. Import or add the items first.');
+   const q=pNum(o.qty),c=o.cost===''?0:pNum(o.cost);if(!(q>=0))return bad(o,'Quantity must be a number, 0 or more.');if(!(c>=0))return bad(o,'Unit cost must be a number, 0 or more.');
+   if(q>0&&c===0)w.push('Row '+o._n+': '+o.sku+' has quantity but no unit cost, so it will be valued at 0.');
+   const key=d+'|'+o.sku;if(seen.has(key))return bad(o,o.sku+' appears twice for '+d+'.');seen.add(key);(g[d]=g[d]||[]).push({sku:o.sku,qty:q,amt:c})});
+  Object.keys(g).sort().forEach(d=>R.docs.push({type:'ADJ',date:d,party:'Opening stock (import)',po:'',pay:'',lines:g[d]}))}
+ else{const po=type==='po',G=new Map();
+  out.forEach(o=>{if(!okSku(o))return;const d=pDate(o.date);if(!d)return bad(o,'Date "'+o.date+'" is not valid. Use YYYY-MM-DD.');if(!skus.has(o.sku))return bad(o,'SKU '+o.sku+' is not in your items. Import or add the items first.');
+   if(po&&!o.party)return bad(o,'Supplier is empty.');const q=pNum(o.qty);if(!(q>0))return bad(o,'Quantity must be a number above 0.');
+   let a;if(po){a=pNum(o.cost);if(!(a>=0))return bad(o,'Unit cost is required and must be 0 or more.')}else{a=o.price===''?(X.items.find(i=>i.sku===o.sku)||{}).price:pNum(o.price);if(!(a>=0))return bad(o,'Unit price must be a number, 0 or more.')}
+   const key=o.ref?'R|'+o.ref:(po?'P|'+d+'|'+o.party.toLowerCase():'N|'+o._n);let gr=G.get(key);
+   if(!gr){gr={type:po?'PO':'SALE',date:d,party:o.party,po:'',pay:po?'':(/credit|account|ar\b/i.test(o.pay)?'credit':'cash'),lines:[]};G.set(key,gr)}
+   else if(gr.date!==d)return bad(o,'Reference "'+o.ref+'" has different dates. Use one date per reference.');
+   if(po&&gr.lines.some(l=>l.sku===o.sku))return bad(o,o.sku+' is listed twice on the same purchase order. Combine them into one row.');
+   gr.lines.push({sku:o.sku,qty:q,amt:a})});
+  R.docs=[...G.values()]}
+ if(!e.length&&R.docs.length){
+  const recv=type==='po'&&$('imR')&&$('imR').checked;
+  const docs=R.docs.map((d,i)=>({d,i})).sort((a,b)=>a.d.date<b.d.date?-1:a.d.date>b.d.date?1:a.i-b.i).map(x=>x.d);
+  const seq=Object.assign({},X.seq),nid=ty=>{const p=PFX[ty];seq[p]=(seq[p]||0)+1;return p+'-'+String(seq[p]).padStart(4,'0')},fin=[];
+  docs.forEach(d=>{d.id=nid(d.type);fin.push(d);if(recv&&d.type==='PO')fin.push({id:nid('GRN'),type:'GRN',date:d.date,party:'',po:d.id,pay:'',lines:d.lines.map(l=>({sku:l.sku,qty:l.qty,amt:l.amt}))})});
+  const S=replay(X.docs.concat(fin));if(S.err)e.push(S.err);R.docs=fin}
+ R.err=e;R.warn=w;return R}
+function impShow(){const o=$('imOut'),go=$('imGo');if(!IM){o.innerHTML='';go.disabled=true;return}
+ let h='';
+ if(IM.err&&IM.err.length){h+='<div class="inv-note" style="color:var(--ember)"><strong>Nothing was imported. Fix these first:</strong><ul style="margin:.4rem 0 0 1.1rem">'+IM.err.slice(0,15).map(x=>'<li>'+esc(x)+'</li>').join('')+(IM.err.length>15?'<li>…and '+(IM.err.length-15)+' more</li>':'')+'</ul></div>'}
+ else{const n=IM.type==='items'?IM.items.length+IM.upd.length:IM.docs.length;
+  h+='<p><strong>Ready to import:</strong> '+(IM.type==='items'?IM.items.length+' new item(s)'+(IM.upd.length?', '+IM.upd.length+' to update':''):IM.docs.length+' document(s) from '+IM.n+' row(s)')+'</p>';
+  if(IM.type==='items')h+=T(['SKU','Item','Unit','#Selling price'],IM.items.concat(IM.upd).slice(0,8).map(i=>[esc(i.sku),esc(i.name),esc(i.uom),nf(i.price)]));
+  else h+=T(['Document','Date','Party','#Lines'],IM.docs.slice(0,8).map(d=>['<strong>'+d.id+'</strong> '+TITLES[d.type],esc(d.date),esc(d.party),d.lines.length]));
+  if(n>8)h+='<p class="inv-note">Showing the first 8.</p>';
+  go.disabled=n===0}
+ if(IM.warn&&IM.warn.length)h+='<div class="inv-note"><strong>Notes:</strong><ul style="margin:.4rem 0 0 1.1rem">'+IM.warn.slice(0,8).map(x=>'<li>'+esc(x)+'</li>').join('')+(IM.warn.length>8?'<li>…and '+(IM.warn.length-8)+' more</li>':'')+'</ul></div>';
+ if(IM.err&&IM.err.length)go.disabled=true;o.innerHTML=h}
+function impT(){const t=$('imT').value,sp=IMP[t];IM=null;$('imF').value='';$('imNote').textContent=sp.note;
+ $('imOpt').innerHTML=t==='items'?'<label><input type="checkbox" id="imU" onchange="INV.impF()"> Update items that already exist</label>':t==='po'?'<label><input type="checkbox" id="imR" onchange="INV.impF()"> Also post the goods receipt (stock arrives on the PO date)</label>':'';
+ impShow()}
+function impF(){const f=$('imF').files[0];if(!f){IM=null;return impShow()}
+ if(f.size>5*1024*1024){IM={err:['File is larger than 5 MB.'],warn:[]};return impShow()}
+ const r=new FileReader();r.onerror=()=>{IM={err:['Could not read the file.'],warn:[]};impShow()};
+ r.onload=()=>{try{IM=impBuild($('imT').value,csvParse(r.result))}catch(er){IM={err:['Could not read this file as CSV: '+er.message],warn:[]}}impShow()};r.readAsText(f)}
+function impGo(){if(!IM||(IM.err&&IM.err.length))return;const X=I(),R=IM;let done=0;
+ if(R.type==='items'){R.items.forEach(i=>X.items.push(i));R.upd.forEach(u=>Object.assign(X.items.find(i=>i.sku===u.sku),u));done=R.items.length+R.upd.length}
+ else{for(const d of R.docs){if(!post(d,true)){if(done)toast('Import stopped at '+d.id+'. '+done+' document(s) before it were posted. Fix the file and import the rest.');break}done++}}
+ saveToLocalStorage();renderInv();calculateDashboardMetrics();
+ const m=document.querySelector('#imGo');if(m)m.closest('.modal-overlay').remove();IM=null;
+ if(done)toast('Imported '+done+(R.type==='items'?' item(s).':' document(s).'))}
+function impTpl(){const t=$('imT').value,sp=IMP[t],q=v=>/[",\r\n;]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v,
+ txt='\uFEFF'+[sp.cols.map(c=>c[0])].concat(sp.ex).map(r=>r.map(q).join(',')).join('\r\n')+'\r\n',a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download='inventory-import-'+t+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
+function openImp(){const pre={items:'items',buy:'po',sell:'sale',adj:'open'}[view]||'items',m=document.createElement('div');m.className='modal-overlay';
+ m.innerHTML='<div class="modal" style="max-width:820px"><h2>Import inventory data</h2><div class="grid-2"><div class="form-group"><label>What are you importing?</label><select id="imT" onchange="INV.impT()">'+Object.keys(IMP).map(k=>'<option value="'+k+'"'+(k===pre?' selected':'')+'>'+IMP[k].label+'</option>').join('')+'</select></div><div class="form-group"><label>CSV file</label><input type="file" id="imF" accept=".csv,text/csv" onchange="INV.impF()"></div></div><p class="inv-note" id="imNote"></p><div class="inv-bar" style="align-items:center"><button type="button" class="btn btn-outline btn-sm" onclick="INV.impTpl()">Download template</button><span id="imOpt"></span></div><p class="inv-note">Fill in the template in Excel or Google Sheets, save it as CSV, then choose it above. Dates work as YYYY-MM-DD or MM/DD/YYYY. Delete the EXAMPLE rows (or leave them, they are ignored). Nothing is imported if any row has a problem.</p><div id="imOut"></div><div style="text-align:right;margin-top:1rem"><button type="button" class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancel</button> <button type="button" class="btn" id="imGo" disabled onclick="INV.impGo()">Import</button></div></div>';
+ document.body.appendChild(m);impT()}
 
 // Wiring
 document.body.querySelector(':scope>svg').insertAdjacentHTML('beforeend','<symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></symbol>');
@@ -3860,7 +3979,7 @@ w('switchCompany',navVis);w('installExtensionPack',navVis);w('calculateDashboard
 w('showTab',()=>{const a=document.querySelector('.tab-section.active');if(a&&a.id==='tab-inventory'){if(!on())return showTab('home');li.classList.add('active');renderInv()}});
 ['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);if(e&&e.src==='inv')return toast('This entry came from the Inventory module ('+e.ref+'). Cancel the document in Inventory instead.');return o.apply(this,arguments)}});
 const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.inv&&Array.isArray(d.inv.items)&&Array.isArray(d.inv.docs))o.inv=JSON.parse(JSON.stringify(d.inv));o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='inv'){e.src='inv';e.docId=String(x.docId||'')}});return o};
-window.INV={go:v=>{view=v;renderInv()},open:openDoc,fill,addRow,submit,addItem,del:delItem,cancel,rep};
+window.INV={go:v=>{view=v;renderInv()},open:openDoc,fill,addRow,submit,addItem,del:delItem,cancel,rep,imp:openImp,impT,impF,impGo,impTpl};
 })();
 
 // ===== Tasks module + Dashboard calendar (PH holidays) =====
@@ -3908,16 +4027,32 @@ function renderTasks(){if(!C()||!$('tkSide'))return;const T=tk();if(cur!=='star'
 const find=id=>tk().tasks.find(x=>x.id===id);
 
 // ---- Calendar ----
-function renderCal(){const box=$('calBody');if(!box||!C())return;const T=tk(),y=cal.y,m=cal.m,start=new Date(y,m,1-new Date(y,m,1).getDay()),today=td();let g='';
- ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d=>g+='<div class="cal-h">'+d+'</div>');
+const CPK='accapp_cal_prefs',MON=['January','February','March','April','May','June','July','August','September','October','November','December'],DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let pref={ws:0,h:1,e:1,t:1,view:'month'};try{Object.assign(pref,JSON.parse(localStorage.getItem(CPK)||'{}'))}catch(e){}
+const sp=()=>{try{localStorage.setItem(CPK,JSON.stringify(pref))}catch(e){}};
+const selFor=(y,m)=>{const pre=y+'-'+pad(m+1),t=td();return t.slice(0,7)===pre?t:pre+'-01'};
+function renderCal(){const box=$('calBody');if(!box||!C())return;const T=tk(),y=cal.y,m=cal.m,today=td(),ws=+pref.ws||0,yv=pref.view==='year',now=new Date(),cy=now.getFullYear(),cm=now.getMonth();
+ const hoOf=k=>pref.h?holOf(k):[],evOf=k=>pref.e?T.events.filter(e=>e.date===k):[],tsOf=k=>pref.t?T.tasks.filter(x=>x.due===k):[];
+ const wasOpen=box.querySelector('.cal-opt')&&box.querySelector('.cal-opt').open;
+ const yrs=[];for(let i=Math.min(y,cy)-10;i<=Math.max(y,cy)+15;i++)yrs.push(i);
+ const bar='<div class="cal-bar"><button class="btn btn-outline btn-sm" onclick="TK.nav(-1)" aria-label="Previous">‹</button>'+(yv?'':'<select id="calM" aria-label="Month" onchange="TK.jump()">'+MON.map((n,i)=>'<option value="'+i+'"'+(i===m?' selected':'')+'>'+n+'</option>').join('')+'</select>')+'<select id="calY" aria-label="Year" onchange="TK.jump()">'+yrs.map(v=>'<option'+(v===y?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn btn-outline btn-sm" onclick="TK.nav(1)" aria-label="Next">›</button><button class="btn btn-outline btn-sm" onclick="TK.today()">Today</button></div>';
+ const ck=(k,l)=>'<label><input type="checkbox"'+(pref[k]?' checked':'')+' onchange="TK.opt(\''+k+'\',this.checked?1:0)"> '+l+'</label>';
+ const tools='<div class="cal-tools"><div class="cal-seg"><button class="'+(yv?'':'on')+'" onclick="TK.view(\'month\')">Month</button><button class="'+(yv?'on':'')+'" onclick="TK.view(\'year\')">Year</button></div><details class="cal-opt"'+(wasOpen?' open':'')+'><summary>Options</summary><label>Week starts on <select onchange="TK.opt(\'ws\',+this.value)"><option value="0"'+(ws===0?' selected':'')+'>Sunday</option><option value="1"'+(ws===1?' selected':'')+'>Monday</option></select></label>'+ck('h','Show holidays')+ck('e','Show events')+ck('t','Show tasks due')+'</details></div>';
+ if(yv){let g='';for(let i=0;i<12;i++){const pre=y+'-'+pad(i+1)+'-',ld=new Date(y,i+1,0).getDate();let hc=0,ec=0,tc=0;for(let d=1;d<=ld;d++){const k=pre+pad(d);hc+=hoOf(k).length;ec+=evOf(k).length;tc+=tsOf(k).length}
+   const bits=[hc?hc+' holiday'+(hc>1?'s':''):'',ec?ec+' event'+(ec>1?'s':''):'',tc?tc+' due':''].filter(Boolean).join(' · ');
+   g+='<button class="cal-mo'+(y===cy&&i===cm?' now':'')+'" onclick="TK.goM('+i+')"><strong>'+MON[i]+'</strong><span>'+(bits||'Nothing scheduled')+'</span></button>'}
+  box.innerHTML=bar+tools+'<div class="cal-yr">'+g+'</div><p class="inv-note">Click a month to open it.</p>';return}
+ const start=new Date(y,m,1-((new Date(y,m,1).getDay()-ws+7)%7));let g='';
+ for(let i=0;i<7;i++)g+='<div class="cal-h">'+DAY[(i+ws)%7]+'</div>';
  for(let i=0;i<42;i++){const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),k=localDateStr(d);
-  const ch=[...holOf(k).map(x=>['h',x.name]),...T.events.filter(e=>e.date===k).map(e=>['e',(e.time?e.time+' ':'')+e.title]),...T.tasks.filter(x=>x.due===k).map(x=>[x.done?'d':'t',x.title])];
+  const ch=[...hoOf(k).map(x=>['h',x.name]),...evOf(k).map(e=>['e',(e.time?e.time+' ':'')+e.title]),...tsOf(k).map(x=>[x.done?'d':'t',x.title])];
   g+='<div class="cal-cell'+(d.getMonth()!==m?' off':'')+(k===today?' today':'')+(k===cal.sel?' sel':'')+'" onclick="TK.pick(\''+k+'\')"><span class="cal-n">'+d.getDate()+'</span>'+ch.slice(0,3).map(c=>'<span class="cal-chip c-'+c[0]+'">'+esc(c[1])+'</span>').join('')+(ch.length>3?'<span class="cal-more">+'+(ch.length-3)+' more</span>':'')+'</div>'}
- const k=cal.sel,hs=holOf(k),ev=T.events.filter(e=>e.date===k),ts=T.tasks.filter(x=>x.due===k);
- box.innerHTML='<div class="cal-bar"><button class="btn btn-outline btn-sm" onclick="TK.nav(-1)" aria-label="Previous month">‹</button><strong class="cal-title">'+new Date(y,m,1).toLocaleDateString('en-US',{month:'long',year:'numeric'})+'</strong><button class="btn btn-outline btn-sm" onclick="TK.nav(1)" aria-label="Next month">›</button><button class="btn btn-outline btn-sm" onclick="TK.today()">Today</button></div><div class="cal-grid">'+g+'</div><div class="cal-legend"><span class="c-h">Holiday</span><span class="c-e">Event</span><span class="c-t">Task due</span></div>'+
+ const k=cal.sel,hs=hoOf(k),ev=evOf(k),ts=tsOf(k);
+ box.innerHTML=bar+tools+'<div class="cal-grid">'+g+'</div><div class="cal-legend"><span class="c-h">Holiday</span><span class="c-e">Event</span><span class="c-t">Task due</span></div>'+
  '<div class="cal-day"><h4>'+fD(k)+'</h4>'+hs.map(x=>'<div class="cal-it c-h"><b>'+esc(x.name)+'</b> · '+x.type+'</div>').join('')+ev.map(e=>'<div class="cal-it c-e"><b>'+(e.time?e.time+' ':'')+esc(e.title)+'</b><button class="btn btn-outline btn-sm" onclick="TK.delEv(\''+e.id+'\')">Remove</button></div>').join('')+ts.map(x=>'<div class="cal-it c-'+(x.done?'d':'t')+'"><label><input type="checkbox"'+(x.done?' checked':'')+' onchange="TK.done(\''+x.id+'\')"> '+esc(x.title)+'</label></div>').join('')+(hs.length+ev.length+ts.length?'':'<p class="inv-note">Nothing scheduled.</p>')+
  '<form class="tk-add" onsubmit="TK.addEv(event)"><input id="evT" placeholder="Add event" required><input id="evTm" type="time"><button class="btn btn-sm">Add event</button></form><form class="tk-add" onsubmit="TK.addDayTask(event)"><input id="dtT" placeholder="Add task due this day" required><button class="btn btn-outline btn-sm">Add task</button></form></div>'+
  '<p class="inv-note">Holidays follow the standard annual list. Eid&#8217;l Fitr, Eid&#8217;l Adha and Chinese New Year are proclaimed each year, so add them as events.</p>'}
+document.head.insertAdjacentHTML('beforeend','<style>.cal-bar{flex-wrap:wrap}.cal-bar select{width:auto;flex:0 1 auto;padding:6px 10px;border-radius:8px}.cal-bar select#calM{min-width:130px}.cal-tools{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:.8rem}.cal-seg{display:inline-flex;border:1px solid var(--border-color);border-radius:9px;overflow:hidden}.cal-seg button{border:0;background:none;padding:6px 14px;cursor:pointer;color:var(--text-main);font:600 .85rem Figtree,sans-serif}.cal-seg button.on{background:var(--accent-primary);color:#fff}.cal-opt{font-size:.85rem}.cal-opt summary{cursor:pointer;font-weight:600;padding:6px 12px;border:1px solid var(--border-color);border-radius:9px;list-style:none;display:inline-block}.cal-opt[open]{padding-bottom:6px}.cal-opt>label{display:flex;align-items:center;gap:8px;margin-top:8px}.cal-opt select{width:auto;padding:4px 8px}.cal-yr{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.cal-mo{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:12px;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card);cursor:pointer;text-align:left;color:var(--text-main);font:inherit}.cal-mo:hover{background:rgba(128,150,190,.1)}.cal-mo.now{outline:2px solid var(--ember)}.cal-mo span{font-size:.78rem;color:var(--text-muted)}</style>');
 
 function readAtt(f){return new Promise((res,rej)=>{
  const big=/^image\/(png|jpe?g|webp)$/.test(f.type)?15:2;
@@ -3948,7 +4083,11 @@ window.TK={
  del:id=>{const T=tk();T.tasks=T.tasks.filter(x=>x.id!==id);openId=null;save()},
  toggleDone:()=>{showDone=!showDone;renderTasks()},
  pick:k=>{cal.sel=k;cal.y=+k.slice(0,4);cal.m=+k.slice(5,7)-1;renderCal()},
- nav:n=>{cal.m+=n;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}renderCal()},
+ nav:n=>{if(pref.view==='year')cal.y+=n;else{cal.m+=n;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}}renderCal()},
+ jump:()=>{const mm=$('calM');if(mm)cal.m=+mm.value;cal.y=+$('calY').value;cal.sel=selFor(cal.y,cal.m);renderCal()},
+ goM:i=>{cal.m=i;pref.view='month';cal.sel=selFor(cal.y,i);sp();renderCal()},
+ view:v=>{pref.view=v;sp();renderCal()},
+ opt:(k,v)=>{pref[k]=v;sp();renderCal()},
  today:()=>{cal.sel=td();cal.y=new Date().getFullYear();cal.m=new Date().getMonth();renderCal()},
  addEv:e=>{e.preventDefault();tk().events.push({id:'e_'+uid(),title:$('evT').value.trim(),date:cal.sel,time:$('evTm').value,notes:''});save()},
  delEv:id=>{const T=tk();T.events=T.events.filter(e=>e.id!==id);save()},
