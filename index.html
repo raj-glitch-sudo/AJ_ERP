@@ -3799,7 +3799,7 @@ function openDoc(ty,pre){
  const X=I(),R=replay(X.docs),it=X.items;if(!it.length)return toast('Add items first (Inventory → Items).');
  const pos=Object.keys(R.po).filter(k=>Object.keys(R.po[k].ord).some(s=>ty==='GRN'?(R.po[k].rec[s]||0)<R.po[k].ord[s]:(R.po[k].rec[s]||0)>(R.po[k].bil[s]||0)));
  if((ty==='GRN'||ty==='PINV')&&!pos.length)return toast(ty==='GRN'?'No purchase orders waiting to be received.':'No received goods waiting to be invoiced.');
- const sups=[...new Set(X.docs.filter(d=>d.type==='PO'||d.type==='SALE').map(d=>d.party).filter(Boolean))];
+ const sups=[...new Set((ty==='PO'?(X.suppliers||[]).filter(s=>s.active!==false).map(s=>s.name).concat(X.docs.filter(d=>d.type==='PO').map(d=>d.party)):X.docs.filter(d=>d.type==='SALE').map(d=>d.party)).filter(Boolean))];
  const party=ty==='PO'?'<div class="form-group"><label>Supplier *</label><input id="dParty" required list="dList"><datalist id="dList">'+sups.map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist></div>':ty==='SALE'?'<div class="form-group"><label>Customer</label><input id="dParty" placeholder="Walk-in" list="dList"><datalist id="dList">'+sups.map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist></div>':ty==='ADJ'?'<div class="form-group"><label>Reason</label><input id="dParty" placeholder="Physical count"></div>':'<div class="form-group"><label>Purchase order *</label><select id="dPo" onchange="INV.fill()">'+pos.map(k=>'<option>'+k+'</option>').join('')+'</select></div>';
  const pay=ty==='SALE'?'<div class="form-group"><label>Payment</label><select id="dPay"><option value="cash">Cash / bank</option><option value="credit">On account (A/R)</option></select></div>':'';
  const m=document.createElement('div');m.className='modal-overlay';
@@ -3901,6 +3901,50 @@ function scanRows(){
   if(fresh){r.querySelector('.rS').value=it.sku;qi.value=1;if(ty==='SALE')r.querySelector('.rA').value=it.price||''}else qi.value=(parseFloat(qi.value)||0)+1;
   log('<div>&#10003; <strong>'+esc(it.name)+'</strong> × '+qi.value+'</div>')}})}
 
+// ---- Suppliers (contact list with fillable details) ----
+const supList=()=>{const X=I();return X.suppliers||(X.suppliers=[])};
+const skey=s=>String(s==null?'':s).trim().toLowerCase();
+let supQ='',supUnl=[];
+function supStats(){const X=I(),R=replay(X.docs),m={};
+ Object.keys(R.po).forEach(id=>{const p=R.po[id],k=skey(p.sup),a=m[k]||(m[k]={n:0,v:0});a.n++;Object.keys(p.ord).forEach(s=>a.v+=Math.round(p.ord[s]*p.cost[s]*100))});return m}
+function supTable(q){const st=supStats(),n=skey(q);
+ const rows=supList().filter(s=>!n||[s.name,s.contact,s.phone,s.email,s.tin,s.terms].some(x=>skey(x).includes(n))).slice().sort((a,b)=>a.name.localeCompare(b.name)).map(s=>{const a=st[skey(s.name)]||{n:0,v:0};
+  return['<strong>'+esc(s.name)+'</strong>'+(s.active===false?' <span class="badge badge-contra">Inactive</span>':''),esc(s.contact),esc(s.phone),s.email?'<a href="mailto:'+esc(s.email)+'">'+esc(s.email)+'</a>':'',esc(s.terms),a.n,fm(a.v),
+   '<button class="btn btn-outline btn-sm" onclick="INV.supEdit(\''+esc(s.id)+'\')">Edit</button> <button class="btn btn-outline btn-sm" onclick="INV.supDel(\''+esc(s.id)+'\')">Delete</button>']});
+ return T(['Supplier','Contact','Phone','Email','Payment terms','#POs','#Ordered',''],rows)}
+function supView(){const X=I(),known=new Set(supList().map(s=>skey(s.name)));
+ supUnl=[...new Set(X.docs.filter(d=>d.type==='PO'&&d.party&&!known.has(skey(d.party))).map(d=>d.party.trim()))].slice(0,12);
+ return '<div class="inv-bar" style="align-items:center"><button class="btn btn-sm" onclick="INV.supEdit()">+ Supplier</button><input type="search" placeholder="Search suppliers" value="'+esc(supQ)+'" oninput="INV.supFind(this.value)" style="max-width:240px"></div>'
+  +'<p class="inv-note">Keep your supplier details here. When you create a purchase order, the supplier name autocompletes from this list.</p>'
+  +(supUnl.length?'<p class="inv-note">Used on purchase orders but not in your list: '+supUnl.map((u,i)=>'<button type="button" class="btn btn-outline btn-sm" onclick="INV.supFrom('+i+')">'+esc(u)+'</button>').join(' ')+'</p>':'')
+  +'<div id="supTbl">'+supTable(supQ)+'</div>'}
+function supFind(v){supQ=v;const t=$('supTbl');if(t)t.innerHTML=supTable(v)}
+function supFrom(i){if(supUnl[i])supEdit(null,supUnl[i])}
+function supEdit(id,pre){const s=id?supList().find(x=>x.id===id):null;if(id&&!s)return;
+ const v=s||{name:pre||'',active:true},f=k=>esc(v[k]||''),g=(l,i,k,x)=>'<div class="form-group"><label>'+l+'</label><input id="'+i+'" maxlength="120" value="'+f(k)+'"'+(x||'')+'></div>';
+ const m=document.createElement('div');m.className='modal-overlay';
+ m.innerHTML='<div class="modal" style="max-width:640px"><h2>'+(s?'Edit supplier':'New supplier')+'</h2><form id="supForm" data-id="'+(s?esc(s.id):'')+'" onsubmit="INV.supSave(event)"><div class="grid-2">'
+  +g('Supplier name *','sName','name',' required')+g('Contact person','sContact','contact')+g('Phone','sPhone','phone',' type="tel"')+g('Email','sEmail','email',' type="email"')+g('Tax ID / TIN','sTin','tin')
+  +'<div class="form-group"><label>Payment terms</label><input id="sTerms" maxlength="60" list="sTermsL" placeholder="e.g. Net 30" value="'+f('terms')+'"><datalist id="sTermsL"><option value="Cash on delivery"><option value="Net 15"><option value="Net 30"><option value="Net 60"></datalist></div></div>'
+  +'<div class="form-group"><label>Address</label><textarea id="sAddr" rows="2" maxlength="300">'+f('address')+'</textarea></div>'
+  +'<div class="form-group"><label>Notes</label><textarea id="sNotes" rows="2" maxlength="500">'+f('notes')+'</textarea></div>'
+  +'<label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem"><input type="checkbox" id="sAct"'+(v.active!==false?' checked':'')+'> Active (suggested when creating purchase orders)</label>'
+  +'<div style="text-align:right"><button type="button" class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancel</button> <button class="btn">Save supplier</button></div></form></div>';
+ document.body.appendChild(m);$('sName').focus()}
+function supSave(e){e.preventDefault();const f=$('supForm'),id=f.dataset.id,L=supList(),name=$('sName').value.trim().replace(/\s+/g,' ');
+ if(!name)return toast('Supplier name is required.');
+ if(L.some(x=>x.id!==id&&skey(x.name)===skey(name)))return toast('A supplier named "'+name+'" already exists.');
+ const t=i=>$(i).value.trim(),d={name,contact:t('sContact'),phone:t('sPhone'),email:t('sEmail'),tin:t('sTin'),terms:t('sTerms'),address:t('sAddr'),notes:t('sNotes'),active:$('sAct').checked};
+ let msg='Supplier saved.';
+ if(id){const s=L.find(x=>x.id===id);if(!s)return;const old=s.name;Object.assign(s,d);
+  if(old!==name){let n=0;I().docs.forEach(x=>{if(x.type==='PO'&&skey(x.party)===skey(old)){x.party=name;n++}});if(n)msg+=' '+n+' purchase order(s) now show the new name.'}}
+ else L.push(Object.assign({id:'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,5)},d));
+ saveToLocalStorage();f.closest('.modal-overlay').remove();renderInv();toast(msg)}
+function supDel(id){const X=I(),s=supList().find(x=>x.id===id);if(!s)return;
+ const n=X.docs.filter(d=>d.type==='PO'&&skey(d.party)===skey(s.name)).length;
+ if(!confirm('Delete supplier "'+s.name+'"?'+(n?'\nIts '+n+' purchase order(s) stay as they are.':'')))return;
+ X.suppliers=supList().filter(x=>x.id!==id);saveToLocalStorage();renderInv()}
+
 let view='items';
 const T=(h,r,f)=>'<div style="overflow-x:auto"><table><thead><tr>'+h.map(x=>x[0]==='#'?'<th class="number">'+x.slice(1)+'</th>':'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(r.length?r.map(a=>'<tr>'+a.map((x,i)=>'<td'+(h[i][0]==='#'?' class="number"':'')+'>'+x+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" style="text-align:center;color:var(--text-muted)">Nothing here yet.</td></tr>')+'</tbody>'+(f?'<tfoot><tr style="font-weight:700">'+f.map((x,i)=>'<td'+(h[i][0]==='#'?' class="number"':'')+'>'+x+'</td>').join('')+'</tr></tfoot>':'')+'</table></div>';
 const bar=b=>'<div class="inv-bar">'+b.map(x=>'<button class="btn btn-sm" onclick="INV.open(\''+x+'\')">+ '+TITLES[x]+'</button>').join('')+'<button class="btn btn-outline btn-sm" onclick="INV.scan()">Scan barcode</button><button class="btn btn-outline btn-sm" onclick="INV.imp()">Import / template</button></div>';
@@ -3911,9 +3955,10 @@ function docTable(types,R){const X=I();
   if(d.type==='SALE')det=(d.pay==='credit'?'On account':'Cash')+' · margin '+fm(r.b-r.v);
   return[esc(d.date),'<strong>'+d.id+'</strong>',esc(d.party),esc(det),fm(amt),'<button class="btn btn-outline btn-sm" onclick="INV.cancel(\''+d.id+'\')">Cancel</button>']}))}
 function renderInv(){const c=C();if(!c||!on()||!$('invBody'))return;const X=I(),R=replay(X.docs),b=$('invBody');
- ['items','buy','sell','adj','rep'].forEach(v=>$('invNav-'+v).classList.toggle('active',v===view));
+ ['items','buy','sup','sell','adj','rep'].forEach(v=>$('invNav-'+v).classList.toggle('active',v===view));
  if(view==='items'){let tv=0;b.innerHTML='<form class="inv-bar" style="align-items:flex-end" onsubmit="INV.addItem(event)"><div class="form-group"><label>SKU *</label><input id="iSku" required style="width:100px"></div><div class="form-group"><label>Item name *</label><input id="iName" required></div><div class="form-group"><label>Unit</label><input id="iUom" value="pc" style="width:64px"></div><div class="form-group"><label>Reorder level</label><input id="iRl" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Reorder qty</label><input id="iRq" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Selling price</label><input id="iPr" type="number" min="0" step="0.01" style="width:100px"></div><div class="form-group"><label>Barcode</label><div style="display:flex;gap:4px"><input id="iBc" autocomplete="off" style="width:150px"><button type="button" class="btn btn-outline btn-sm" onclick="INV.scanInto()">Scan</button></div></div><button class="btn">Add item</button><button type="button" class="btn btn-outline" onclick="INV.scan()">Scan barcode</button><button type="button" class="btn btn-outline" onclick="INV.imp()">Import / template</button></form>'+
   T(['SKU','Item','Barcode','#On hand','#Avg cost','#Stock value','#Selling price','Status',''],X.items.map(i=>{const s=R.st[i.sku]||{q:0,v:0};tv+=s.v;return[esc(i.sku),esc(i.name),esc(i.bc||'-'),nf(s.q)+' '+esc(i.uom),s.q?fm(s.v/s.q):'-',fm(s.v),fm(i.price*100),i.rl>0&&s.q<=i.rl?'<span class="badge badge-contra">Reorder</span>':'<span class="badge badge-vat">OK</span>','<button class="btn btn-outline btn-sm" onclick="INV.setBc(\''+esc(i.sku)+'\')">'+(i.bc?'Change':'Add')+' barcode</button> <button class="btn btn-outline btn-sm" onclick="INV.del(\''+esc(i.sku)+'\')">Delete</button>']}),['','Total','','','',fm(tv),'','',''])}
+ if(view==='sup')b.innerHTML=supView();
  if(view==='buy')b.innerHTML=bar(['PO','GRN','PINV'])+'<p class="inv-note">Order → receive → invoice. Receipts cannot exceed the order, and invoices cannot exceed receipts. Pay suppliers with a normal journal entry (Dr Accounts Payable).</p>'+docTable(['PO','GRN','PINV'],R);
  if(view==='sell')b.innerHTML=bar(['SALE'])+'<p class="inv-note">Each sale records revenue and issues stock at moving average cost to COGS. Stock cannot go negative.</p>'+docTable(['SALE'],R);
  if(view==='adj')b.innerHTML=bar(['ADJ'])+'<p class="inv-note">Enter the counted quantity. The difference from system stock is posted to Inventory Adjustments at average cost.</p>'+docTable(['ADJ'],R);
@@ -4048,7 +4093,7 @@ function openImp(){const pre={items:'items',buy:'po',sell:'sale',adj:'open'}[vie
 // Wiring
 document.body.querySelector(':scope>svg').insertAdjacentHTML('beforeend','<symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></symbol>');
 document.head.insertAdjacentHTML('beforeend','<style>.inv-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem}.inv-bar .form-group{margin-bottom:0}.inv-row{display:grid;grid-template-columns:2.2fr 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:center}.inv-head{font-size:.8rem;font-weight:600;color:var(--text-muted)}.inv-note{color:var(--text-muted);font-size:.85rem;margin:0 0 .8rem}@media(max-width:768px){.inv-row{grid-template-columns:1fr 1fr}}</style>');
-document.querySelector('main.main-content').insertAdjacentHTML('beforeend','<div id="tab-inventory" class="tab-section"><div class="card"><h2 style="margin-top:0">Inventory</h2><div class="sub-nav"><button id="invNav-items" onclick="INV.go(\'items\')">Items &amp; stock</button><button id="invNav-buy" onclick="INV.go(\'buy\')">Purchasing</button><button id="invNav-sell" onclick="INV.go(\'sell\')">Sales</button><button id="invNav-adj" onclick="INV.go(\'adj\')">Stock counts</button><button id="invNav-rep" onclick="INV.go(\'rep\')">Reports</button></div><div id="invBody"></div></div></div>');
+document.querySelector('main.main-content').insertAdjacentHTML('beforeend','<div id="tab-inventory" class="tab-section"><div class="card"><h2 style="margin-top:0">Inventory</h2><div class="sub-nav"><button id="invNav-items" onclick="INV.go(\'items\')">Items &amp; stock</button><button id="invNav-buy" onclick="INV.go(\'buy\')">Purchasing</button><button id="invNav-sup" onclick="INV.go(\'sup\')">Suppliers</button><button id="invNav-sell" onclick="INV.go(\'sell\')">Sales</button><button id="invNav-adj" onclick="INV.go(\'adj\')">Stock counts</button><button id="invNav-rep" onclick="INV.go(\'rep\')">Reports</button></div><div id="invBody"></div></div></div>');
 $('widget-section-ratios').insertAdjacentHTML('afterend','<div class="card hidden" id="widget-section-inventory"><h3 style="margin-top:0">Inventory and supply chain</h3><div class="metrics-grid" id="invKpis"></div></div>');
 const li=document.createElement('li');li.id='nav-inventory';li.className='hidden';li.tabIndex=0;li.setAttribute('role','button');li.onclick=()=>showTab('inventory');li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();li.click()}};
 li.innerHTML='<span class="nav-icon"><svg class="i"><use href="#i-box"/></svg></span><span class="nav-text">Inventory</span>';$('nav-settings').insertAdjacentElement('beforebegin',li);
@@ -4058,7 +4103,7 @@ w('switchCompany',navVis);w('installExtensionPack',navVis);w('calculateDashboard
 w('showTab',()=>{const a=document.querySelector('.tab-section.active');if(a&&a.id==='tab-inventory'){if(!on())return showTab('home');li.classList.add('active');renderInv()}});
 ['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);if(e&&e.src==='inv')return toast('This entry came from the Inventory module ('+e.ref+'). Cancel the document in Inventory instead.');return o.apply(this,arguments)}});
 const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.inv&&Array.isArray(d.inv.items)&&Array.isArray(d.inv.docs))o.inv=JSON.parse(JSON.stringify(d.inv));o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='inv'){e.src='inv';e.docId=String(x.docId||'')}});return o};
-window.INV={scan:scanLookup,scanInto,scanRows,scanAct,scanNew,scanLink,setBc,go:v=>{view=v;renderInv()},open:openDoc,fill,addRow,submit,addItem,del:delItem,cancel,rep,imp:openImp,impT,impF,impGo,impTpl};
+window.INV={supEdit,supSave,supDel,supFind,supFrom,scan:scanLookup,scanInto,scanRows,scanAct,scanNew,scanLink,setBc,go:v=>{view=v;renderInv()},open:openDoc,fill,addRow,submit,addItem,del:delItem,cancel,rep,imp:openImp,impT,impF,impGo,impTpl};
 })();
 
 // ===== Tasks module + Dashboard calendar (PH holidays) =====
