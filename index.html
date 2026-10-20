@@ -583,19 +583,16 @@
             color: var(--text-main);
         }
 
-        /* Extension Card Styling */
-        .extension-card {
-            border: 1px solid var(--border-color);
-            border-radius: var(--card-radius);
-            padding: 1.2rem;
-            background: var(--bg-card);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .extension-card h4 { margin: 0 0 0.4rem 0; font-size: 1.05rem; }
-        .extension-card p { margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
+        /* Service line multi-select dropdown */
+        details.ms { position: relative; }
+        details.ms > summary { list-style: none; cursor: pointer; padding: 0.6rem 0.8rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); color: var(--text-main); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        details.ms > summary::-webkit-details-marker { display: none; }
+        details.ms > summary::after { content: '\25BE'; opacity: 0.7; }
+        details.ms[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+        .ms-panel { border: 1px solid var(--border-color); border-top: 0; border-radius: 0 0 8px 8px; background: var(--bg-card); padding: 0.3rem; }
+        .ms-opt { display: flex; gap: 8px; align-items: flex-start; padding: 0.5rem; border-radius: 6px; cursor: pointer; margin: 0; font-weight: normal; }
+        .ms-opt:hover { background: rgba(127,127,127,0.12); }
+        .ms-opt small { color: var(--text-muted); }
 
         /* Tables & Mobile Scrolling */
         table {
@@ -843,7 +840,7 @@ th{font-size:.78rem;color:var(--text-muted);background:rgba(128,150,190,.09)}
 td{font-size:.9rem}
 tbody tr:hover{background:rgba(128,150,190,.07)}
 .badge{border-radius:99px;padding:3px 10px}
-.file-card-item,.extension-card{border-radius:12px;box-shadow:var(--shadow)}
+.file-card-item{border-radius:12px;box-shadow:var(--shadow)}
 .report-paper{border-radius:10px;box-shadow:var(--shadow)}
 /* modals */
 .modal-overlay{background:rgba(4,10,24,.62)}
@@ -1276,7 +1273,6 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                     <div class="sub-nav">
                         <button id="setNav-profile" class="active" onclick="showSettingsSubTab('profile')">Company Profile</button>
                         <button id="setNav-coa" onclick="showSettingsSubTab('coa')">Chart of Accounts (COA)</button>
-                        <button id="setNav-extensions" onclick="showSettingsSubTab('extensions')"><svg class="i" aria-hidden="true"><use href="#i-blocks"/></svg> Industry Extensions</button>
                         <button id="setNav-health" onclick="showSettingsSubTab('health')"><svg class="i" aria-hidden="true"><use href="#i-pulse"/></svg> Health Check</button>
                         <button id="setNav-data" onclick="showSettingsSubTab('data')">Import / Export Data</button>
                         <button id="setNav-theme" onclick="showSettingsSubTab('theme')">Appearance & Themes</button>
@@ -1328,8 +1324,8 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
 
                             <div class="grid-2">
                                 <div class="form-group">
-                                    <label>Line of Business *</label>
-                                    <input type="text" id="setCompLine" required>
+                                    <label>Service Line *</label>
+                                    <div id="setCompLineBox"></div>
                                 </div>
                                 <div class="form-group">
                                     <label>Contact Details</label>
@@ -1414,19 +1410,6 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                             </thead>
                             <tbody id="coaBody"></tbody>
                         </table>
-                    </div>
-
-                    <div id="setTab-extensions" class="sub-tab-section">
-                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 1rem;">
-                            <div>
-                                <h3 style="margin:0;">Industry Extensions & Template Store</h3>
-                                <p style="margin:4px 0 0 0; font-size:0.85rem; color:var(--text-muted);">Install specialized industry extension packs containing custom Chart of Accounts and revenue structures.</p>
-                            </div>
-                            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('customExtensionInput').click()"><svg class="i" aria-hidden="true"><use href="#i-down"/></svg> Import Custom Extension (.json)</button>
-                            <input type="file" id="customExtensionInput" accept=".json" style="display:none;" onchange="importCustomExtensionPack(event)">
-                        </div>
-
-                        <div class="grid-2" style="margin-top: 1.2rem;" id="extensionsGrid"></div>
                     </div>
 
                     <div id="setTab-health" class="sub-tab-section">
@@ -1629,8 +1612,8 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Line of Business *</label>
-                    <input type="text" id="newCompLine" required placeholder="e.g. Merchandising, Room Rental">
+                    <label>Service Line * <small style="font-weight:normal; color:var(--text-muted);">(choose one or more)</small></label>
+                    <div id="newCompLineBox"></div>
                 </div>
 
                 <div class="form-group card" style="background: rgba(0,0,0,0.02); border: 1px dashed var(--border-color); padding: 1rem;">
@@ -1818,7 +1801,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                     <div id="coaImportRow" class="hidden" style="margin-top:10px;"><input type="file" id="coaSetupFile" accept=".json"></div>
                 </div>
                 <div class="form-group">
-                    <label>Add industry packs (optional)</label>
+                    <label>Accounts for your service lines</label>
                     <div id="coaSetupPacks"></div>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:1.5rem;">
@@ -1932,30 +1915,89 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             cf: 'Statement of Cash Flows'
         };
 
-        const industryExtensionPacks = [
-            {
-                id: "pack_room_rental",
-                name: "Property & Room Rental Extension",
-                description: "Specialized extension for room rentals, hotels, and real estate leases.",
-                accounts: [
-                    { code: 1040, title: "Uncollected Tenant Receivables", category: "Asset", subCategoryClass: "Current Asset", roleTag: "ar", isContra: false, normal: "Debit", initialBalance: 0 },
-                    { code: 2020, title: "Tenant Security Deposits", category: "Liability", subCategoryClass: "Current Liability", roleTag: "none", isContra: false, normal: "Credit", initialBalance: 0 },
-                    { code: 4010, title: "Room Rental Revenue", category: "Revenue", subCategoryClass: "Operating Revenue", roleTag: "none", isContra: false, normal: "Credit", initialBalance: 0 },
-                    { code: 4020, title: "Utility Surcharge Income", category: "Revenue", subCategoryClass: "Operating Revenue", roleTag: "none", isContra: false, normal: "Credit", initialBalance: 0 }
-                ]
-            },
-            {
-                id: "pack_retail",
-                name: "Retail & Merchandising Extension",
-                description: "Accounting structure for retail shops and merchandising trading businesses.",
-                accounts: [
-                    { code: 1050, title: "Merchandise Inventory", category: "Asset", subCategoryClass: "Current Asset", roleTag: "inventory", isContra: false, normal: "Debit", initialBalance: 0 },
-                    { code: 4030, title: "Merchandise Sales Income", category: "Revenue", subCategoryClass: "Operating Revenue", roleTag: "none", isContra: false, normal: "Credit", initialBalance: 0 },
-                    { code: 4040, title: "Sales Discounts & Allowance", category: "Revenue", subCategoryClass: "Operating Revenue", roleTag: "none", isContra: true, contraOf: 4030, normal: "Debit", initialBalance: 0 },
-                    { code: 5000, title: "Cost of Goods Sold (COGS)", category: "Expense", subCategoryClass: "Operating Expense", roleTag: "none", isContra: false, normal: "Debit", initialBalance: 0 }
-                ]
-            }
+        // ===== SERVICE LINES =====
+        // A company picks one or more service lines when it is created. Each line switches on its built-in
+        // features and brings its own accounts (added at Chart of Accounts setup, or when the line is added later).
+        const acct = (code, title, category, sub, normal, extra) => Object.assign({ code, title, category, subCategoryClass: sub, roleTag: 'none', isContra: false, normal, initialBalance: 0 }, extra || {});
+        const RETAIL_ACCOUNTS = [
+            acct(1050, 'Merchandise Inventory', 'Asset', 'Current Asset', 'Debit', { roleTag: 'inventory' }),
+            acct(2025, 'GR/IR Clearing (Goods Received, Not Invoiced)', 'Liability', 'Current Liability', 'Credit'),
+            acct(4030, 'Merchandise Sales Income', 'Revenue', 'Operating Revenue', 'Credit'),
+            acct(4040, 'Sales Discounts & Allowance', 'Revenue', 'Operating Revenue', 'Debit', { isContra: true, contraOf: 4030 }),
+            acct(5000, 'Cost of Goods Sold (COGS)', 'Expense', 'Operating Expense', 'Debit'),
+            acct(5030, 'Inventory Adjustments', 'Expense', 'Operating Expense', 'Debit'),
+            acct(5040, 'Purchase Price Variance', 'Expense', 'Operating Expense', 'Debit')
         ];
+        const REAL_ESTATE_ACCOUNTS = [
+            acct(1040, 'Uncollected Tenant Receivables', 'Asset', 'Current Asset', 'Debit', { roleTag: 'ar' }),
+            acct(2020, 'Tenant Security Deposits', 'Liability', 'Current Liability', 'Credit'),
+            acct(4010, 'Room Rental Revenue', 'Revenue', 'Operating Revenue', 'Credit'),
+            acct(4020, 'Utility Surcharge Income', 'Revenue', 'Operating Revenue', 'Credit')
+        ];
+        const SERVICE_LINES = [
+            { id: 'retail', label: 'Retail and Merchandising', note: 'Inventory, purchasing, suppliers, sales with cost of goods sold', accounts: RETAIL_ACCOUNTS },
+            { id: 'realestate', label: 'Real Estate', note: 'Tenants and lease properties (coming soon)', accounts: REAL_ESTATE_ACCOUNTS },
+            { id: 'service', label: 'Service / Professional Practice', note: 'Coming soon', accounts: [] },
+            { id: 'other', label: 'Others', note: '', accounts: [] }
+        ];
+        const hasLine = (c, id) => !!c && Array.isArray(c.serviceLines) && c.serviceLines.includes(id);
+        function lineLabelText(ids, other) {
+            return ids.map(id => { const s = SERVICE_LINES.find(x => x.id === id); return id === 'other' && other ? other : (s ? s.label : id); }).join(', ');
+        }
+        // Older companies stored a free-text line and installed "extension packs"; map those onto service lines.
+        function deriveServiceLines(d) {
+            const ids = SERVICE_LINES.map(s => s.id);
+            let lines = Array.isArray(d.serviceLines) ? d.serviceLines.map(String).filter(x => ids.includes(x)) : null;
+            let other = String(d.otherLine || '');
+            if (!lines) {
+                lines = [];
+                const ie = (d.installedExtensions || []).map(String);
+                if (ie.includes('pack_retail') || ie.includes('pack_retail_inventory')) lines.push('retail');
+                if (ie.includes('pack_room_rental')) lines.push('realestate');
+                if (!lines.length && String(d.line || '').trim()) { lines.push('other'); other = String(d.line).trim(); }
+            }
+            return { serviceLines: [...new Set(lines)], otherLine: lines.includes('other') ? other : '' };
+        }
+        // Adds the accounts a company's service lines need. Existing account codes are never overwritten.
+        function applyServiceLineAccounts(comp, ids) {
+            const added = [], conflicts = [];
+            (ids || comp.serviceLines || []).forEach(id => {
+                const sl = SERVICE_LINES.find(s => s.id === id); if (!sl) return;
+                sl.accounts.forEach(a => {
+                    const ex = comp.chartOfAccounts.find(x => x.code === a.code);
+                    if (!ex) { comp.chartOfAccounts.push({ ...a }); added.push(a.code + ' ' + a.title); }
+                    else if (String(ex.title).trim().toLowerCase() !== a.title.toLowerCase()) conflicts.push(a.code + ' ' + a.title + ' (code already used by "' + ex.title + '")');
+                });
+            });
+            comp.chartOfAccounts.sort((a, b) => a.code - b.code);
+            backfillContraLinks(comp);
+            rebuildAllBeginningBalances(comp);
+            return { added, conflicts };
+        }
+        function reportAccountConflicts(r) {
+            if (r && r.conflicts.length) toast('Some service line accounts were NOT added because the code is already in use:\n' + r.conflicts.join('\n') + '\n\nRe-code the existing account or add these manually.');
+        }
+        // Multi-select dropdown (checkboxes inside a <details>), used when creating a company and in settings.
+        function renderLinePicker(boxId, selected, other) {
+            const box = document.getElementById(boxId); if (!box) return;
+            box.innerHTML = '<details class="ms"><summary><span class="ms-text"></span></summary><div class="ms-panel">' +
+                SERVICE_LINES.map(s => '<label class="ms-opt"><input type="checkbox" value="' + s.id + '"' + (selected.includes(s.id) ? ' checked' : '') + '> <span><strong>' + escapeHtml(s.label) + '</strong>' + (s.note ? '<br><small>' + escapeHtml(s.note) + '</small>' : '') + '</span></label>').join('') +
+                '</div></details><input type="text" class="ms-other hidden" maxlength="80" placeholder="Describe your line of business (optional)" style="margin-top:8px;">';
+            box.querySelector('.ms-other').value = other || '';
+            box.onchange = () => syncLinePicker(box);
+            syncLinePicker(box);
+        }
+        function syncLinePicker(box) {
+            const ids = [...box.querySelectorAll('input[type=checkbox]:checked')].map(i => i.value);
+            box.querySelector('.ms-text').textContent = ids.length ? lineLabelText(ids, '') : 'Select one or more service lines';
+            box.querySelector('.ms-other').classList.toggle('hidden', !ids.includes('other'));
+        }
+        function readLinePicker(boxId) {
+            const box = document.getElementById(boxId); if (!box) return { lines: [], other: '' };
+            const lines = [...box.querySelectorAll('input[type=checkbox]:checked')].map(i => i.value);
+            return { lines, other: lines.includes('other') ? box.querySelector('.ms-other').value.trim() : '' };
+        }
+        document.addEventListener('click', ev => document.querySelectorAll('details.ms[open]').forEach(d => { if (!d.contains(ev.target)) d.open = false; }));
 
         const defaultCOATemplate = [
             { code: 1010, title: "Cash on Hand", category: "Asset", subCategoryClass: "Current Asset", roleTag: "cash", isContra: false, normal: "Debit", initialBalance: 0 },
@@ -2128,7 +2170,6 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             document.getElementById('setTab-' + subTabId).classList.add('active');
             document.getElementById('setNav-' + subTabId).classList.add('active');
             if (subTabId === 'coa') renderCOA();
-            if (subTabId === 'extensions') renderIndustryExtensionsStore();
             if (subTabId === 'health') renderHealthCheck();
         }
 
@@ -2807,6 +2848,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
         function openCreateCompanyModal() { 
             document.getElementById('createCompanyForm').reset();
             document.getElementById('newCompPassContainer').classList.add('hidden');
+            renderLinePicker('newCompLineBox', [], '');
             document.getElementById('createCompanyModal').classList.remove('hidden'); 
         }
         function closeCreateCompanyModal() { document.getElementById('createCompanyModal').classList.add('hidden'); }
@@ -2823,16 +2865,18 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             e.preventDefault();
             const enablePass = document.getElementById('newCompEnablePass').checked;
             if (enablePass && !document.getElementById('newCompPassword').value) return toast('Enter a password, or untick password protection.');
+            const sl = readLinePicker('newCompLineBox');
+            if (!sl.lines.length) return toast('Choose at least one service line.');
             const companyData = {
                 id: 'comp_' + Date.now(),
                 name: document.getElementById('newCompName').value,
                 tin: document.getElementById('newCompTin').value,
                 entity: document.getElementById('newCompEntity').value,
                 currency: document.getElementById('newCompCurrency').value,
-                vat: 'Non-VAT Registered', vatRate: 12, line: document.getElementById('newCompLine').value,
+                vat: 'Non-VAT Registered', vatRate: 12, line: lineLabelText(sl.lines, sl.other), serviceLines: sl.lines, otherLine: sl.other,
                 passwordHash: enablePass ? await hashPassword(document.getElementById('newCompPassword').value) : null,
                 chartOfAccounts: [], coaSetupDone: false,
-                journalEntries: [], reportsHistory: [], installedExtensions: []
+                journalEntries: [], reportsHistory: []
             };
 
             companies.push(companyData);
@@ -2849,7 +2893,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             document.getElementById('setCompTin').value = comp.tin;
             document.getElementById('setCompEntity').value = comp.entity;
             document.getElementById('setCompCurrency').value = comp.currency || 'PHP';
-            document.getElementById('setCompLine').value = comp.line || '';
+            renderLinePicker('setCompLineBox', comp.serviceLines || [], comp.otherLine || '');
             document.getElementById('setCompContact').value = comp.contact || '';
             document.getElementById('setCompVat').value = comp.vat || 'Non-VAT Registered';
             document.getElementById('setCompVatRate').value = comp.vatRate ?? 12;
@@ -2869,11 +2913,15 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             if (!comp) return;
             if (document.getElementById('setCompEnablePass').checked && !comp.passwordHash && !document.getElementById('setCompPassword').value)
                 return toast('Enter a password, or untick password protection.');
+            const sl = readLinePicker('setCompLineBox');
+            if (!sl.lines.length) return toast('Choose at least one service line.');
             comp.name = document.getElementById('setCompName').value;
             comp.tin = document.getElementById('setCompTin').value;
             comp.entity = document.getElementById('setCompEntity').value;
             comp.currency = document.getElementById('setCompCurrency').value;
-            comp.line = document.getElementById('setCompLine').value;
+            const newLines = sl.lines.filter(x => !(comp.serviceLines || []).includes(x));
+            comp.serviceLines = sl.lines; comp.otherLine = sl.other; comp.line = lineLabelText(sl.lines, sl.other);
+            if (newLines.length && comp.coaSetupDone !== false) reportAccountConflicts(applyServiceLineAccounts(comp, newLines));
             comp.contact = document.getElementById('setCompContact').value;
             comp.vat = document.getElementById('setCompVat').value;
             const vr = parseFloat(document.getElementById('setCompVatRate').value);
@@ -2908,42 +2956,6 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             renderCOA();
             renderDashboardJournalLog();
             if (document.getElementById('bookTab-files').classList.contains('active')) renderFilesDatabase();
-        }
-
-        function renderIndustryExtensionsStore() {
-            const comp = companies.find(c => c.id === activeCompanyId);
-            const grid = document.getElementById('extensionsGrid');
-            grid.innerHTML = "";
-            if (!comp) return;
-
-            industryExtensionPacks.forEach(pack => {
-                const installed = comp.installedExtensions && comp.installedExtensions.includes(pack.id);
-                grid.innerHTML += `
-                    <div class="extension-card">
-                        <h4>${escapeHtml(pack.name)}</h4>
-                        <p>${escapeHtml(pack.description)}</p>
-                        <button class="btn btn-sm" ${installed ? 'disabled' : ''} onclick="installExtensionPack('${pack.id}')">${installed ? '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg> Installed' : 'Install Pack'}</button>
-                    </div>`;
-            });
-        }
-
-        function installExtensionPack(packId) {
-            const comp = companies.find(c => c.id === activeCompanyId);
-            const pack = industryExtensionPacks.find(p => p.id === packId);
-            if (!comp || !pack) return;
-
-            const skipped = [];
-            pack.accounts.forEach(acc => {
-                if (!comp.chartOfAccounts.some(a => a.code === acc.code)) comp.chartOfAccounts.push({ ...acc });
-                else skipped.push(acc.code + ' ' + acc.title);
-            });
-            if (!comp.installedExtensions) comp.installedExtensions = [];
-            comp.installedExtensions.push(packId);
-            if (skipped.length) toast('Some pack accounts were NOT added because the code already exists:\n' + skipped.join('\n') + '\n\nRe-code the existing account or add these manually.');
-            comp.chartOfAccounts.sort((a, b) => a.code - b.code);
-            saveToLocalStorage();
-            renderIndustryExtensionsStore();
-            if (!skipped.length) toast("Extension installed!");
         }
 
         function exportFullCompanyData() {
@@ -2985,7 +2997,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
         }
         function backfillContraLinks(c) {
             if (!c || !Array.isArray(c.chartOfAccounts)) return;
-            const sources = industryExtensionPacks.map(p => p.accounts).concat([defaultCOATemplate]);
+            const sources = SERVICE_LINES.map(s => s.accounts).concat([defaultCOATemplate]);
             c.chartOfAccounts.forEach(a => {
                 if (!a.isContra || a.contraOf) return;
                 for (const list of sources) {
@@ -3181,10 +3193,11 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             document.getElementById('coaSetupFile').value = '';
             document.querySelector('input[name="coaStart"][value="standard"]').checked = true;
             toggleCoaImportRow();
-            document.getElementById('coaSetupPacks').innerHTML = industryExtensionPacks.map(p => {
-                const done = (comp.installedExtensions || []).includes(p.id);
-                return `<label style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;"><input type="checkbox" value="${escapeHtml(p.id)}" ${done ? 'disabled' : ''}> <span>${escapeHtml(p.name)}${done ? ' (installed)' : ''}<br><small style="color:var(--text-muted);">${escapeHtml(p.description || '')}</small></span></label>`;
-            }).join('');
+            document.getElementById('coaSetupPacks').innerHTML = (() => {
+                const ls = (comp.serviceLines || []).map(id => SERVICE_LINES.find(s => s.id === id)).filter(l => l && l.accounts.length);
+                if (!ls.length) return '<small style="color:var(--text-muted);">Your service lines do not need extra accounts. You can add your own afterwards.</small>';
+                return '<small style="color:var(--text-muted);">These are added automatically (except when you start blank):</small>' + ls.map(l => '<div style="margin-top:6px;"><strong>' + escapeHtml(l.label) + '</strong><br><small style="color:var(--text-muted);">' + l.accounts.map(a => escapeHtml(a.code + ' ' + a.title)).join(', ') + '</small></div>').join('');
+            })();
             document.getElementById('coaSetupModal').classList.remove('hidden');
         }
         function closeCoaSetupModal() { document.getElementById('coaSetupModal').classList.add('hidden'); }
@@ -3207,12 +3220,8 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                     incoming = list.map(normalizeAccount);
                 } catch (err) { return toast(err.message); }
             }
-            if (!comp.installedExtensions) comp.installedExtensions = [];
-            document.querySelectorAll('#coaSetupPacks input:checked').forEach(chk => {
-                const pack = industryExtensionPacks.find(p => p.id === chk.value);
-                if (pack) { pack.accounts.forEach(a => incoming.push({ ...a })); comp.installedExtensions.push(pack.id); }
-            });
             incoming.forEach(a => { if (!comp.chartOfAccounts.some(x => x.code === a.code)) comp.chartOfAccounts.push(a); });
+            if (mode !== 'blank') reportAccountConflicts(applyServiceLineAccounts(comp));
             comp.chartOfAccounts.sort((a, b) => a.code - b.code);
             backfillContraLinks(comp);
             rebuildAllBeginningBalances(comp);
@@ -3340,6 +3349,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
         function sanitizeCompany(d) {
             const DATE = /^\d{4}-\d{2}-\d{2}$/, money = v => { const n = parseFloat(v); return Number.isFinite(n) && n > 0 ? n : 0; };
             if (!d.chartOfAccounts.every(validAccount)) throw new Error('Backup has invalid accounts (need integer code, title, category, normal balance).');
+            const lineInfo = deriveServiceLines(d);
             const out = {
                 id: safeId(d.id) || 'comp_' + Date.now(), name: String(d.name), tin: String(d.tin || ''), entity: String(d.entity || ''),
                 currency: d.currency === 'USD' ? 'USD' : 'PHP', vat: String(d.vat || 'Non-VAT Registered'), vatRate: Number.isFinite(parseFloat(d.vatRate)) ? parseFloat(d.vatRate) : 12, line: String(d.line || ''),
@@ -3347,7 +3357,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 logo: typeof d.logo === 'string' && d.logo.startsWith('data:image/') ? d.logo : null,
                 openingDate: DATE.test(d.openingDate || '') ? d.openingDate : undefined,
                 fyStart: Number.isInteger(+d.fyStart) && +d.fyStart >= 1 && +d.fyStart <= 12 ? +d.fyStart : 1,
-                coaSetupDone: d.coaSetupDone !== false, installedExtensions: (d.installedExtensions || []).map(String),
+                coaSetupDone: d.coaSetupDone !== false, serviceLines: lineInfo.serviceLines, otherLine: lineInfo.otherLine,
                 chartOfAccounts: d.chartOfAccounts.map(normalizeAccount), journalEntries: [], reportsHistory: []
             };
             d.journalEntries.forEach((e, i) => {
@@ -3479,17 +3489,6 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 saveToLocalStorage(); renderCOA(); fillLedgerFilter(); toast(added + ' account(s) imported; existing codes were kept.');
             } catch (err) { toast(err.message); }
         }
-        async function importCustomExtensionPack(ev) {
-            const comp = activeCompany(); const file = ev.target.files[0]; ev.target.value = '';
-            if (!comp || !file) return;
-            try {
-                const pack = await readFileAsJSON(file);
-                if (!pack || !pack.id || !pack.name || !Array.isArray(pack.accounts) || !pack.accounts.every(validAccount)) throw new Error('Extension needs id, name and an accounts array.');
-                if (!industryExtensionPacks.some(p => p.id === pack.id)) industryExtensionPacks.push({ description: String(pack.description || ''), id: safeId(pack.id), name: String(pack.name), accounts: pack.accounts.map(normalizeAccount) });
-                renderIndustryExtensionsStore();
-            } catch (err) { toast(err.message); }
-        }
-
         // ===== JOURNAL DELETE / BOOK FILTERS / LEDGER =====
         function deleteJournalEntry(id) {
             const comp = activeCompany(); if (!comp) return;
@@ -3702,7 +3701,9 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             if (stored) {
                 try { companies = JSON.parse(stored); } catch(e) { companies = []; }
                 companies.forEach(c => { 
-                    if (c.coaSetupDone === undefined) c.coaSetupDone = true; 
+                    if (c.coaSetupDone === undefined) c.coaSetupDone = true;
+                    if (!Array.isArray(c.serviceLines)) { const m = deriveServiceLines(c); c.serviceLines = m.serviceLines; c.otherLine = m.otherLine; }
+                    delete c.installedExtensions;
                     backfillContraLinks(c); 
                     rebuildAllBeginningBalances(c);
                 });
@@ -3746,15 +3747,13 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
   renderLogo('headerLogoContainer', null, '');
 })();
 
-// ===== Retail Inventory & Supply Chain extension (ERP-style P2P / O2C) =====
+// ===== Retail inventory & supply chain module (ERP-style P2P / O2C), built in for the Retail and Merchandising service line =====
 (function(){
-const PID='pack_retail_inventory',$=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml;
-const on=()=>{const c=C();return !!c&&(c.installedExtensions||[]).includes(PID)};
+const $=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml;
+const on=()=>hasLine(C(),'retail');
 const I=()=>{const c=C();return c.inv||(c.inv={items:[],docs:[],seq:{}})};
 const fm=v=>formatMoney(fromCents(Math.round(v)),C().currency),nf=n=>(+n).toLocaleString('en-US',{maximumFractionDigits:3});
-const A=(c,t,cat,sub,n,r)=>({code:c,title:t,category:cat,subCategoryClass:sub,roleTag:r||'none',isContra:false,normal:n,initialBalance:0});
-const ACC=[A(1050,'Merchandise Inventory','Asset','Current Asset','Debit','inventory'),A(2025,'GR/IR Clearing (Goods Received, Not Invoiced)','Liability','Current Liability','Credit'),A(4030,'Merchandise Sales Income','Revenue','Operating Revenue','Credit'),A(5000,'Cost of Goods Sold (COGS)','Expense','Operating Expense','Debit'),A(5030,'Inventory Adjustments','Expense','Operating Expense','Debit'),A(5040,'Purchase Price Variance','Expense','Operating Expense','Debit')];
-industryExtensionPacks.push({id:PID,name:'Retail Inventory & Supply Chain',description:'Purchase order, goods receipt, supplier invoice (3-way match), sales with COGS, stock counts, moving-average valuation, dashboard KPIs and inventory reports.',accounts:ACC});
+const ACC=RETAIL_ACCOUNTS.filter(a=>a.code!==4040);
 
 // Stock engine: replays all documents in order (like an ERP stock ledger)
 function replay(docs){
@@ -4099,7 +4098,7 @@ const li=document.createElement('li');li.id='nav-inventory';li.className='hidden
 li.innerHTML='<span class="nav-icon"><svg class="i"><use href="#i-box"/></svg></span><span class="nav-text">Inventory</span>';$('nav-settings').insertAdjacentElement('beforebegin',li);
 const navVis=()=>li.classList.toggle('hidden',!on());
 const w=(n,f)=>{const o=window[n];window[n]=function(){const r=o.apply(this,arguments);f();return r}};
-w('switchCompany',navVis);w('installExtensionPack',navVis);w('calculateDashboardMetrics',invDash);
+w('switchCompany',navVis);w('calculateDashboardMetrics',invDash);
 w('showTab',()=>{const a=document.querySelector('.tab-section.active');if(a&&a.id==='tab-inventory'){if(!on())return showTab('home');li.classList.add('active');renderInv()}});
 ['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);if(e&&e.src==='inv')return toast('This entry came from the Inventory module ('+e.ref+'). Cancel the document in Inventory instead.');return o.apply(this,arguments)}});
 const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.inv&&Array.isArray(d.inv.items)&&Array.isArray(d.inv.docs))o.inv=JSON.parse(JSON.stringify(d.inv));o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='inv'){e.src='inv';e.docId=String(x.docId||'')}});return o};
