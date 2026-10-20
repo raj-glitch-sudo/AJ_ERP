@@ -880,6 +880,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
  .report-header{margin-bottom:1.2rem}
  .report-footer{margin-top:3rem;page-break-inside:avoid}
 }
+.report-paper td.number{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -1560,6 +1561,14 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                         </select>
                     </div>
                 </div>
+                <div class="form-group" id="rptCompareGroup">
+                    <label>Comparative</label>
+                    <select id="rptCompare">
+                        <option value="none">None (single period)</option>
+                        <option value="prevYear">Compare with same period last year</option>
+                    </select>
+                </div>
+
 
                 <div class="grid-2">
                     <div class="form-group">
@@ -2574,6 +2583,9 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
         function openReportPromptModal(type) {
             currentActiveReportType = type;
             document.getElementById('rptTargetType').value = type;
+            const canCmp = ['is','bs'].includes(type);
+            document.getElementById('rptCompareGroup').classList.toggle('hidden', !canCmp);
+            if (!canCmp) document.getElementById('rptCompare').value = 'none';
             handleRptPeriodTypeChange();
             document.getElementById('reportPromptModal').classList.remove('hidden');
         }
@@ -2585,6 +2597,20 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             document.getElementById('rptQuarterGroup').classList.toggle('hidden', pType !== 'INTERIM_Q');
             document.getElementById('rptMonthGroup').classList.toggle('hidden', pType !== 'INTERIM_M');
             document.getElementById('rptCustomDateGroup').classList.toggle('hidden', pType !== 'CUSTOM');
+        }
+
+        // ---- Comparative statement helpers ----
+        function shiftYear(d, n) {
+            const [y, m, day] = d.split('-').map(Number);
+            const last = new Date(y + n, m, 0).getDate();
+            return `${y + n}-${String(m).padStart(2, '0')}-${String(Math.min(day, last)).padStart(2, '0')}`;
+        }
+        function cmpCells(cur, prev, ccy, on) {
+            const f = c => formatMoney(fromCents(c), ccy);
+            if (!on) return `<td class="number">${f(cur)}</td>`;
+            const change = cur - prev;
+            const pct = prev ? (change / Math.abs(prev) * 100).toFixed(1) + '%' : 'n/a';
+            return `<td class="number">${f(cur)}</td><td class="number">${f(prev)}</td><td class="number">${f(change)}</td><td class="number">${pct}</td>`;
         }
 
         function generateFinancialReport(e) {
@@ -2647,12 +2673,16 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 }
             }
 
+            const compare = (document.getElementById('rptCompare') || {}).value || 'none';
+            const prevStartDateStr = shiftYear(startDateStr, -1);
+            const prevEndDateStr = shiftYear(endDateStr, -1);
             const rptParams = {
                 type: targetType, periodLabel, basis: document.getElementById('rptBasis').value,
                 standard: document.getElementById('rptStandard').value,
                 preparedBy: document.getElementById('rptPreparedBy').value || 'Prepared Signature',
                 approvedBy: document.getElementById('rptApprovedBy').value || 'Management',
-                startDateStr, endDateStr
+                startDateStr, endDateStr, compare, prevStartDateStr, prevEndDateStr,
+                curCol: endDateStr.slice(0, 4), prevCol: prevEndDateStr.slice(0, 4)
             };
 
             const reportHTML = renderReportHTMLString(comp, rptParams);
@@ -2673,6 +2703,9 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             let bodyHTML = "";
             const balancesAllTime = computeAccountBalances(comp.journalEntries, params.endDateStr);
             const balancesPeriod = computeAccountBalances(comp.journalEntries, params.endDateStr, params.startDateStr);
+            const cmp = params.compare === 'prevYear';
+            const prevAll = cmp ? computeAccountBalances(comp.journalEntries, params.prevEndDateStr) : null;
+            const prevPeriod = cmp ? computeAccountBalances(comp.journalEntries, params.prevEndDateStr, params.prevStartDateStr) : null;
 
             if (params.type === 'tb') {
                 let rows = "", totalDr = 0, totalCr = 0;
@@ -2694,83 +2727,80 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 bodyHTML = `<table><thead><tr><th>Code</th><th>Account Title</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="font-weight:bold;"><td>Totals</td><td></td><td class="number">${formatMoney(fromCents(totalDr), comp.currency)}</td><td class="number">${formatMoney(fromCents(totalCr), comp.currency)}</td></tr></tfoot></table>`;
             
             } else if (params.type === 'is') {
-                let revRows = "", expRows = "", totalRevCents = 0, totalExpCents = 0;
+                let revRows = "", expRows = "";
+                let totalRevCents = 0, totalExpCents = 0, prevTotalRevCents = 0, prevTotalExpCents = 0;
+                const span = cmp ? 5 : 2;
+                const head = cmp ? `<thead><tr><th></th><th class="number">${params.curCol}</th><th class="number">${params.prevCol}</th><th class="number">Change</th><th class="number">%</th></tr></thead>` : '';
+                const empty = { drCents: 0, crCents: 0 };
                 orderWithContras(comp.chartOfAccounts).forEach(acc => {
-                    const b = balancesPeriod.get(acc.code) || { drCents: 0, crCents: 0 };
+                    const b = balancesPeriod.get(acc.code) || empty;
+                    const p = cmp ? (prevPeriod.get(acc.code) || empty) : empty;
                     if (acc.category === 'Revenue') {
-                        const net = b.crCents - b.drCents;
-                        if (net !== 0) {
-                            totalRevCents += net;
-                            revRows += `<tr><td>${acctLabel(acc)}</td><td class="number">${formatMoney(fromCents(net), comp.currency)}</td></tr>`;
+                        const net = b.crCents - b.drCents, prevNet = p.crCents - p.drCents;
+                        if (net !== 0 || prevNet !== 0) {
+                            totalRevCents += net; prevTotalRevCents += prevNet;
+                            revRows += `<tr><td>${acctLabel(acc)}</td>${cmpCells(net, prevNet, comp.currency, cmp)}</tr>`;
                         }
                     } else if (acc.category === 'Expense') {
-                        const net = b.drCents - b.crCents;
-                        if (net !== 0) {
-                            totalExpCents += net;
-                            expRows += `<tr><td>${acctLabel(acc)}</td><td class="number">${formatMoney(fromCents(net), comp.currency)}</td></tr>`;
+                        const net = b.drCents - b.crCents, prevNet = p.drCents - p.crCents;
+                        if (net !== 0 || prevNet !== 0) {
+                            totalExpCents += net; prevTotalExpCents += prevNet;
+                            expRows += `<tr><td>${acctLabel(acc)}</td>${cmpCells(net, prevNet, comp.currency, cmp)}</tr>`;
                         }
                     }
                 });
-                const netIncomeCents = totalRevCents - totalExpCents;
+                const netIncomeCents = totalRevCents - totalExpCents, prevNetIncomeCents = prevTotalRevCents - prevTotalExpCents;
                 bodyHTML = `
                     <h4 style="border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">Revenues</h4>
-                    <table><tbody>${revRows || '<tr><td colspan="2" style="color:var(--text-muted)">No revenues recorded for this period.</td></tr>'}</tbody>
-                    <tfoot><tr style="font-weight:bold;"><td>Total Revenues</td><td class="number">${formatMoney(fromCents(totalRevCents), comp.currency)}</td></tr></tfoot></table>
-                    
+                    <table>${head}<tbody>${revRows || `<tr><td colspan="${span}" style="color:var(--text-muted)">No revenues recorded for this period.</td></tr>`}</tbody>
+                    <tfoot><tr style="font-weight:bold;"><td>Total Revenues</td>${cmpCells(totalRevCents, prevTotalRevCents, comp.currency, cmp)}</tr></tfoot></table>
                     <h4 style="border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-top: 1.5rem;">Operating Expenses</h4>
-                    <table><tbody>${expRows || '<tr><td colspan="2" style="color:var(--text-muted)">No expenses recorded for this period.</td></tr>'}</tbody>
-                    <tfoot><tr style="font-weight:bold;"><td>Total Expenses</td><td class="number">${formatMoney(fromCents(totalExpCents), comp.currency)}</td></tr></tfoot></table>
-
-                    <div style="margin-top: 2rem; background: #f8fafc; padding: 12px; border: 2px solid var(--fiery-navy-deep); display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem;">
-                        <span>Net Income / (Loss)</span>
-                        <span>${formatMoney(fromCents(netIncomeCents), comp.currency)}</span>
-                    </div>`;
+                    <table>${head}<tbody>${expRows || `<tr><td colspan="${span}" style="color:var(--text-muted)">No expenses recorded for this period.</td></tr>`}</tbody>
+                    <tfoot><tr style="font-weight:bold;"><td>Total Expenses</td>${cmpCells(totalExpCents, prevTotalExpCents, comp.currency, cmp)}</tr></tfoot></table>
+                    <table style="margin-top: 2rem; border: 2px solid var(--fiery-navy-deep);"><tfoot><tr style="font-weight:bold; font-size: 1.1rem;"><td>Net Income / (Loss)</td>${cmpCells(netIncomeCents, prevNetIncomeCents, comp.currency, cmp)}</tr></tfoot></table>`;
 
             } else if (params.type === 'bs') {
                 let assetRows = "", liabRows = "", equityRows = "";
-                let totalAssetsCents = 0, totalLiabCents = 0, totalEquityCents = 0;
-                let periodNetIncomeCents = 0;
-
+                let tA = 0, tL = 0, tE = 0, pA = 0, pL = 0, pE = 0, ni = 0, pni = 0;
+                const empty = { drCents: 0, crCents: 0 };
+                const span = cmp ? 5 : 2;
+                const head = cmp ? `<thead><tr><th></th><th class="number">${params.curCol}</th><th class="number">${params.prevCol}</th><th class="number">Change</th><th class="number">%</th></tr></thead>` : '';
                 comp.chartOfAccounts.forEach(acc => {
-                    const b = balancesAllTime.get(acc.code) || { drCents: 0, crCents: 0 };
-                    if (acc.category === 'Revenue') periodNetIncomeCents += (b.crCents - b.drCents);
-                    if (acc.category === 'Expense') periodNetIncomeCents -= (b.drCents - b.crCents);
+                    const b = balancesAllTime.get(acc.code) || empty;
+                    const p = cmp ? (prevAll.get(acc.code) || empty) : empty;
+                    if (acc.category === 'Revenue') { ni += b.crCents - b.drCents; pni += p.crCents - p.drCents; }
+                    if (acc.category === 'Expense') { ni -= b.drCents - b.crCents; pni -= p.drCents - p.crCents; }
                 });
-
                 orderWithContras(comp.chartOfAccounts).forEach(acc => {
-                    const b = balancesAllTime.get(acc.code) || { drCents: 0, crCents: 0 };
-                    const net = (acc.normal === 'Debit') ? (b.drCents - b.crCents) : (b.crCents - b.drCents);
-
-                    if (acc.category === 'Asset' && net !== 0) {
-                        totalAssetsCents += (acc.isContra ? -net : net);
-                        assetRows += `<tr><td>${acctLabel(acc)}</td><td class="number">${formatMoney(fromCents(acc.isContra ? -net : net), comp.currency)}</td></tr>`;
-                    } else if (acc.category === 'Liability' && net !== 0) {
-                        totalLiabCents += (acc.isContra ? -net : net);
-                        liabRows += `<tr><td>${acctLabel(acc)}</td><td class="number">${formatMoney(fromCents(acc.isContra ? -net : net), comp.currency)}</td></tr>`;
-                    } else if (acc.category === 'Equity' && net !== 0) {
-                        totalEquityCents += (acc.isContra ? -net : net);
-                        equityRows += `<tr><td>${acctLabel(acc)}</td><td class="number">${formatMoney(fromCents(acc.isContra ? -net : net), comp.currency)}</td></tr>`;
-                    }
+                    const b = balancesAllTime.get(acc.code) || empty;
+                    const p = cmp ? (prevAll.get(acc.code) || empty) : empty;
+                    const sign = acc.isContra ? -1 : 1;
+                    const bal = x => sign * (acc.normal === 'Debit' ? x.drCents - x.crCents : x.crCents - x.drCents);
+                    const net = bal(b), prevNet = bal(p);
+                    if (net === 0 && prevNet === 0) return;
+                    const row = `<tr><td>${acctLabel(acc)}</td>${cmpCells(net, prevNet, comp.currency, cmp)}</tr>`;
+                    if (acc.category === 'Asset') { tA += net; pA += prevNet; assetRows += row; }
+                    else if (acc.category === 'Liability') { tL += net; pL += prevNet; liabRows += row; }
+                    else if (acc.category === 'Equity') { tE += net; pE += prevNet; equityRows += row; }
                 });
-
-                totalEquityCents += periodNetIncomeCents;
-                if (periodNetIncomeCents !== 0) {
-                    equityRows += `<tr><td>Retained Earnings / Net Income (Cumulative to Date)</td><td class="number">${formatMoney(fromCents(periodNetIncomeCents), comp.currency)}</td></tr>`;
+                tE += ni; pE += pni;
+                if (ni !== 0 || pni !== 0) {
+                    equityRows += `<tr><td>Retained Earnings / Net Income (Cumulative to Date)</td>${cmpCells(ni, pni, comp.currency, cmp)}</tr>`;
                 }
-
+                const diff = tA - tL - tE, pdiff = pA - pL - pE;
+                const warn = (diff !== 0 || (cmp && pdiff !== 0))
+                    ? `<p style="color:#b91c1c;font-weight:bold;"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg> Out of balance by ${formatMoney(fromCents(diff), comp.currency)}${cmp && pdiff !== 0 ? ` (prior period: ${formatMoney(fromCents(pdiff), comp.currency)})` : ''}</p>` : '';
                 bodyHTML = `
                     <h4 style="border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">Assets</h4>
-                    <table><tbody>${assetRows || '<tr><td colspan="2" style="color:var(--text-muted)">No assets recorded.</td></tr>'}</tbody>
-                    <tfoot><tr style="font-weight:bold;"><td>Total Assets</td><td class="number">${formatMoney(fromCents(totalAssetsCents), comp.currency)}</td></tr></tfoot></table>
-
+                    <table>${head}<tbody>${assetRows || `<tr><td colspan="${span}" style="color:var(--text-muted)">No assets recorded.</td></tr>`}</tbody>
+                    <tfoot><tr style="font-weight:bold;"><td>Total Assets</td>${cmpCells(tA, pA, comp.currency, cmp)}</tr></tfoot></table>
                     <h4 style="border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-top: 1.5rem;">Liabilities</h4>
-                    <table><tbody>${liabRows || '<tr><td colspan="2" style="color:var(--text-muted)">No liabilities recorded.</td></tr>'}</tbody>
-                    <tfoot><tr style="font-weight:bold;"><td>Total Liabilities</td><td class="number">${formatMoney(fromCents(totalLiabCents), comp.currency)}</td></tr></tfoot></table>
-
+                    <table>${head}<tbody>${liabRows || `<tr><td colspan="${span}" style="color:var(--text-muted)">No liabilities recorded.</td></tr>`}</tbody>
+                    <tfoot><tr style="font-weight:bold;"><td>Total Liabilities</td>${cmpCells(tL, pL, comp.currency, cmp)}</tr></tfoot></table>
                     <h4 style="border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-top: 1.5rem;">Owner's Equity & Capital</h4>
-                    <table><tbody>${equityRows || '<tr><td colspan="2" style="color:var(--text-muted)">No equity recorded.</td></tr>'}</tbody>
-                    <tfoot><tr style="font-weight:bold;"><td>Total Liabilities & Equity</td><td class="number">${formatMoney(fromCents(totalLiabCents + totalEquityCents), comp.currency)}</td></tr></tfoot></table>
-                    ${totalAssetsCents !== totalLiabCents + totalEquityCents ? `<p style="color:#b91c1c;font-weight:bold;"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg> Out of balance by ${formatMoney(fromCents(totalAssetsCents - totalLiabCents - totalEquityCents), comp.currency)}. Run Settings → Health Check.</p>` : ''}`;
+                    <table>${head}<tbody>${equityRows || `<tr><td colspan="${span}" style="color:var(--text-muted)">No equity recorded.</td></tr>`}</tbody>
+                    <tfoot><tr style="font-weight:bold;"><td>Total Liabilities & Equity</td>${cmpCells(tL + tE, pL + pE, comp.currency, cmp)}</tr></tfoot></table>
+                    ${warn}`;
 
             } else if (params.type === 'oe') {
                 bodyHTML = buildOwnersEquityBody(comp, params);
@@ -2787,6 +2817,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                     <p>${subTitleText}</p>
                     <h3>${reportTitles[params.type]}</h3>
                     <p><strong>${escapeHtml(params.periodLabel)}</strong></p>
+                    ${cmp ? `<p>Compared with ${params.prevCol}</p>` : ''}
                 </div>
                 ${bodyHTML}
                 <div class="report-footer">
