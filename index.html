@@ -3795,7 +3795,7 @@ function cancel(id){
  X.docs=docs;c.journalEntries=c.journalEntries.filter(e=>e.docId!==id);saveToLocalStorage();renderInv();calculateDashboardMetrics();
 }
 const TITLES={PO:'Purchase order',GRN:'Goods receipt',PINV:'Supplier invoice',SALE:'Sale',ADJ:'Stock count'},PFX={PO:'PO',GRN:'GRN',PINV:'PINV',SALE:'SINV',ADJ:'ADJ'};
-function openDoc(ty){
+function openDoc(ty,pre){
  const X=I(),R=replay(X.docs),it=X.items;if(!it.length)return toast('Add items first (Inventory → Items).');
  const pos=Object.keys(R.po).filter(k=>Object.keys(R.po[k].ord).some(s=>ty==='GRN'?(R.po[k].rec[s]||0)<R.po[k].ord[s]:(R.po[k].rec[s]||0)>(R.po[k].bil[s]||0)));
  if((ty==='GRN'||ty==='PINV')&&!pos.length)return toast(ty==='GRN'?'No purchase orders waiting to be received.':'No received goods waiting to be invoiced.');
@@ -3803,8 +3803,9 @@ function openDoc(ty){
  const party=ty==='PO'?'<div class="form-group"><label>Supplier *</label><input id="dParty" required list="dList"><datalist id="dList">'+sups.map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist></div>':ty==='SALE'?'<div class="form-group"><label>Customer</label><input id="dParty" placeholder="Walk-in" list="dList"><datalist id="dList">'+sups.map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist></div>':ty==='ADJ'?'<div class="form-group"><label>Reason</label><input id="dParty" placeholder="Physical count"></div>':'<div class="form-group"><label>Purchase order *</label><select id="dPo" onchange="INV.fill()">'+pos.map(k=>'<option>'+k+'</option>').join('')+'</select></div>';
  const pay=ty==='SALE'?'<div class="form-group"><label>Payment</label><select id="dPay"><option value="cash">Cash / bank</option><option value="credit">On account (A/R)</option></select></div>':'';
  const m=document.createElement('div');m.className='modal-overlay';
- m.innerHTML='<div class="modal" style="max-width:760px"><h2>'+TITLES[ty]+'</h2><form id="invForm" data-t="'+ty+'" onsubmit="INV.submit(event)"><div class="grid-2"><div class="form-group"><label>Date *</label><input type="date" id="dDate" required value="'+localDateStr(new Date())+'"></div>'+party+pay+'</div><div class="inv-row inv-head"><span>Item</span><span>'+(ty==='ADJ'?'Counted qty':'Quantity')+'</span><span>'+(ty==='SALE'?'Unit price':ty==='ADJ'?'Unit cost (if new stock)':'Unit cost')+'</span><span></span></div><div id="dRows"></div>'+(ty==='GRN'||ty==='PINV'?'':'<button type="button" class="btn btn-outline btn-sm" onclick="INV.addRow()">+ Add line</button>')+'<div style="text-align:right;margin-top:1.2rem"><button type="button" class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancel</button> <button class="btn">Post '+TITLES[ty].toLowerCase()+'</button></div></form></div>';
+ m.innerHTML='<div class="modal" style="max-width:760px"><h2>'+TITLES[ty]+'</h2><form id="invForm" data-t="'+ty+'" onsubmit="INV.submit(event)"><div class="grid-2"><div class="form-group"><label>Date *</label><input type="date" id="dDate" required value="'+localDateStr(new Date())+'"></div>'+party+pay+'</div><div class="inv-row inv-head"><span>Item</span><span>'+(ty==='ADJ'?'Counted qty':'Quantity')+'</span><span>'+(ty==='SALE'?'Unit price':ty==='ADJ'?'Unit cost (if new stock)':'Unit cost')+'</span><span></span></div><div id="dRows"></div>'+(ty==='GRN'||ty==='PINV'?'':'<button type="button" class="btn btn-outline btn-sm" onclick="INV.addRow()">+ Add line</button> <button type="button" class="btn btn-outline btn-sm" onclick="INV.scanRows()">Scan item</button>')+'<div style="text-align:right;margin-top:1.2rem"><button type="button" class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancel</button> <button class="btn">Post '+TITLES[ty].toLowerCase()+'</button></div></form></div>';
  document.body.appendChild(m);ty==='GRN'||ty==='PINV'?fill():addRow();
+ if(pre&&ty!=='GRN'&&ty!=='PINV'){const pi=it.find(i=>i.sku===pre),r0=m.querySelector('.inv-row:not(.inv-head)');if(pi&&r0){r0.querySelector('.rS').value=pi.sku;if(ty==='SALE'){r0.querySelector('.rA').value=pi.price||'';r0.querySelector('.rQ').value=1}r0.querySelector('.rQ').focus()}}
 }
 function row(s,q,a,fixed){const X=I(),R=replay(X.docs),ty=$('invForm').dataset.t;
  const o=X.items.map(i=>'<option value="'+esc(i.sku)+'"'+(i.sku===s?' selected':'')+'>'+esc(i.sku)+' – '+esc(i.name)+(ty==='ADJ'?' (system: '+nf((R.st[i.sku]||{q:0}).q)+')':'')+'</option>').join('');
@@ -3820,12 +3821,89 @@ function submit(e){e.preventDefault();const f=$('invForm'),ty=f.dataset.t;
  if(post(d))f.closest('.modal-overlay').remove()}
 function addItem(e){e.preventDefault();const k=$('iSku').value.trim().toUpperCase(),X=I();
  if(!/^[A-Z0-9_-]+$/.test(k))return toast('SKU may use letters, numbers, - and _ only.');if(X.items.some(i=>i.sku===k))return toast('SKU '+k+' already exists.');
- X.items.push({sku:k,name:$('iName').value.trim(),uom:$('iUom').value.trim()||'pc',rl:parseFloat($('iRl').value)||0,rq:parseFloat($('iRq').value)||0,price:parseFloat($('iPr').value)||0});saveToLocalStorage();renderInv()}
+ const bc=($('iBc').value||'').trim();if(bc){if(bc.length>64||/[\u0000-\u001f]/.test(bc))return toast('Barcode must be 64 characters or fewer.');const ow=bcOwner(bc);if(ow)return toast('Barcode '+bc+' already belongs to '+ow.sku+'.')}
+ X.items.push({sku:k,name:$('iName').value.trim(),uom:$('iUom').value.trim()||'pc',rl:parseFloat($('iRl').value)||0,rq:parseFloat($('iRq').value)||0,price:parseFloat($('iPr').value)||0,bc});saveToLocalStorage();renderInv()}
 function delItem(k){const X=I();if(X.docs.some(d=>d.lines.some(l=>l.sku===k)))return toast(k+' is used in documents and cannot be deleted.');X.items=X.items.filter(i=>i.sku!==k);saveToLocalStorage();renderInv()}
+
+// ---- Barcode scanning: camera (BarcodeDetector), USB / Bluetooth scanners, or typing ----
+const nb=s=>/^\d+$/.test(s)?s.replace(/^0+/,''):s;
+const bcOwner=(bc,except)=>I().items.find(i=>i.bc&&nb(i.bc)===nb(bc)&&i.sku!==except);
+const findBc=code=>{const c=String(code||'').trim();if(!c)return null;const n=nb(c),X=I();return X.items.find(i=>i.bc&&nb(i.bc)===n)||X.items.find(i=>i.sku===c.toUpperCase())||null};
+function beep(){try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.frequency.value=880;g.gain.value=.08;o.connect(g);g.connect(a.destination);o.start();setTimeout(()=>{o.stop();a.close()},90)}catch(e){}}
+function scan(o){
+ document.querySelectorAll('.sc-ov').forEach(x=>x.remove());
+ const m=document.createElement('div');m.className='modal-overlay sc-ov';
+ m.innerHTML='<div class="modal" style="max-width:520px"><h2>'+esc(o.title||'Scan barcode')+'</h2>'
+  +'<div class="sc-box" style="display:none;position:relative;background:#000;border-radius:8px;overflow:hidden;aspect-ratio:4/3"><video playsinline muted style="width:100%;height:100%;object-fit:cover"></video><div style="position:absolute;left:10%;right:10%;top:50%;height:2px;background:rgba(255,60,60,.85)"></div></div>'
+  +'<p class="inv-note sc-msg" style="margin-top:.6rem">Starting camera…</p>'
+  +'<div class="inv-bar" style="align-items:flex-end"><div class="form-group" style="flex:1;min-width:180px"><label>Or type / scan with a USB or Bluetooth scanner</label><input class="sc-in" autocomplete="off" placeholder="Barcode, then press Enter"></div><button type="button" class="btn sc-go">Look up</button></div>'
+  +'<div class="sc-out"></div><div style="text-align:right;margin-top:1rem"><button type="button" class="btn btn-outline sc-x">'+(o.closeLabel||'Cancel')+'</button></div></div>';
+ document.body.appendChild(m);
+ const q=s=>m.querySelector(s),out=q('.sc-out'),msg=t=>{q('.sc-msg').textContent=t},inp=q('.sc-in');
+ let stream=null,timer=null,stopped=false,last='',lastSeen=0,busy=false;
+ const stop=()=>{stopped=true;clearInterval(timer);if(stream)stream.getTracks().forEach(t=>t.stop());stream=null};
+ const close=()=>{stop();clearInterval(wd);m.remove()};
+ const wd=setInterval(()=>{if(!document.body.contains(m)||m.classList.contains('hidden'))close()},300);
+ const handle=raw=>{const code=String(raw||'').trim();if(!code)return;beep();if(o.onCode(code,out)!==false&&!o.continuous)close()};
+ q('.sc-x').onclick=close;
+ q('.sc-go').onclick=()=>{const v=inp.value;inp.value='';handle(v);inp.focus()};
+ inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const v=inp.value;inp.value='';handle(v)}});
+ if(!('ontouchstart' in window))inp.focus();
+ (async()=>{
+  if(!window.BarcodeDetector||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return msg('Camera scanning is not supported in this browser. Type the code below or use a USB / Bluetooth barcode scanner.');
+  try{
+   let fmts=['ean_13','ean_8','upc_a','upc_e','code_128','code_39','code_93','itf','codabar','qr_code','data_matrix'];
+   try{const sup=await BarcodeDetector.getSupportedFormats();fmts=fmts.filter(f=>sup.includes(f))}catch(e){}
+   const det=new BarcodeDetector(fmts.length?{formats:fmts}:undefined);
+   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+   if(stopped||!document.body.contains(m)){stop();return}
+   const v=q('video');v.srcObject=stream;await v.play();q('.sc-box').style.display='block';
+   msg(o.continuous?'Point the camera at a barcode. Each barcode counts once while it stays in view; move it away to scan it again.':'Point the camera at a barcode.');
+   timer=setInterval(async()=>{
+    if(busy||stopped||v.readyState<2)return;busy=true;
+    try{const r=await det.detect(v);if(r.length){const c=r[0].rawValue,n=Date.now();if(c!==last||n-lastSeen>800)handle(c);last=c;lastSeen=n}}catch(e){}
+    busy=false},250);
+  }catch(e){msg(e&&e.name==='NotAllowedError'?'Camera permission was denied. Allow camera access for this page in your browser, or type the code below.':'Could not start the camera ('+(e&&e.message||e)+'). You can still type the code below or use a USB / Bluetooth scanner.')}
+ })();
+}
+let lastCode='';
+const CARD='border:1px solid var(--border-color);border-radius:8px;padding:.8rem;margin-top:.8rem';
+function scanLookup(){scan({title:'Scan barcode',continuous:true,closeLabel:'Done',onCode:showScan})}
+function showScan(code,out){
+ lastCode=code;const it=findBc(code),X=I();
+ if(it){const R=replay(X.docs),s=R.st[it.sku]||{q:0,v:0},low=it.rl>0&&s.q<=it.rl,act=(t,l)=>'<button type="button" class="btn btn-sm" onclick="INV.scanAct(\''+t+'\',\''+esc(it.sku)+'\',this)">'+l+'</button>',lb=(a,b)=>'<div><span class="inv-note">'+a+'</span><br><strong>'+b+'</strong></div>';
+  out.innerHTML='<div style="'+CARD+'"><div><strong>'+esc(it.name)+'</strong> <span class="inv-note">'+esc(it.sku)+(it.bc?' · '+esc(it.bc):'')+'</span></div><div class="grid-2" style="margin:.6rem 0">'
+   +lb('On hand',nf(s.q)+' '+esc(it.uom)+(low?' <span class="badge badge-contra">Reorder</span>':''))+lb('Selling price',fm(it.price*100))+lb('Average cost',s.q?fm(s.v/s.q):'-')+lb('Stock value',fm(s.v))
+   +'</div><div class="inv-bar" style="margin:0">'+act('SALE','New sale')+act('ADJ','Stock count')+act('PO','Purchase order')+'</div></div>'}
+ else{const free=X.items.filter(i=>!i.bc);
+  out.innerHTML='<div style="'+CARD+'"><p style="margin:0 0 .6rem;color:var(--ember)"><strong>No item has barcode '+esc(code)+'.</strong></p>'
+   +(free.length?'<div class="inv-bar" style="align-items:flex-end"><div class="form-group" style="flex:1;min-width:180px"><label>Link it to an existing item</label><select class="sc-link">'+free.map(i=>'<option value="'+esc(i.sku)+'">'+esc(i.sku)+' – '+esc(i.name)+'</option>').join('')+'</select></div><button type="button" class="btn btn-sm" onclick="INV.scanLink(this)">Link</button></div>':'')
+   +'<button type="button" class="btn btn-outline btn-sm" onclick="INV.scanNew(this)">Add as a new item</button></div>'}
+}
+function scanAct(ty,sku,el){el.closest('.modal-overlay').remove();openDoc(ty,sku)}
+function scanNew(el){el.closest('.modal-overlay').remove();view='items';renderInv();const b=$('iBc');if(b){b.value=lastCode;$('iSku').focus()}}
+function scanLink(el){const out=el.closest('.sc-out'),sel=out.querySelector('.sc-link'),it=sel&&I().items.find(i=>i.sku===sel.value);if(!it)return;
+ const ow=bcOwner(lastCode);if(ow)return toast('Barcode '+lastCode+' already belongs to '+ow.sku+'.');
+ it.bc=lastCode;saveToLocalStorage();renderInv();toast('Linked barcode '+lastCode+' to '+it.sku+'.');showScan(lastCode,out)}
+function scanInto(){scan({title:'Scan barcode for the new item',onCode:code=>{const ow=bcOwner(code);if(ow){toast('Barcode '+code+' already belongs to '+ow.sku+'.');return false}const b=$('iBc');if(b)b.value=code}})}
+function setBc(sku){const it=I().items.find(i=>i.sku===sku);if(!it)return;
+ scan({title:'Scan barcode for '+sku,onCode:code=>{const ow=bcOwner(code,sku);if(ow){toast('Barcode '+code+' already belongs to '+ow.sku+'.');return false}it.bc=code;saveToLocalStorage();renderInv();toast('Barcode '+code+' saved for '+sku+'.')}})}
+function scanRows(){
+ if(!$('invForm'))return;
+ scan({title:'Scan items',continuous:true,closeLabel:'Done',onCode:(code,out)=>{
+  const f=$('invForm');if(!f)return;const ty=f.dataset.t,it=findBc(code),log=h=>{out.insertAdjacentHTML('afterbegin',h);while(out.children.length>6)out.lastChild.remove()};
+  if(!it)return log('<div class="inv-note" style="color:var(--ember)">No item has barcode <strong>'+esc(code)+'</strong>. Link it first under Items &amp; stock.</div>');
+  const all=()=>[...f.querySelectorAll('.inv-row:not(.inv-head)')],rows=all();
+  let r=rows.find(x=>x.querySelector('.rS').value===it.sku&&x.querySelector('.rQ').value!==''),fresh=!r;
+  if(!r)r=rows.find(x=>x.querySelector('.rQ').value==='');
+  if(!r){f.querySelector('#dRows').insertAdjacentHTML('beforeend',row(it.sku,'',''));r=all().pop()}
+  const qi=r.querySelector('.rQ');
+  if(fresh){r.querySelector('.rS').value=it.sku;qi.value=1;if(ty==='SALE')r.querySelector('.rA').value=it.price||''}else qi.value=(parseFloat(qi.value)||0)+1;
+  log('<div>&#10003; <strong>'+esc(it.name)+'</strong> × '+qi.value+'</div>')}})}
 
 let view='items';
 const T=(h,r,f)=>'<div style="overflow-x:auto"><table><thead><tr>'+h.map(x=>x[0]==='#'?'<th class="number">'+x.slice(1)+'</th>':'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(r.length?r.map(a=>'<tr>'+a.map((x,i)=>'<td'+(h[i][0]==='#'?' class="number"':'')+'>'+x+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" style="text-align:center;color:var(--text-muted)">Nothing here yet.</td></tr>')+'</tbody>'+(f?'<tfoot><tr style="font-weight:700">'+f.map((x,i)=>'<td'+(h[i][0]==='#'?' class="number"':'')+'>'+x+'</td>').join('')+'</tr></tfoot>':'')+'</table></div>';
-const bar=b=>'<div class="inv-bar">'+b.map(x=>'<button class="btn btn-sm" onclick="INV.open(\''+x+'\')">+ '+TITLES[x]+'</button>').join('')+'<button class="btn btn-outline btn-sm" onclick="INV.imp()">Import / template</button></div>';
+const bar=b=>'<div class="inv-bar">'+b.map(x=>'<button class="btn btn-sm" onclick="INV.open(\''+x+'\')">+ '+TITLES[x]+'</button>').join('')+'<button class="btn btn-outline btn-sm" onclick="INV.scan()">Scan barcode</button><button class="btn btn-outline btn-sm" onclick="INV.imp()">Import / template</button></div>';
 function docTable(types,R){const X=I();
  return T(['Date','Document','Party','Detail','#Amount',''],X.docs.filter(d=>types.includes(d.type)).slice().reverse().map(d=>{const r=R.res[d.id],p=R.po[d.id];
   const amt=d.type==='PO'?d.lines.reduce((t,l)=>t+Math.round(l.qty*l.amt*100),0):(d.type==='PINV'||d.type==='SALE')?r.b:r.v;
@@ -3834,8 +3912,8 @@ function docTable(types,R){const X=I();
   return[esc(d.date),'<strong>'+d.id+'</strong>',esc(d.party),esc(det),fm(amt),'<button class="btn btn-outline btn-sm" onclick="INV.cancel(\''+d.id+'\')">Cancel</button>']}))}
 function renderInv(){const c=C();if(!c||!on()||!$('invBody'))return;const X=I(),R=replay(X.docs),b=$('invBody');
  ['items','buy','sell','adj','rep'].forEach(v=>$('invNav-'+v).classList.toggle('active',v===view));
- if(view==='items'){let tv=0;b.innerHTML='<form class="inv-bar" style="align-items:flex-end" onsubmit="INV.addItem(event)"><div class="form-group"><label>SKU *</label><input id="iSku" required style="width:100px"></div><div class="form-group"><label>Item name *</label><input id="iName" required></div><div class="form-group"><label>Unit</label><input id="iUom" value="pc" style="width:64px"></div><div class="form-group"><label>Reorder level</label><input id="iRl" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Reorder qty</label><input id="iRq" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Selling price</label><input id="iPr" type="number" min="0" step="0.01" style="width:100px"></div><button class="btn">Add item</button><button type="button" class="btn btn-outline" onclick="INV.imp()">Import / template</button></form>'+
-  T(['SKU','Item','#On hand','#Avg cost','#Stock value','#Selling price','Status',''],X.items.map(i=>{const s=R.st[i.sku]||{q:0,v:0};tv+=s.v;return[esc(i.sku),esc(i.name),nf(s.q)+' '+esc(i.uom),s.q?fm(s.v/s.q):'-',fm(s.v),fm(i.price*100),i.rl>0&&s.q<=i.rl?'<span class="badge badge-contra">Reorder</span>':'<span class="badge badge-vat">OK</span>','<button class="btn btn-outline btn-sm" onclick="INV.del(\''+esc(i.sku)+'\')">Delete</button>']}),['','Total','','',fm(tv),'','',''])}
+ if(view==='items'){let tv=0;b.innerHTML='<form class="inv-bar" style="align-items:flex-end" onsubmit="INV.addItem(event)"><div class="form-group"><label>SKU *</label><input id="iSku" required style="width:100px"></div><div class="form-group"><label>Item name *</label><input id="iName" required></div><div class="form-group"><label>Unit</label><input id="iUom" value="pc" style="width:64px"></div><div class="form-group"><label>Reorder level</label><input id="iRl" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Reorder qty</label><input id="iRq" type="number" min="0" step="any" style="width:90px"></div><div class="form-group"><label>Selling price</label><input id="iPr" type="number" min="0" step="0.01" style="width:100px"></div><div class="form-group"><label>Barcode</label><div style="display:flex;gap:4px"><input id="iBc" autocomplete="off" style="width:150px"><button type="button" class="btn btn-outline btn-sm" onclick="INV.scanInto()">Scan</button></div></div><button class="btn">Add item</button><button type="button" class="btn btn-outline" onclick="INV.scan()">Scan barcode</button><button type="button" class="btn btn-outline" onclick="INV.imp()">Import / template</button></form>'+
+  T(['SKU','Item','Barcode','#On hand','#Avg cost','#Stock value','#Selling price','Status',''],X.items.map(i=>{const s=R.st[i.sku]||{q:0,v:0};tv+=s.v;return[esc(i.sku),esc(i.name),esc(i.bc||'-'),nf(s.q)+' '+esc(i.uom),s.q?fm(s.v/s.q):'-',fm(s.v),fm(i.price*100),i.rl>0&&s.q<=i.rl?'<span class="badge badge-contra">Reorder</span>':'<span class="badge badge-vat">OK</span>','<button class="btn btn-outline btn-sm" onclick="INV.setBc(\''+esc(i.sku)+'\')">'+(i.bc?'Change':'Add')+' barcode</button> <button class="btn btn-outline btn-sm" onclick="INV.del(\''+esc(i.sku)+'\')">Delete</button>']}),['','Total','','','',fm(tv),'','',''])}
  if(view==='buy')b.innerHTML=bar(['PO','GRN','PINV'])+'<p class="inv-note">Order → receive → invoice. Receipts cannot exceed the order, and invoices cannot exceed receipts. Pay suppliers with a normal journal entry (Dr Accounts Payable).</p>'+docTable(['PO','GRN','PINV'],R);
  if(view==='sell')b.innerHTML=bar(['SALE'])+'<p class="inv-note">Each sale records revenue and issues stock at moving average cost to COGS. Stock cannot go negative.</p>'+docTable(['SALE'],R);
  if(view==='adj')b.innerHTML=bar(['ADJ'])+'<p class="inv-note">Enter the counted quantity. The difference from system stock is posted to Inventory Adjustments at average cost.</p>'+docTable(['ADJ'],R);
@@ -3865,8 +3943,8 @@ function invDash(){const box=$('widget-section-inventory');if(!box)return;const 
 const NRM=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
 const IMP={
  items:{label:'Items (product list)',note:'One row per item. SKU and item name are required. Existing SKUs are skipped unless you tick the box below.',
-  cols:[['SKU','sku',1],['Item name','name',1,'item','description'],['Unit','uom',0,'uom','unitofmeasure'],['Reorder level','rl',0],['Reorder qty','rq',0,'reorderquantity'],['Selling price','price',0,'price','unitprice']],
-  ex:[['EXAMPLE-1','Sample item','pc','10','50','150.00'],['EXAMPLE-2','Another sample','box','5','20','320.00']]},
+  cols:[['SKU','sku',1],['Item name','name',1,'item','description'],['Unit','uom',0,'uom','unitofmeasure'],['Reorder level','rl',0],['Reorder qty','rq',0,'reorderquantity'],['Selling price','price',0,'price','unitprice'],['Barcode','bc',0,'upc','ean']],
+  ex:[['EXAMPLE-1','Sample item','pc','10','50','150.00','4800000000011'],['EXAMPLE-2','Another sample','box','5','20','320.00','4800000000028']]},
  open:{label:'Opening stock (quantities on hand)',note:'Items must already exist. Each date is posted as one stock count: Dr Merchandise Inventory, Cr Inventory Adjustments. Heads-up: that credit lowers expenses, so if your inventory is already in your opening balances, importing it here would count it twice. Check the "Stock vs general ledger" report afterwards.',
   cols:[['Date','date',1],['SKU','sku',1],['Counted quantity','qty',1,'quantity','qty'],['Unit cost','cost',0,'cost']],
   ex:[['2026-01-01','EXAMPLE-1','25','90.00'],['2026-01-01','EXAMPLE-2','10','210.00']]},
@@ -3907,11 +3985,12 @@ function impBuild(type,rows){
  R.n=out.length;
  const skus=new Set(X.items.map(i=>i.sku)),bad=(o,m)=>{e.push('Row '+o._n+': '+m)};
  const okSku=o=>{o.sku=o.sku.toUpperCase();if(!o.sku){bad(o,'SKU is empty.');return false}if(!/^[A-Z0-9_-]+$/.test(o.sku)){bad(o,'SKU "'+o.sku+'" may use letters, numbers, - and _ only.');return false}return true};
- if(type==='items'){const seen=new Set(),upd=$('imU')&&$('imU').checked;
+ if(type==='items'){const seen=new Set(),upd=$('imU')&&$('imU').checked,bcs=new Map(X.items.filter(i=>i.bc).map(i=>[nb(i.bc),i.sku]));
   out.forEach(o=>{if(!okSku(o))return;if(!o.name)return bad(o,'Item name is empty.');if(seen.has(o.sku))return bad(o,'SKU '+o.sku+' appears more than once in the file.');seen.add(o.sku);
    const n={};for(const [k,l] of [['rl','Reorder level'],['rq','Reorder qty'],['price','Selling price']]){const v=o[k]===''?0:pNum(o[k]);if(!(v>=0))return bad(o,l+' must be a number, 0 or more.');n[k]=v}
    const it={sku:o.sku,name:o.name,uom:o.uom||'pc',rl:n.rl,rq:n.rq,price:n.price};
-   if(skus.has(o.sku)){if(upd)R.upd.push(it);else w.push('Row '+o._n+': '+o.sku+' already exists, skipped.')}else R.items.push(it)})}
+   const okBc=()=>{if(!o.bc)return true;if(/^\d(\.\d+)?e\+?\d+$/i.test(o.bc))return bad(o,'Barcode "'+o.bc+'" looks like Excel turned it into scientific notation. Format the Barcode column as Text and enter it again.'),false;if(o.bc.length>64||/[\u0000-\u001f]/.test(o.bc))return bad(o,'Barcode must be 64 characters or fewer.'),false;const own=bcs.get(nb(o.bc));if(own&&own!==o.sku)return bad(o,'Barcode '+o.bc+' already belongs to '+own+'.'),false;bcs.set(nb(o.bc),o.sku);it.bc=o.bc;return true};
+   if(skus.has(o.sku)){if(upd){if(okBc())R.upd.push(it)}else w.push('Row '+o._n+': '+o.sku+' already exists, skipped.')}else if(okBc())R.items.push(it)})}
  else if(type==='open'){const g={},seen=new Set();
   out.forEach(o=>{if(!okSku(o))return;const d=pDate(o.date);if(!d)return bad(o,'Date "'+o.date+'" is not valid. Use YYYY-MM-DD.');if(!skus.has(o.sku))return bad(o,'SKU '+o.sku+' is not in your items. Import or add the items first.');
    const q=pNum(o.qty),c=o.cost===''?0:pNum(o.cost);if(!(q>=0))return bad(o,'Quantity must be a number, 0 or more.');if(!(c>=0))return bad(o,'Unit cost must be a number, 0 or more.');
@@ -3940,7 +4019,7 @@ function impShow(){const o=$('imOut'),go=$('imGo');if(!IM){o.innerHTML='';go.dis
  if(IM.err&&IM.err.length){h+='<div class="inv-note" style="color:var(--ember)"><strong>Nothing was imported. Fix these first:</strong><ul style="margin:.4rem 0 0 1.1rem">'+IM.err.slice(0,15).map(x=>'<li>'+esc(x)+'</li>').join('')+(IM.err.length>15?'<li>…and '+(IM.err.length-15)+' more</li>':'')+'</ul></div>'}
  else{const n=IM.type==='items'?IM.items.length+IM.upd.length:IM.docs.length;
   h+='<p><strong>Ready to import:</strong> '+(IM.type==='items'?IM.items.length+' new item(s)'+(IM.upd.length?', '+IM.upd.length+' to update':''):IM.docs.length+' document(s) from '+IM.n+' row(s)')+'</p>';
-  if(IM.type==='items')h+=T(['SKU','Item','Unit','#Selling price'],IM.items.concat(IM.upd).slice(0,8).map(i=>[esc(i.sku),esc(i.name),esc(i.uom),nf(i.price)]));
+  if(IM.type==='items')h+=T(['SKU','Item','Unit','Barcode','#Selling price'],IM.items.concat(IM.upd).slice(0,8).map(i=>[esc(i.sku),esc(i.name),esc(i.uom),esc(i.bc||''),nf(i.price)]));
   else h+=T(['Document','Date','Party','#Lines'],IM.docs.slice(0,8).map(d=>['<strong>'+d.id+'</strong> '+TITLES[d.type],esc(d.date),esc(d.party),d.lines.length]));
   if(n>8)h+='<p class="inv-note">Showing the first 8.</p>';
   go.disabled=n===0}
@@ -3979,7 +4058,7 @@ w('switchCompany',navVis);w('installExtensionPack',navVis);w('calculateDashboard
 w('showTab',()=>{const a=document.querySelector('.tab-section.active');if(a&&a.id==='tab-inventory'){if(!on())return showTab('home');li.classList.add('active');renderInv()}});
 ['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);if(e&&e.src==='inv')return toast('This entry came from the Inventory module ('+e.ref+'). Cancel the document in Inventory instead.');return o.apply(this,arguments)}});
 const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.inv&&Array.isArray(d.inv.items)&&Array.isArray(d.inv.docs))o.inv=JSON.parse(JSON.stringify(d.inv));o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='inv'){e.src='inv';e.docId=String(x.docId||'')}});return o};
-window.INV={go:v=>{view=v;renderInv()},open:openDoc,fill,addRow,submit,addItem,del:delItem,cancel,rep,imp:openImp,impT,impF,impGo,impTpl};
+window.INV={scan:scanLookup,scanInto,scanRows,scanAct,scanNew,scanLink,setBc,go:v=>{view=v;renderInv()},open:openDoc,fill,addRow,submit,addItem,del:delItem,cancel,rep,imp:openImp,impT,impF,impGo,impTpl};
 })();
 
 // ===== Tasks module + Dashboard calendar (PH holidays) =====
