@@ -5244,8 +5244,9 @@ function loadRun(){
  draft=list.map(e=>{
   const s=saved.get(e.id),b={empId:e.id,name:fullName(e),business:e.business,position:e.position,status:e.status,saved:!!s};
   INK.forEach(k=>b[k[0]]=s?(+s[k[0]]||0):0);
-  b.rate=s?+s.rate||0:e.rate;b.allowance=s?+s.allowance||0:e.allowance;return b;
+  b.rate=s?+s.rate||0:e.rate;b.allowance=s?+s.allowance||0:e.allowance;['erSss','erEc','erPh','erPg'].forEach(k=>b[k]=s?+s[k]||0:0);if(s&&s.man)b._man=Object.assign({},s.man);return b;
  });
+ if(window.hrAutoFill)try{window.hrAutoFill(draft,f)}catch(err){console.error(err)}
  runF=f;renderRun();
 }
 function renderRun(){
@@ -5292,7 +5293,7 @@ function saveRun(){
  const r2=n=>Math.round(n)/100;
  RUNS().push({id:'run_'+uid(),savedAt:new Date().toISOString(),business:runF.biz,status:runF.stat,month:runF.month,year:runF.year,quincena:runF.q,
   rows:rows.map(r=>{const c=calc(r),o={empId:r.empId,name:r.name,business:r.business,position:r.position,status:r.status,rate:+r.rate||0,allowance:+r.allowance||0};
-   INK.forEach(k=>o[k[0]]=Math.round((+r[k[0]]||0)*100)/100);o.gross=r2(c.gross);o.deductions=r2(c.ded);o.net=r2(c.net);return o})});
+   INK.forEach(k=>o[k[0]]=Math.round((+r[k[0]]||0)*100)/100);['erSss','erEc','erPh','erPg'].forEach(k=>{if(+r[k])o[k]=Math.round(+r[k]*100)/100});if(r._man&&Object.keys(r._man).length)o.man=Object.assign({},r._man);o.gross=r2(c.gross);o.deductions=r2(c.ded);o.net=r2(c.net);return o})});
  save();
  const p={month:runF.month,year:runF.year,q:runF.q};preset.slips=Object.assign({},p);preset.print=Object.assign({},p);
  const skipped=draft.length-rows.length;
@@ -5385,12 +5386,12 @@ function exportCsv(){
 // ---------- Paid: post the payroll to the journal ----------
 // Dr Salaries and Wages (basic, holiday, overtime) and Meal Allowance Expense;
 // Cr Withholding Tax / SSS / PhilHealth / Pag-IBIG payables, Advances to Employees, Receivable from Employees; Cr Cash for the net pay.
-const TPL={wages:[5100,'Salaries and Wages Expense','Expense'],meal:[5110,'Meal Allowance Expense','Expense'],wtax:[2110,'Withholding Tax Payable','Liability'],sss:[2120,'SSS Contributions Payable','Liability'],ph:[2130,'PhilHealth Contributions Payable','Liability'],pg:[2140,'Pag-IBIG Contributions Payable','Liability'],adv:[1130,'Advances to Employees','Asset'],rec:[1140,'Receivable from Employees','Asset']};
+const TPL={wages:[5100,'Salaries and Wages Expense','Expense'],meal:[5110,'Meal Allowance Expense','Expense'],wtax:[2110,'Withholding Tax Payable','Liability'],sss:[2120,'SSS Contributions Payable','Liability'],ph:[2130,'PhilHealth Contributions Payable','Liability'],pg:[2140,'Pag-IBIG Contributions Payable','Liability'],adv:[1130,'Advances to Employees','Asset'],rec:[1140,'Receivable from Employees','Asset'],ergov:[5120,'SSS, PhilHealth and Pag-IBIG Contributions Expense','Expense']};
 const WAGE=/salar|wage/i,EREC=/receivable.*employee|employee.*receivable|due from employee/i;
-const COMPS=[['basic','Basic pay','D','wages',WAGE],['allow','Meal allowance','D','meal',/meal|allowance/i],['hol','Holiday pay','D','wages',/holiday/i,WAGE],['ot','Overtime pay','D','wages',/overtime/i,WAGE],['tax','Tax withheld','C','wtax',/withholding|tax payable/i],['sss','SSS','C','sss',/\bsss\b/i],['ph','PhilHealth','C','ph',/philhealth/i],['pg','Pag-IBIG','C','pg',/pag-?ibig|hdmf/i],['ca','Cash advance','C','adv',/advance/i],['cr','Credit','C','rec',EREC],['cb','Credit balance','C','rec',EREC]];
+const COMPS=[['basic','Basic pay','D','wages',WAGE],['allow','Meal allowance','D','meal',/meal|allowance/i],['hol','Holiday pay','D','wages',/holiday/i,WAGE],['ot','Overtime pay','D','wages',/overtime/i,WAGE],['tax','Tax withheld','C','wtax',/withholding|tax payable/i],['sss','SSS','C','sss',/\bsss\b/i],['ph','PhilHealth','C','ph',/philhealth/i],['pg','Pag-IBIG','C','pg',/pag-?ibig|hdmf/i],['ca','Cash advance','C','adv',/advance/i],['cr','Credit','C','rec',EREC],['cb','Credit balance','C','rec',EREC],['erx','Employer share of SSS/EC, PhilHealth, Pag-IBIG','D','ergov',/contributions? expense|employer.*(share|contribution)/i],['ersss','Employer share – SSS + EC (payable)','C','sss',/\bsss\b/i],['erph','Employer share – PhilHealth (payable)','C','ph',/philhealth/i],['erpg','Employer share – Pag-IBIG (payable)','C','pg',/pag-?ibig|hdmf/i]];
 const jeOfRun=run=>run.paid&&C().journalEntries.find(e=>e.id===run.paid.jeId);
 function syncPaid(){let ch=false;RUNS().forEach(r=>{if(r.paid&&!jeOfRun(r)){delete r.paid;ch=true}});if(ch)save()}
-function runSums(run){const T={basic:0,allow:0,hol:0,ot:0,tax:0,sss:0,ph:0,pg:0,ca:0,cr:0,cb:0,gross:0,net:0};run.rows.forEach(r=>{const c=calc(r);Object.keys(T).forEach(k=>T[k]+=c[k])});return T}
+function runSums(run){const T={basic:0,allow:0,hol:0,ot:0,tax:0,sss:0,ph:0,pg:0,ca:0,cr:0,cb:0,gross:0,net:0,erx:0,ersss:0,erph:0,erpg:0};run.rows.forEach(r=>{const c=calc(r);Object.keys(T).forEach(k=>{if(k in c)T[k]+=c[k]});const e=x=>c100(r[x]);T.ersss+=e('erSss')+e('erEc');T.erph+=e('erPh');T.erpg+=e('erPg')});T.erx=T.ersss+T.erph+T.erpg;return T}
 const okCat=(a,side)=>!!a&&!a.isContra&&a.roleTag!=='cash'&&(side==='D'?a.category==='Expense':(a.category==='Liability'||a.category==='Asset'));
 function defAcct(cp){
  const ch=C().chartOfAccounts,mem=(H().acct||{})[cp[0]];
@@ -5419,7 +5420,7 @@ function openPaid(run){
   +'<div class="hr-scroll" style="max-height:none"><table class="hr-tbl" style="white-space:normal"><thead><tr><th>Item</th><th>Account</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead><tbody>'
   +used.map(cp=>'<tr><td>'+cp[1]+'</td><td><select data-k="'+cp[0]+'" aria-label="Account for '+cp[1]+'" style="width:100%;min-width:220px">'+opts(cp)+'</select></td><td class="number">'+(cp[2]==='D'?n2(S[cp[0]]):'')+'</td><td class="number">'+(cp[2]==='C'?n2(S[cp[0]]):'')+'</td></tr>').join('')
   +'<tr><td>Net pay</td><td id="hrPdCashLbl"></td><td></td><td class="number">'+n2(S.net)+'</td></tr></tbody>'
-  +'<tfoot><tr><td colspan="2">TOTAL</td><td class="number">'+n2(S.gross)+'</td><td class="number">'+n2(S.gross)+'</td></tr></tfoot></table></div>'
+  +'<tfoot><tr><td colspan="2">TOTAL</td><td class="number">'+n2(S.gross+S.erx)+'</td><td class="number">'+n2(S.gross+S.erx)+'</td></tr></tfoot></table></div>'
   +'<p class="hr-note" style="margin-top:.8rem">Holiday and overtime pay go to Salaries and Wages unless you choose another account. Your choices are remembered for the next payroll. Deductions stay in their payable accounts until you remit them to BIR, SSS, PhilHealth and Pag-IBIG.</p>'
   +'<div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="hrPdGo">Post to Journal</button></div>',860);
  const cs=m.querySelector('#hrPdCash'),lbl=()=>{const a=cash.find(x=>String(x.code)===cs.value);m.querySelector('#hrPdCashLbl').textContent=a?a.code+' – '+a.title:''};cs.onchange=lbl;lbl();
@@ -5488,8 +5489,11 @@ $('hrRReset').onclick=()=>{if(!draft.length)return;if(draft.some(r=>NUMK_IN.some
 $('hrRBody').addEventListener('input',e=>{
  const t=e.target;if(!t.classList.contains('hr-in'))return;
  const i=+t.dataset.i,k=t.dataset.k,v=parseFloat(t.value);
- draft[i][k]=Number.isFinite(v)&&v>0?v:0;t.classList.toggle('bad',k==='days'&&v>16);refreshRow(i);refreshFoot();
+ draft[i][k]=Number.isFinite(v)&&v>0?v:0;t.classList.toggle('bad',k==='days'&&v>16);
+ if(window.hrAutoRow)try{window.hrAutoRow(draft,i,k,runF,t.value==='')}catch(err){console.error(err)}
+ refreshRow(i);refreshFoot();
 });
+window.HRAPI={draft:()=>draft,runF:()=>runF,renderRun,refreshRow,refreshFoot,RUNS,EMP,calc,periodLabel,H};
 $('hrRBody').addEventListener('keydown',e=>{
  if(e.key!=='Enter'||!e.target.classList.contains('hr-in'))return;e.preventDefault();
  const nx=$('hrRBody').querySelector('input[data-i="'+(+e.target.dataset.i+1)+'"][data-k="'+e.target.dataset.k+'"]');if(nx){nx.focus();nx.select()}
@@ -5521,7 +5525,7 @@ const cleanHr=h=>{
  const runs=(Array.isArray(h.runs)?h.runs:[]).filter(r=>r&&typeof r==='object'&&Array.isArray(r.rows)&&+r.month>=1&&+r.month<=12&&+r.year>=2000&&+r.year<=2100).map(r=>({
   id:safeId(r.id)||'run_'+uid(),savedAt:S(r.savedAt,40),paid:r.paid&&typeof r.paid==='object'&&D.test(r.paid.date||'')?{date:r.paid.date,jeId:safeId(r.paid.jeId),cash:parseInt(r.paid.cash,10)||0,at:S(r.paid.at,40)}:undefined,business:S(r.business)||'ALL',status:S(r.status,30)||'ALL',month:Math.floor(+r.month),year:Math.floor(+r.year),quincena:+r.quincena===2?2:1,
   rows:r.rows.filter(w=>w&&typeof w==='object').map(w=>{const o={empId:safeId(w.empId),name:S(w.name),business:S(w.business),position:S(w.position),status:S(w.status,30),rate:N(w.rate),allowance:N(w.allowance)};
-   INK.forEach(k=>o[k[0]]=N(w[k[0]]));o.gross=Z(w.gross);o.deductions=Z(w.deductions);o.net=Z(w.net);return o})
+   INK.forEach(k=>o[k[0]]=N(w[k[0]]));['erSss','erEc','erPh','erPg'].forEach(k=>{if(N(w[k]))o[k]=N(w[k])});if(w.man&&typeof w.man==='object'){o.man={};['tax','sss','philhealth','pagibig'].forEach(k=>{if(w.man[k])o.man[k]=true})}o.gross=Z(w.gross);o.deductions=Z(w.deductions);o.net=Z(w.net);return o})
  }));
  const ac={};if(h.acct&&typeof h.acct==='object')Object.keys(h.acct).forEach(k=>{const v=parseInt(h.acct[k],10);if(/^\w{1,12}$/.test(k)&&Number.isInteger(v))ac[k]=v});
  return{employees:emps,runs,acct:ac};
@@ -6082,8 +6086,8 @@ const nk=s=>String(s==null?'':s).replace(/[^0-9a-z]/gi,'').toLowerCase();
 const nameCmp=(a,b)=>String(a==null?'':a).localeCompare(String(b==null?'':b),undefined,{numeric:true,sensitivity:'base'});
 const ROLES={admin:'Admin',bookkeeper:'Bookkeeper',accountant:'Accountant',encoder:'Encoder'};
 const ROLE_NOTE={admin:'Full authority: everything, including users, settings and posting encoder entries to the books.',bookkeeper:'Keeps the books: the modules you tick below. Posts directly to the books and generates reports.',accountant:'Read-only: sees only saved reports (generated by bookkeepers). Cannot see the books or enter anything.',encoder:'Data entry only, in plain forms with no accounts, debits or credits. Every entry waits for an admin to post it.'};
-const MODS=[['home','Dashboard'],['tasks','Tasks'],['books','Books'],['reports','Reports'],['hr','HR and payroll'],['bank','Banking'],['inventory','Inventory'],['realestate','Real Estate'],['settings','Settings (company, chart of accounts, data)']];
-const BK_DEFAULT={home:true,tasks:true,books:true,reports:true,hr:false,bank:true,inventory:true,realestate:true,settings:false};
+const MODS=[['home','Dashboard'],['tasks','Tasks'],['books','Books'],['reports','Reports'],['hr','HR and payroll'],['bank','Banking'],['tax','Tax & Compliance'],['inventory','Inventory'],['realestate','Real Estate'],['settings','Settings (company, chart of accounts, data)']];
+const BK_DEFAULT={home:true,tasks:true,books:true,reports:true,hr:false,bank:true,tax:true,inventory:true,realestate:true,settings:false};
 const FORMS=[['check','Checks issued'],['deposit','Deposits, transfers and withdrawals'],['expense','Expenses and receipts'],['collection','Money received']];
 const KIND_LABEL={check:'Check issued',deposit:'Bank transaction',expense:'Expense / receipt',collection:'Money received'};
 const EXP_CATS=['Utilities (electricity, water)','Fuel and transportation','Repairs and maintenance','Store and office supplies','Communication (phone, internet)','Rent','Delivery and freight','Taxes, permits and licenses','Professional fees','Meals and representation','Salaries and wages (not through payroll)','Bank charges','Other expense'];
@@ -6126,9 +6130,9 @@ function can(m){
  if(r==='bookkeeper')return m!=='posting'&&m!=='enc'&&m!=='rptlib'&&m!=='users'&&!!bkPerms()[m];
  return false;
 }
-const tabMod=t=>/^hr-/.test(t)?'hr':/^bk-/.test(t)?'bank':t;
-const firstTab=()=>['home','enc','rptlib','books','reports','bk-cal','hr-emp','inventory','realestate','tasks','settings'].find(t=>can(tabMod(t)))||'home';
-const NAV={home:['nav-home'],tasks:['nav-tasks'],books:['nav-books-parent','booksSubMenu'],reports:['nav-reports-parent','reportsSubMenu'],hr:['nav-hr-parent','hrSubMenu'],bank:['nav-bank-parent','bankSubMenu'],inventory:['nav-inventory'],realestate:['nav-realestate'],settings:['nav-settings'],posting:['nav-posting'],rptlib:['nav-rptlib'],enc:['nav-enc']};
+const tabMod=t=>/^hr-/.test(t)?'hr':/^bk-/.test(t)?'bank':/^tx-/.test(t)?'tax':t;
+const firstTab=()=>['home','enc','rptlib','books','reports','bk-cal','tx-cal','hr-emp','inventory','realestate','tasks','settings'].find(t=>can(tabMod(t)))||'home';
+const NAV={home:['nav-home'],tasks:['nav-tasks'],books:['nav-books-parent','booksSubMenu'],reports:['nav-reports-parent','reportsSubMenu'],hr:['nav-hr-parent','hrSubMenu'],bank:['nav-bank-parent','bankSubMenu'],tax:['nav-tax-parent','taxSubMenu'],inventory:['nav-inventory'],realestate:['nav-realestate'],settings:['nav-settings'],posting:['nav-posting'],rptlib:['nav-rptlib'],enc:['nav-enc']};
 function applyRole(){
  Object.keys(NAV).forEach(m=>NAV[m].forEach(id=>{const e=$(id);if(e)e.classList.toggle('role-hide',!can(m))}));
  const hs=document.querySelector('#headerCompanyBadge button[onclick*="settings"]');if(hs)hs.classList.toggle('role-hide',!can('settings'));
@@ -6963,6 +6967,543 @@ const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d)
  if(d.closeTarget)o.closeTarget=parseInt(d.closeTarget,10)||undefined;
  if(Array.isArray(d.journalEntries))o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='close'){e.src='close';e.fy=parseInt(x.fy,10)||undefined}});return o};
 window.CLOSEMOD={fyList,buildClosing,closedThrough,fingerprint,renderClose};
+})();
+
+// ===== Tax & Compliance (Philippines): compliance calendar, business tax, withholding on suppliers, payroll remittances =====
+// Rates and tables are stored per company (Tax Profile & Rates) so they can be updated when the government changes them.
+(function(){
+const $=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml;
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const c100=v=>{const n=parseFloat(v);return Number.isFinite(n)?Math.round(n*100):0};
+const pos=v=>Math.max(0,v);
+const n2=c=>(c/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fm=c=>formatMoney(fromCents(c),(C()||{}).currency);
+const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const p2=n=>String(n).padStart(2,'0'),ymd=(y,m,d)=>y+'-'+p2(m)+'-'+p2(d),lastDay=(y,m)=>new Date(y,m,0).getDate();
+const fdl=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+const today=()=>localDateStr(new Date());
+const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return localDateStr(d)};
+const nextMonth=(y,m)=>m===12?[y+1,1]:[y,m+1];
+const qMonths=q=>[q*3-2,q*3-1,q*3];
+const csvCell=v=>{let t=String(v==null?'':v);if(/^[=+\-@]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"'};
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
+const csv=rows=>'﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+const slug=s=>String(s||'').replace(/[^\w]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
+function modal(html,w){const m=document.createElement('div');m.className='modal-overlay tx-modal';m.innerHTML='<div class="modal" style="max-width:'+(w||640)+'px">'+html+'</div>';m.addEventListener('mousedown',e=>{if(e.target===m)m.remove()});document.body.appendChild(m);m.querySelectorAll('[data-x]').forEach(x=>x.onclick=()=>m.remove());return m}
+
+// ---------- official tables (defaults; editable under Tax Profile & Rates) ----------
+const RATES={sss:{ee:5,er:10,min:5000,max:35000,step:500,ecLow:10,ecHigh:30,ecAt:15000},ph:{rate:5,floor:10000,ceil:100000},hdmf:{eeLow:1,ee:2,er:2,low:1500,cap:10000},asOf:'2026'};
+// BIR withholding tax on compensation, semi-monthly (RR 11-2018 Annex E, rates from Jan 1, 2023): [over, fixed tax, % of excess]
+const WT_SEMI=[[10417,0,15],[16667,937.5,20],[33333,4270.7,25],[83333,16770.7,30],[333333,91770.7,35]];
+// Annual graduated income tax (TRAIN, from 2023): [over, fixed tax, % of excess]
+const WT_YEAR=[[250000,0,15],[400000,22500,20],[800000,102500,25],[2000000,402500,30],[8000000,2202500,35]];
+const ATC=[['WI010','Professional fees – individual (gross receipts ₱3M and below)',5,'I'],['WI011','Professional fees – individual (over ₱3M)',10,'I'],['WC010','Professional fees – corporation (₱720K and below)',10,'C'],['WC011','Professional fees – corporation (over ₱720K)',15,'C'],
+ ['WI100','Rental of real property – individual',5,'I'],['WC100','Rental of real property – corporation',5,'C'],['WI120','Contractors / subcontractors – individual',2,'I'],['WC120','Contractors / subcontractors – corporation',2,'C'],
+ ['WI158','Top withholding agent: purchase of goods – individual',1,'I'],['WC158','Top withholding agent: purchase of goods – corporation',1,'C'],['WI160','Top withholding agent: purchase of services – individual',2,'I'],['WC160','Top withholding agent: purchase of services – corporation',2,'C']].map(a=>({atc:a[0],desc:a[1],rate:a[2],kind:a[3]}));
+const bracket=(tbl,x)=>{let t=0;for(const r of tbl)if(x>r[0])t=r[1]+(x-r[0])*r[2]/100;return t};
+const wtaxSemi=cents=>Math.round(bracket(WT_SEMI,cents/100)*100);
+const taxYear=cents=>Math.round(bracket(WT_YEAR,cents/100)*100);
+
+// ---------- per-company data ----------
+function T(c){
+ c=c||C();if(!c.tax||typeof c.tax!=='object')c.tax={};const t=c.tax;
+ const isCorp=/corporation|partnership/i.test(c.entity||'');
+ t.profile=Object.assign({biz:/non/i.test(c.vat||'Non')?'PT':'VAT',ptRate:3,vatRate:c.vatRate||12,itr:isCorp?'corp':'ind',corpRate:25,emp:'auto',ewt:true,twa:false,efps:false,grp:'A',pen:'0',hdmf:((String(c.name||'A').match(/[A-Za-z]/)||['A'])[0]).toUpperCase(),since:today().slice(0,7),rev:{},outVat:'',inVat:''},t.profile||{});
+ t.pay=Object.assign({auto:true,sched:'split',mealNT:true,mwe:0},t.pay||{});
+ t.rates=t.rates&&t.rates.sss?t.rates:JSON.parse(JSON.stringify(RATES));
+ if(!Array.isArray(t.atc)||!t.atc.length)t.atc=ATC.map(a=>Object.assign({},a));
+ ['payees','ewt'].forEach(k=>{if(!Array.isArray(t[k]))t[k]=[]});
+ ['filed','emp'].forEach(k=>{if(!t[k]||typeof t[k]!=='object')t[k]={}});
+ return t;
+}
+const save=()=>saveToLocalStorage();
+const HR=()=>{const c=C();return c&&c.hr&&typeof c.hr==='object'?c.hr:{employees:[],runs:[]}};
+const hasEmp=()=>{const p=T().profile;return p.emp==='yes'||(p.emp==='auto'&&((HR().employees||[]).length>0||(HR().runs||[]).length>0))};
+
+// ---------- government contributions ----------
+function sssOf(mo){const R=T().rates.sss;if(mo<=0)return{ee:0,er:0,ec:0,msc:0};const m=mo/100,half=R.step/2;
+ const msc=m<R.min+half?R.min:Math.min(R.max,R.min+Math.floor((m-(R.min-half))/R.step)*R.step);
+ return{msc,ee:Math.round(msc*R.ee),er:Math.round(msc*R.er),ec:Math.round((msc<R.ecAt?R.ecLow:R.ecHigh)*100)}}
+function phOf(mo){const R=T().rates.ph;if(mo<=0)return{ee:0,er:0};const base=Math.min(R.ceil,Math.max(R.floor,mo/100)),tot=Math.round(base*R.rate);const ee=Math.round(tot/2);return{ee,er:tot-ee}}
+function hdmfOf(mo){const R=T().rates.hdmf;if(mo<=0)return{ee:0,er:0};const m=mo/100,b=Math.min(m,R.cap);return{ee:Math.round(b*(m<=R.low?R.eeLow:R.ee)),er:Math.round(b*R.er)}}
+function earn(r){const d=Math.max(0,parseFloat(r.days)||0),basic=Math.round(d*c100(r.rate)),allow=Math.round(d*c100(r.allowance));return{basic,allow,hol:pos(c100(r.holiday)),ot:pos(c100(r.ot))}}
+const isMwe=r=>{const t=T(),x=t.emp[r.empId]||{};return !!x.mwe||(t.pay.mwe>0&&(+r.rate||0)<=t.pay.mwe)};
+function savedRow(y,m,q,empId){let hit=null;(HR().runs||[]).forEach(run=>{if(run.year===y&&run.month===m&&run.quincena===q)run.rows.forEach(r=>{if(r.empId===empId)hit=r})});return hit}
+function monthlyParts(r,y,m,q){
+ const cfg=T().pay,e=earn(r),sb=x=>x.basic+x.hol+x.ot+(cfg.mealNT?0:x.allow);
+ const o=savedRow(y,m,3-q,r.empId),oe=o?earn(o):null;
+ const D={sss:0,ph:0,pg:0,erSss:0,erEc:0,erPh:0,erPg:0};
+ if(q===1&&cfg.sched==='second')return D;
+ let S,P,G,frac=1,less=null;
+ if(q===1){S=sss2(sb(e)*2);P=phOf(e.basic*2);G=hdmfOf(e.basic*2);frac=.5}
+ else{S=sss2(sb(e)+(oe?sb(oe):0));P=phOf(e.basic+(oe?oe.basic:0));G=hdmfOf(e.basic+(oe?oe.basic:0));if(o)less=o}
+ const part=(v,k)=>pos(Math.round(v*frac)-(less?c100(less[k]):0));
+ D.sss=part(S.ee,'sss');D.ph=part(P.ee,'philhealth');D.pg=part(G.ee,'pagibig');D.erSss=part(S.er,'erSss');D.erEc=part(S.ec,'erEc');D.erPh=part(P.er,'erPh');D.erPg=part(G.er,'erPg');
+ return D;
+}
+const sss2=mo=>sssOf(mo);
+function fillRow(r,f){
+ const man=r._man||{},e=earn(r),cfg=T().pay;
+ const set=(k,c)=>{if(!man[k])r[k]=Math.round(c)/100};
+ if(!(e.basic+e.allow+e.hol+e.ot)){['sss','philhealth','pagibig','tax'].forEach(k=>set(k,0));['erSss','erEc','erPh','erPg'].forEach(k=>r[k]=0);return}
+ const D=monthlyParts(r,f.year,f.month,f.q);
+ set('sss',D.sss);set('philhealth',D.ph);set('pagibig',D.pg);['erSss','erEc','erPh','erPg'].forEach(k=>r[k]=D[k]/100);
+ const taxable=isMwe(r)?0:pos(e.basic+e.hol+e.ot+(cfg.mealNT?0:e.allow)-c100(r.sss)-c100(r.philhealth)-c100(r.pagibig));
+ set('tax',wtaxSemi(taxable));
+}
+window.hrAutoFill=function(draft,f,force){const cfg=T().pay;if(!cfg.auto&&!force)return;draft.forEach(r=>{if(force)r._man={};if(r.saved&&!force)return;fillRow(r,f)})};
+window.hrAutoRow=function(draft,i,k,f,cleared){
+ const r=draft[i];if(!r||!f)return;r._man=r._man||{};
+ if(['tax','sss','philhealth','pagibig'].includes(k)){if(cleared)delete r._man[k];else r._man[k]=true}
+ if(!T().pay.auto)return;
+ fillRow(r,f);
+ const tr=$('hrRBody')&&$('hrRBody').rows[i];if(!tr)return;
+ ['tax','sss','philhealth','pagibig'].forEach(x=>{const inp=tr.querySelector('input[data-k="'+x+'"]');if(inp&&inp!==document.activeElement)inp.value=r[x]?r[x]:'';if(inp)inp.classList.toggle('tx-man',!!r._man[x])});
+};
+// payroll run page: when a cleared deduction box loses focus, show the automatic amount again
+(function(){const tb=$('hrRBody');if(tb)tb.addEventListener('change',e=>{const i=e.target;if(!i.classList.contains('hr-in')||!['tax','sss','philhealth','pagibig'].includes(i.dataset.k)||i.value!=='')return;const A=window.HRAPI,r=A&&A.draft()[+i.dataset.i];if(r&&r[i.dataset.k])i.value=r[i.dataset.k]})})();
+// payroll run page: auto note + recompute button
+(function(){const rs=$('hrRReset');if(!rs)return;
+ rs.insertAdjacentHTML('beforebegin','<button class="btn btn-outline" id="hrRAuto" type="button" title="Recompute SSS, PhilHealth, Pag-IBIG and withholding tax for every row">Recompute deductions</button>');
+ $('hrRAuto').onclick=()=>{const A=window.HRAPI;if(!A||!A.draft().length)return;if(!confirm('Recompute Tax, SSS, PhilHealth and Pag-IBIG for every employee from the current tables?\n\nAny amounts you typed over will be replaced.'))return;window.hrAutoFill(A.draft(),A.runF(),true);A.renderRun();toast('Deductions recomputed.','success')};
+ const info=$('hrRInfo');if(info)info.insertAdjacentHTML('afterend','<p class="hr-note" id="hrRAutoNote"></p>');
+})();
+function autoNote(){const n=$('hrRAutoNote');if(!n||!C())return;const p=T().pay;
+ n.innerHTML=p.auto?'Tax, SSS, PhilHealth and Pag-IBIG fill in automatically from the '+esc(T().rates.asOf||'')+' tables ('+(p.sched==='split'?'half each cutoff':'whole month on the 2nd cutoff')+'). Type over any amount to keep your own figure; clear it to go back to automatic. Settings: <a href="#" data-txgo="tx-set">Tax &amp; Compliance &gt; Tax Profile</a>.':'Automatic deductions are off. Turn them on in <a href="#" data-txgo="tx-set">Tax &amp; Compliance &gt; Tax Profile</a>.';
+ const rb=$('hrRAuto');if(rb)rb.disabled=!(window.HRAPI&&window.HRAPI.draft().length)}
+document.addEventListener('click',e=>{const a=e.target.closest('[data-txgo]');if(a){e.preventDefault();showTab(a.dataset.txgo)}});
+
+// ---------- payroll aggregates ----------
+function payRows(y,m){const out=[];(HR().runs||[]).forEach(run=>{if(run.year===y&&(m==null||run.month===m))run.rows.forEach(r=>out.push({run,r}))});return out}
+function rowFig(r){const e=earn(r),cfg=T().pay,mwe=isMwe(r);
+ const gross=e.basic+e.allow+e.hol+e.ot,ee=c100(r.sss)+c100(r.philhealth)+c100(r.pagibig);
+ const nontax=(mwe?e.basic+e.hol+e.ot:0)+(cfg.mealNT?e.allow:0)+Math.min(ee,mwe?0:ee);
+ return{gross,nontax:Math.min(gross,nontax),taxable:pos(gross-nontax),tax:c100(r.tax),sss:c100(r.sss),ph:c100(r.philhealth),pg:c100(r.pagibig),erSss:c100(r.erSss),erEc:c100(r.erEc),erPh:c100(r.erPh),erPg:c100(r.erPg),mwe}}
+function payByEmp(y,m){const map=new Map();payRows(y,m).forEach(({r})=>{const f=rowFig(r),k=r.empId||r.name;const x=map.get(k)||{empId:r.empId,name:r.name,business:r.business,mwe:false,gross:0,nontax:0,taxable:0,tax:0,sss:0,ph:0,pg:0,erSss:0,erEc:0,erPh:0,erPg:0};
+ Object.keys(f).forEach(z=>{if(z==='mwe')x.mwe=x.mwe||f.mwe;else x[z]+=f[z]});map.set(k,x)});return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name))}
+const sumBy=(list,k)=>list.reduce((s,x)=>s+(x[k]||0),0);
+const missingEr=(y,m)=>payRows(y,m).some(({r})=>(c100(r.sss)||c100(r.philhealth)||c100(r.pagibig))&&!(c100(r.erSss)+c100(r.erPh)+c100(r.erPg)));
+
+// ---------- books figures ----------
+const ents=()=>reportEntries(C(),'accrual');
+function acctNet(code,start,end){const b=computeAccountBalances(ents(),end,start).get(+code);return b?b:{drCents:0,crCents:0}}
+const revAccts=()=>C().chartOfAccounts.filter(a=>a.category==='Revenue');
+function treat(a){const v=T().profile.rev[a.code];if(v)return v;return /other|non-?operating|interest|gain/i.test((a.subCategoryClass||'')+' '+a.title)&&!a.isContra?'X':'T'}
+function qRange(y,q){return[ymd(y,q*3-2,1),ymd(y,q*3,lastDay(y,q*3))]}
+function bizFig(y,q){
+ const rows=revAccts().map(a=>{const ms=qMonths(q).map(m=>{const b=acctNet(a.code,ymd(y,m,1),ymd(y,m,lastDay(y,m)));return b.crCents-b.drCents});return{a,ms,tot:ms.reduce((s,v)=>s+v,0),tr:treat(a)}}).filter(x=>x.ms.some(v=>v));
+ const by=k=>rows.filter(x=>x.tr===k).reduce((s,x)=>s+x.tot,0);
+ const p=T().profile,[s,e]=qRange(y,q),F={rows,taxable:by('T'),exempt:by('E'),zero:by('Z'),excl:by('X')};
+ F.pt=Math.round(pos(F.taxable)*p.ptRate/100);
+ F.outCalc=Math.round(pos(F.taxable)*p.vatRate/100);
+ if(p.outVat){const b=acctNet(p.outVat,s,e);F.outBooks=b.crCents-b.drCents}
+ if(p.inVat){const b=acctNet(p.inVat,s,e);F.inBooks=b.drCents-b.crCents}
+ F.out=F.outBooks!=null?F.outBooks:F.outCalc;F.inp=F.inBooks||0;F.vat=F.out-F.inp;
+ return F;
+}
+function grossYTD(y,q){let g=0;for(let i=1;i<=q;i++){const f=bizFig(y,i);g+=f.taxable+f.exempt+f.zero}return g}
+function niYTD(y,q){const b=computeAccountBalances(ents(),ymd(y,q*3,lastDay(y,q*3)),ymd(y,1,1));let r=0,x=0;C().chartOfAccounts.forEach(a=>{const v=b.get(a.code);if(!v)return;if(a.category==='Revenue')r+=v.crCents-v.drCents;if(a.category==='Expense')x+=v.drCents-v.crCents});return r-x}
+function itrFig(y,q){const p=T().profile;
+ const due=k=>{if(p.biz==='EIGHT'){const g=grossYTD(y,k);return{base:g,tax:Math.round(pos(g-25000000)*0.08),how:'8% of gross sales/receipts in excess of ₱250,000, year to date'}}
+  const ni=niYTD(y,k);if(p.itr==='corp')return{base:ni,tax:Math.round(pos(ni)*p.corpRate/100),how:p.corpRate+'% of net income per books, year to date (estimate; MCIT not considered)'};
+  return{base:ni,tax:taxYear(pos(ni)),how:'Graduated rates on net income per books, year to date (estimate; uses your books, not optional standard deduction)'}};
+ const cur=due(q),prev=q>1?due(q-1).tax:0;return Object.assign(cur,{prev,pay:pos(cur.tax-prev)})}
+
+// ---------- withholding on suppliers ----------
+const payee=id=>T().payees.find(p=>p.id===id)||{name:'(deleted payee)',tin:'',addr:'',kind:'I'};
+const atcOf=c=>T().atc.find(a=>a.atc===c)||{atc:c,desc:c,rate:0};
+const ewtIn=(s,e)=>T().ewt.filter(x=>x.date>=s&&x.date<=e).sort((a,b)=>a.date.localeCompare(b.date));
+const ewtMonth=(y,m)=>ewtIn(ymd(y,m,1),ymd(y,m,lastDay(y,m)));
+const ewtQ=(y,q)=>{const[s,e]=qRange(y,q);return ewtIn(s,e)};
+
+// ---------- compliance calendar ----------
+const grpDay=()=>({A:15,B:14,C:13,D:12,E:11})[T().profile.grp]||15;
+function bizDay(s){const d=new Date(s+'T00:00'),w=d.getDay();if(w===6)return[addDays(s,2),'Sat'];if(w===0)return[addDays(s,1),'Sun'];return[s,'']}
+function items(y){
+ const p=T().profile,out=[],emp=hasEmp();
+ const add=(key,form,title,per,due,kind,o)=>{const[d,mv]=bizDay(due);out.push(Object.assign({key,form,title,per,due:d,moved:mv,kind},o||{}))};
+ for(let m=1;m<=12;m++){const[ny,nm]=nextMonth(y,m),per=MN[m-1]+' '+y;
+  if(emp){
+   add('1601C-'+y+'-'+p2(m),'1601-C','Withholding tax on compensation',per,m===12?ymd(y+1,1,p.efps?20:15):ymd(ny,nm,p.efps?grpDay():10),'pay',{amt:()=>sumBy(payByEmp(y,m),'tax'),page:'tx-pay',ym:[y,m],acct:'wtax'});
+   add('SSS-'+y+'-'+p2(m),'SSS','SSS contributions (employee + employer + EC)',per,ymd(ny,nm,lastDay(ny,nm)),'pay',{amt:()=>{const l=payByEmp(y,m);return sumBy(l,'sss')+sumBy(l,'erSss')+sumBy(l,'erEc')},page:'tx-pay',ym:[y,m],skip0:true,acct:'sss'});
+   add('PH-'+y+'-'+p2(m),'PhilHealth','PhilHealth premiums (employee + employer)',per,ymd(ny,nm,+p.pen<=4?15:20),'pay',{amt:()=>{const l=payByEmp(y,m);return sumBy(l,'ph')+sumBy(l,'erPh')},page:'tx-pay',ym:[y,m],skip0:true,acct:'ph'});
+   const L=p.hdmf,hd=L<='D'?14:L<='L'?19:L<='Q'?24:lastDay(ny,nm);
+   add('HDMF-'+y+'-'+p2(m),'Pag-IBIG','Pag-IBIG contributions (employee + employer)',per,ymd(ny,nm,hd),'pay',{amt:()=>{const l=payByEmp(y,m);return sumBy(l,'pg')+sumBy(l,'erPg')},page:'tx-pay',ym:[y,m],skip0:true,acct:'pg'});
+  }
+  if(p.ewt&&m%3)add('0619E-'+y+'-'+p2(m),'0619-E','Remittance of expanded withholding tax',per,ymd(ny,nm,p.efps?grpDay():10),'pay',{amt:()=>sumBy(ewtMonth(y,m),'tax'),page:'tx-ewt',ym:[y,m],skip0:true,acct:'ewt'});
+ }
+ for(let q=1;q<=4;q++){const qe=q*3,[ny,nm]=nextMonth(y,qe),per='Q'+q+' '+y;
+  if(p.ewt){
+   add('1601EQ-'+y+'-Q'+q,'1601-EQ','Quarterly expanded withholding tax + QAP',per,ymd(ny,nm,lastDay(ny,nm)),'pay',{amt:()=>pos(sumBy(ewtQ(y,q),'tax')-qMonths(q).slice(0,2).reduce((s,m)=>{const f=T().filed['0619E-'+y+'-'+p2(m)];return s+(f?f.amt||0:0)},0)),page:'tx-ewt',yq:[y,q],acct:'ewt'});
+   add('2307-'+y+'-Q'+q,'2307','Give BIR Form 2307 to suppliers you withheld from',per,ymd(ny,nm,20),'issue',{page:'tx-ewt',yq:[y,q]});
+  }
+  if(p.biz==='VAT')add('2550Q-'+y+'-Q'+q,'2550Q','Quarterly VAT return (+ summary list of sales/purchases)',per,ymd(ny,nm,25),'pay',{amt:()=>pos(bizFig(y,q).vat),page:'tx-biz',yq:[y,q],acct:'vat'});
+  if(p.biz==='PT')add('2551Q-'+y+'-Q'+q,'2551Q','Quarterly percentage tax return',per,ymd(ny,nm,25),'pay',{amt:()=>bizFig(y,q).pt,page:'tx-biz',yq:[y,q],acct:'pt'});
+  if(q<4){
+   if(p.itr==='corp'){const d=new Date(y,qe,0);d.setDate(d.getDate()+60);add('1702Q-'+y+'-Q'+q,'1702Q','Quarterly income tax return (corporation)',per,localDateStr(d),'pay',{amt:()=>itrFig(y,q).pay,page:'tx-biz',yq:[y,q],acct:'itx',est:true})}
+   else add('1701Q-'+y+'-Q'+q,'1701Q','Quarterly income tax return (individual)',per,ymd(y,[5,8,11][q-1],15),'pay',{amt:()=>itrFig(y,q).pay,page:'tx-biz',yq:[y,q],acct:'itx',est:p.biz!=='EIGHT'});
+  }
+ }
+ const py=y-1;
+ if(emp){add('1604C-'+py,'1604-C','Annual return of compensation withholding + alphalist','Year '+py,ymd(y,1,31),'file',{page:'tx-pay',annual:py});
+  add('2316-'+py,'2316','Give BIR Form 2316 to each employee','Year '+py,ymd(y,1,31),'issue',{page:'tx-pay',annual:py});
+  add('13TH-'+y,'13th month','Pay 13th month pay to employees','Year '+y,ymd(y,12,24),'issue',{page:'hr-run'})}
+ if(p.ewt)add('1604E-'+py,'1604-E','Annual information return of expanded withholding','Year '+py,ymd(y,3,1),'file',{page:'tx-ewt'});
+ add((p.itr==='corp'?'1702':'1701')+'-'+py,p.itr==='corp'?'1702-RT':'1701/1701A','Annual income tax return + financial statements','Year '+py,ymd(y,4,15),'pay',{page:'tx-biz',acct:'itx'});
+ const since=(p.since||'2000-01')+'-01';
+ // SSS, PhilHealth, Pag-IBIG and 0619-E are only needed when there is something to remit; BIR 1601-C is filed even with no payroll
+ return out.filter(i=>i.due>=since&&!(i.skip0&&!T().filed[i.key]&&!(amtOf(i)>0)&&periodEnded(i)));
+}
+function itemsBetween(s,e){const ys=new Set();for(let y=+s.slice(0,4)-1;y<=+e.slice(0,4)+1;y++)ys.add(y);const all=[];ys.forEach(y=>items(y).forEach(i=>{if(i.due>=s&&i.due<=e)all.push(i)}));const seen=new Set();return all.filter(i=>!seen.has(i.key)&&seen.add(i.key)).sort((a,b)=>a.due.localeCompare(b.due)||a.form.localeCompare(b.form))}
+const isDone=i=>!!T().filed[i.key];
+const periodEnded=i=>!i.ym||ymd(i.ym[0],i.ym[1],lastDay(i.ym[0],i.ym[1]))<today();
+function overdue(){const t=today(),since=(T().profile.since||'2000-01')+'-01';return itemsBetween(since,addDays(t,-1)).filter(i=>!isDone(i))}
+function badge(){const b=$('txCount');if(!b)return;const c=C();if(!c||!can())return b.style.display='none';let n=0;try{const t=today();n=overdue().length+itemsBetween(t,addDays(t,7)).filter(i=>!isDone(i)).length}catch(e){}b.textContent=n;b.style.display=n?'':'none';b.title=n+' filing'+(n===1?'':'s')+' overdue or due within 7 days'}
+const can=()=>!window.currentUser||['admin','bookkeeper'].includes(window.currentUser.role);
+
+// ---------- accounts used when posting ----------
+const TPL={wtax:[2110,'Withholding Tax Payable','Liability'],ewt:[2115,'Expanded Withholding Tax Payable','Liability'],sss:[2120,'SSS Contributions Payable','Liability'],ph:[2130,'PhilHealth Contributions Payable','Liability'],pg:[2140,'Pag-IBIG Contributions Payable','Liability'],ptp:[2150,'Percentage Tax Payable','Liability'],vatp:[2160,'VAT Payable','Liability'],itp:[2170,'Income Tax Payable','Liability'],tl:[6100,'Taxes and Licenses','Expense'],ite:[6900,'Income Tax Expense','Expense']};
+const RX={wtax:/withholding tax payable(?!.*expanded)|w\/?tax payable|tax withheld.*compens/i,ewt:/expanded|ewt|creditable withholding/i,sss:/\bsss\b.*payable/i,ph:/philhealth.*payable/i,pg:/(pag-?ibig|hdmf).*payable/i,ptp:/percentage tax payable/i,vatp:/vat payable|output vat|output tax/i,itp:/income tax payable/i,tl:/taxes and licen|percentage tax(?! payable)/i,ite:/income tax expense|provision for income tax/i};
+function findAcct(k){const ch=C().chartOfAccounts,t=TPL[k];return ch.find(a=>a.title.toLowerCase()===t[1].toLowerCase())||ch.find(a=>a.category===t[2]&&RX[k].test(a.title))}
+function ensureAcct(k){const f=findAcct(k);if(f)return f.code;const ch=C().chartOfAccounts,t=TPL[k];let n=t[0];while(ch.some(a=>a.code===n))n++;ch.push(acct(n,t[1],t[2],SUBCLASS_DEFAULT[t[2]],t[2]==='Liability'?'Credit':'Debit'));ch.sort((a,b)=>a.code-b.code);return n}
+const accrued=key=>C().journalEntries.some(e=>e.id==='entry_tax_acc_'+key);
+function payDebitDefault(i){
+ if(i.acct==='pt')return accrued(i.key)?'tpl:ptp':'tpl:tl';
+ if(i.acct==='vat'){const o=T().profile.outVat;return o?String(o):'tpl:vatp'}
+ if(i.acct==='itx')return accrued(i.key)?'tpl:itp':'tpl:ite';
+ return 'tpl:'+i.acct;
+}
+function acctOpts(sel,filter){const ch=C().chartOfAccounts.filter(filter||(()=>true)).sort((a,b)=>a.code-b.code);let h=(sel===''?'<option value="">– choose account –</option>':'')+ch.map(a=>'<option value="'+a.code+'"'+(String(a.code)===String(sel)?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('');
+ if(String(sel).startsWith('tpl:')){const k=sel.slice(4),f=findAcct(k);if(f)h=h.replace('value="'+f.code+'"','value="'+f.code+'" selected');else h='<option value="'+sel+'" selected>+ New account: '+esc(TPL[k][1])+'</option>'+h}return h}
+const resolve=v=>String(v).startsWith('tpl:')?ensureAcct(v.slice(4)):+v;
+const cashAccts=()=>C().chartOfAccounts.filter(a=>a.roleTag==='cash'&&!a.isContra);
+function refreshBooks(){try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}}
+function postJE(id,date,ref,desc,lines,extra){const c=C();c.journalEntries=c.journalEntries.filter(e=>e.id!==id);c.journalEntries.push(Object.assign({id,date,ref,desc,lines,fileAttachment:null,src:'tax'},extra||{}));}
+const dropJE=id=>{const c=C();c.journalEntries=c.journalEntries.filter(e=>e.id!==id)};
+const lockedDate=d=>{const c=C(),cl=Array.isArray(c.closings)?c.closings:[];const t=cl.reduce((m,x)=>x.end>m?x.end:m,'');return t&&d<=t};
+
+// ---------- styles, nav, pages ----------
+document.body.querySelector(':scope>svg').insertAdjacentHTML('beforeend','<symbol id="i-tax" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9.5 16.5l6-6"/><circle cx="10" cy="11" r="1.1"/><circle cx="15" cy="16" r="1.1"/></symbol>');
+document.head.insertAdjacentHTML('beforeend','<style>'
+ +'.tx-form{display:inline-block;min-width:76px;text-align:center;font-weight:800;font-size:.74rem;letter-spacing:.02em;padding:3px 8px;border-radius:7px;background:color-mix(in srgb,var(--accent-primary) 12%,transparent);color:var(--accent-primary)}'
+ +'.tx-st{font-size:.78rem;font-weight:700;padding:2px 8px;border-radius:99px;white-space:nowrap}.tx-st.ok{background:rgba(22,140,90,.12);color:#13805a}.tx-st.od{background:rgba(229,48,63,.12);color:var(--danger)}.tx-st.soon{background:rgba(217,119,6,.14);color:#b45309}.tx-st.later{background:var(--tint);color:var(--text-muted)}'
+ +'.tx-due b{display:block}.tx-due small{color:var(--text-muted)}.tx-sec{margin:1.2rem 0 .4rem;font-size:.82rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}'
+ +'.tx-sum{display:grid;grid-template-columns:1fr auto;gap:6px 18px;max-width:560px;font-size:.92rem;margin:.6rem 0}.tx-sum b{text-align:right;font-variant-numeric:tabular-nums}.tx-sum .tot{border-top:1px solid var(--border-color);padding-top:6px;font-weight:800}'
+ +'.hr-in.tx-man{border-color:#d97706!important;background:rgba(217,119,6,.07)}'
+ +'.tx-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 16px}'
+ +'.tx-tbl input,.tx-tbl select{padding:4px 6px;font-size:.84rem;min-width:0}.tx-tbl td{vertical-align:middle}'
+ +'.tx-up{display:flex;flex-direction:column;gap:6px}.tx-up div{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:.88rem;padding:6px 0;border-bottom:1px dashed var(--border-color)}.tx-up div:last-child{border-bottom:0}'
+ +'#nav-tax-parent .nav-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#nav-tax-parent .nav-count,#nav-tax-parent .chevron-icon{flex-shrink:0}#nav-tax-parent{position:relative;gap:7px}#nav-tax-parent .nav-count{position:absolute;left:30px;top:3px;margin:0;padding:0 5px;font-size:.62rem;line-height:1.5;background:var(--danger)!important;color:#fff!important;box-shadow:0 0 0 2px var(--frame)}'+'@media(max-width:768px){.tx-sum{max-width:none}}'
+ +'</style>');
+const par=document.createElement('li');par.id='nav-tax-parent';par.tabIndex=0;par.setAttribute('role','button');par.title='Tax & Compliance';
+par.innerHTML='<span class="nav-icon"><svg class="i"><use href="#i-tax"/></svg></span><span class="nav-text">Compliance</span><span class="nav-count" id="txCount" style="display:none"></span><span class="chevron-icon" id="txChevron" style="font-size:0.75rem;"><svg class="i"><use href="#i-chev"/></svg></span>';
+const sub=document.createElement('ul');sub.className='sub-menu';sub.id='taxSubMenu';sub.style.display='none';
+const PAGES=[['cal','Deadlines Calendar'],['biz','Business Tax'],['ewt','Withholding (EWT)'],['pay','Payroll Remittances'],['set','Tax Profile & Rates']];
+PAGES.forEach(n=>{const li=document.createElement('li');li.id='nav-sub-tx-'+n[0];li.textContent=n[1];li.tabIndex=0;li.setAttribute('role','button');li.onclick=()=>showTab('tx-'+n[0]);li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();li.click()}};sub.appendChild(li)});
+function toggleTx(force){if(document.body.classList.contains('collapsed')&&window.innerWidth>768)document.body.classList.remove('collapsed');const open=typeof force==='boolean'?force:sub.style.display==='none';sub.style.display=open?'block':'none';$('txChevron').classList.toggle('open',open)}
+par.onclick=()=>toggleTx();par.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();par.click()}};
+const anchor=$('bankSubMenu')||$('hrSubMenu')||$('reportsSubMenu');anchor.insertAdjacentElement('afterend',par);par.insertAdjacentElement('afterend',sub);
+
+const yq=(id)=>'<div class="form-group" style="min-width:90px"><label for="'+id+'Y">Year</label><input type="number" id="'+id+'Y" min="2000" max="2100" style="width:100px"></div>';
+const qSel=id=>'<div class="form-group"><label for="'+id+'Q">Quarter</label><select id="'+id+'Q"><option value="1">Q1 (Jan–Mar)</option><option value="2">Q2 (Apr–Jun)</option><option value="3">Q3 (Jul–Sep)</option><option value="4">Q4 (Oct–Dec)</option></select></div>';
+const mSel=id=>'<div class="form-group"><label for="'+id+'M">Month</label><select id="'+id+'M">'+MN.map((m,i)=>'<option value="'+(i+1)+'">'+m+'</option>').join('')+'</select></div>';
+const DISC='<p class="hr-note" style="margin-top:1rem;font-size:.78rem">These worksheets prepare figures from your books. File and pay through eBIRForms/eFPS (BIR), My.SSS, PhilHealth EPRS and Pag-IBIG Virtual. Confirm rates and deadlines with your accountant or the agency; you can update them in Tax Profile &amp; Rates.</p>';
+document.querySelector('main.main-content').insertAdjacentHTML('beforeend',
+ '<div id="tab-tx-cal" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Compliance Calendar</h2><div class="hr-acts"><button class="btn btn-outline btn-sm" id="txCPrev" aria-label="Previous month">&#8249;</button><b id="txCTitle" style="min-width:150px;text-align:center"></b><button class="btn btn-outline btn-sm" id="txCNext" aria-label="Next month">&#8250;</button><button class="btn btn-outline btn-sm" id="txCNow">This month</button><button class="btn btn-outline btn-sm" id="txCCsv">Export year (CSV)</button></div></div>'
+ +'<p class="hr-note" id="txCNote"></p><div class="bk-kpis" id="txCKpis"></div><div id="txCList"></div>'+DISC+'</div></div>'
+ +'<div id="tab-tx-biz" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Business &amp; Income Tax</h2></div><div class="hr-bar">'+yq('txB')+qSel('txB')+'</div><div id="txBOut"></div>'+DISC+'</div></div>'
+ +'<div id="tab-tx-ewt" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Withholding on Suppliers</h2><div class="hr-acts"><button class="btn btn-outline" data-a="payees">Payees</button><button class="btn" data-a="new">+ Record withholding</button></div></div>'
+ +'<p class="hr-note">When you pay a supplier, landlord or professional, you withhold part of the payment and remit it to BIR. Record each one here; the app totals 0619-E and 1601-EQ, prepares the QAP and the 2307 details for each supplier.</p>'
+ +'<div class="hr-bar">'+yq('txE')+qSel('txE')+'</div><div class="bk-kpis" id="txEKpis"></div><div class="hr-scroll"><table class="hr-tbl bk-tbl"><thead><tr><th>Date</th><th>Payee</th><th>TIN</th><th>ATC</th><th>Particulars</th><th class="number">Income payment</th><th class="number">Rate</th><th class="number">Tax withheld</th><th>Books</th><th></th></tr></thead><tbody id="txEBody"></tbody></table></div>'
+ +'<h3 style="margin:1.4rem 0 .4rem;font-size:1.02rem">Quarter summary by ATC (1601-EQ)</h3><div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>ATC</th><th>Nature of payment</th><th class="number" id="txEM1"></th><th class="number" id="txEM2"></th><th class="number" id="txEM3"></th><th class="number">Total income payment</th><th class="number">Tax withheld</th></tr></thead><tbody id="txESum"></tbody></table></div>'
+ +'<div class="hr-acts" style="margin-top:1rem"><button class="btn btn-outline" data-a="2307">Print 2307 details</button><button class="btn btn-outline" data-a="qap">QAP (CSV)</button><button class="btn btn-outline" data-a="csv">Export records (CSV)</button></div>'+DISC+'</div></div>'
+ +'<div id="tab-tx-pay" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Payroll Remittances</h2><div class="hr-acts"><select id="txPView" aria-label="View"><option value="m">Monthly remittances</option><option value="y">Annual (2316 / alphalist)</option><option value="ids">Employee government numbers</option></select></div></div>'
+ +'<div class="hr-bar">'+yq('txP')+'<span id="txPMWrap">'+mSel('txP')+'</span></div><div id="txPOut"></div>'+DISC+'</div></div>'
+ +'<div id="tab-tx-set" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Tax Profile &amp; Rates</h2></div><div id="txSOut"></div></div></div>');
+
+// ---------- calendar page ----------
+let calY,calM;
+function stOf(i){const f=T().filed[i.key],t=today();if(f)return '<span class="tx-st ok">✓ '+(i.kind==='pay'?'Paid':i.kind==='issue'?'Done':'Filed')+' '+esc(fdl(f.date))+'</span>'+(f.ref?'<br><small class="bk-mut">Ref '+esc(f.ref)+'</small>':'');
+ const d=Math.round((new Date(i.due+'T00:00')-new Date(t+'T00:00'))/864e5);
+ return d<0?'<span class="tx-st od">Overdue '+(-d)+' day'+(d===-1?'':'s')+'</span>':d===0?'<span class="tx-st soon">Due today</span>':d<=7?'<span class="tx-st soon">Due in '+d+' day'+(d===1?'':'s')+'</span>':'<span class="tx-st later">In '+d+' days</span>'}
+function amtOf(i){if(!i.amt)return null;try{return i.amt()}catch(e){return null}}
+function rowHtml(i){const a=amtOf(i),f=T().filed[i.key],d=new Date(i.due+'T00:00');
+ return '<tr><td class="tx-due"><b>'+esc(fdl(i.due))+'</b><small>'+WD[d.getDay()]+(i.moved?' • moved from '+i.moved:'')+'</small></td><td><span class="tx-form">'+esc(i.form)+'</span></td><td class="wrap"><b>'+esc(i.title)+'</b><br><small class="bk-mut">'+esc(i.per)+'</small></td>'
+ +'<td class="number">'+(f&&f.amt!=null&&i.kind==='pay'?fm(f.amt):a==null?'<span class="bk-mut">–</span>':fm(a)+(i.est?'<br><small class="bk-mut">estimate</small>':''))+'</td><td>'+stOf(i)+'</td>'
+ +'<td class="hr-acts-cell">'+(i.page?'<button class="btn btn-outline btn-sm" data-open="'+esc(i.key)+'">Open</button> ':'')+(f?'<button class="btn btn-outline btn-sm" data-undo="'+esc(i.key)+'">Undo</button>':'<button class="btn btn-sm" data-done="'+esc(i.key)+'">'+(i.kind==='pay'?'Mark paid':i.kind==='issue'?'Mark done':'Mark filed')+'</button>')+'</td></tr>'}
+const tbl=rows=>'<div class="hr-scroll"><table class="hr-tbl bk-tbl"><thead><tr><th>Due</th><th>Form</th><th>What</th><th class="number">Amount</th><th>Status</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+function renderCal(){
+ const c=C();if(!c)return;const t=today();if(!calY){calY=+t.slice(0,4);calM=+t.slice(5,7)}
+ $('txCTitle').textContent=MN[calM-1]+' '+calY;
+ const p=T().profile;
+ $('txCNote').innerHTML='Deadlines for <b>'+esc(c.name)+'</b>: '+({VAT:'VAT-registered ('+p.vatRate+'%)',PT:'Non-VAT, '+p.ptRate+'% percentage tax',EIGHT:'8% income tax option',EXEMPT:'exempt from business tax'})[p.biz]+(hasEmp()?' • with employees':'')+(p.ewt?' • withholds on suppliers':'')+'. Weekend due dates move to Monday; check holidays yourself. <a href="#" data-txgo="tx-set">Change tax profile</a>.'+((c.fyStart||1)!==1?' <b>Note:</b> your fiscal year does not start in January; quarterly returns here use calendar quarters.':'');
+ const od=overdue(),mon=itemsBetween(ymd(calY,calM,1),ymd(calY,calM,lastDay(calY,calM))),soon=itemsBetween(t,addDays(t,7)).filter(i=>!isDone(i));
+ const toPay=mon.filter(i=>i.kind==='pay'&&!isDone(i)).reduce((s,i)=>s+(amtOf(i)||0),0);
+ const K=(a,b,n,w)=>'<div class="bk-kpi'+(w?' warn':'')+'"><span>'+a+'</span><b>'+b+'</b><small>'+(n||'')+'</small></div>';
+ $('txCKpis').innerHTML=K('Overdue',od.length,od.length?'not marked filed/paid':'nothing overdue',od.length)+K('Due in the next 7 days',soon.length,'')+K('Still to pay in '+MN[calM-1],fm(toPay),mon.filter(i=>!isDone(i)).length+' open item(s) this month')+K('Done in '+MN[calM-1],mon.filter(isDone).length+' of '+mon.length,'');
+ let h='';
+ if(od.length)h+='<div class="tx-sec" style="color:var(--danger)">Overdue</div>'+tbl(od.map(rowHtml).join(''));
+ h+='<div class="tx-sec">Due in '+MN[calM-1]+' '+calY+'</div>'+(mon.length?tbl(mon.map(rowHtml).join('')):'<p class="bk-mut">Nothing due this month for this company.</p>');
+ $('txCList').innerHTML=h;
+}
+const findItem=key=>{const m=key.match(/-(\d{4})/),y=m?+m[1]:new Date().getFullYear();for(const yy of [y,y+1,y-1]){const i=items(yy).find(x=>x.key===key);if(i)return i}return null};
+$('tab-tx-cal').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ if(b.id==='txCPrev'){calM--;if(!calM){calM=12;calY--}renderCal()}else if(b.id==='txCNext'){calM++;if(calM>12){calM=1;calY++}renderCal()}else if(b.id==='txCNow'){calY=0;renderCal()}
+ else if(b.id==='txCCsv'){const rows=[['Due date','Form','What','Period','Amount','Status','Filed/paid on','Reference']];itemsBetween(ymd(calY,1,1),ymd(calY,12,31)).forEach(i=>{const f=T().filed[i.key],a=amtOf(i);rows.push([i.due,i.form,i.title,i.per,a==null?'':(a/100).toFixed(2),f?'Done':(i.due<today()?'Overdue':'Open'),f?f.date:'',f?f.ref||'':''])});dl(slug(C().name)+'_compliance_'+calY+'.csv',csv(rows))}
+ else if(d.open)openItem(findItem(d.open));else if(d.done)markDone(findItem(d.done));else if(d.undo)undo(findItem(d.undo));});
+function openItem(i){if(!i)return;if(i.page==='tx-pay'){payView=i.annual?'y':'m';payY=i.annual||i.ym[0];payM=i.ym?i.ym[1]:payM}
+ if(i.page==='tx-ewt'&&(i.yq||i.ym)){ewtY=(i.yq||i.ym)[0];ewtQ_=i.yq?i.yq[1]:Math.ceil(i.ym[1]/3)}if(i.page==='tx-biz'&&i.yq){bizY=i.yq[0];bizQ=i.yq[1]}showTab(i.page)}
+function markDone(i){if(!i)return;const a=amtOf(i),pay=i.kind==='pay',cash=cashAccts(),deb=payDebitDefault(i);
+ const m=modal('<h2 style="margin-top:0">'+esc(i.form)+' – '+esc(i.per)+'</h2><p class="hr-note">'+esc(i.title)+' • due '+esc(fdl(i.due))+'</p>'
+  +'<div class="grid-2"><div class="form-group"><label for="txDDate">'+(pay?'Date filed / paid':'Date done')+'</label><input type="date" id="txDDate" value="'+today()+'"></div><div class="form-group"><label for="txDRef">Reference no. (optional)</label><input id="txDRef" maxlength="60" placeholder="e.g. eFPS/eBIRForms reference, PRN, OR no."></div></div>'
+  +(pay?'<div class="form-group"><label for="txDAmt">Amount paid</label><input type="number" step="0.01" min="0" id="txDAmt" value="'+(a!=null?(a/100).toFixed(2):'')+'"></div>'
+   +(cash.length?'<label class="hr-chk"><input type="checkbox" id="txDPost"'+(a?' checked':'')+'> Record the payment in the books</label><div id="txDBooks" class="grid-2"><div class="form-group"><label for="txDDr">Debit</label><select id="txDDr">'+acctOpts(deb,x=>x.roleTag!=='cash')+'</select></div><div class="form-group"><label for="txDCr">Paid from</label><select id="txDCr">'+cash.map(x=>'<option value="'+x.code+'">'+esc(x.code+' – '+x.title)+'</option>').join('')+'</select></div></div>':''):'')
+  +'<div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="txDGo">Save</button></div>',620);
+ const pb=m.querySelector('#txDPost'),bx=m.querySelector('#txDBooks');if(pb){const sync=()=>bx.style.display=pb.checked?'':'none';pb.onchange=sync;sync()}
+ m.querySelector('#txDGo').onclick=()=>{const date=m.querySelector('#txDDate').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return toast('Choose the date.');
+  const rec={date,ref:m.querySelector('#txDRef').value.trim().slice(0,60),at:new Date().toISOString(),by:window.currentUser?window.currentUser.name:''};
+  if(pay){rec.amt=c100(m.querySelector('#txDAmt').value);
+   if(pb&&pb.checked&&rec.amt>0){if(lockedDate(date))return toast('That date is in a closed fiscal year. Choose a later date or reopen the year.');
+    const dr=resolve(m.querySelector('#txDDr').value),cr=+m.querySelector('#txDCr').value,id='entry_tax_'+i.key;
+    postJE(id,date,i.form+' '+i.per.replace(/\s+/g,'-'),'Payment of '+i.form+' – '+i.title+' ('+i.per+')'+(rec.ref?' • Ref '+rec.ref:''),[{accountCode:dr,debit:rec.amt/100,credit:0},{accountCode:cr,debit:0,credit:rec.amt/100}],{taxKey:i.key});rec.jeId=id}}
+  T().filed[i.key]=rec;save();refreshBooks();m.remove();renderCal();badge();toast(i.form+' marked '+(pay?'paid':'done')+(rec.jeId?' and recorded in the books':'')+'.','success')};
+}
+function undo(i){if(!i)return;const f=T().filed[i.key];if(!f)return;if(!confirm('Undo the filed/paid status of '+i.form+' ('+i.per+')?'+(f.jeId?'\n\nIts payment entry is removed from the books.':'')))return;
+ if(f.jeId){const e=C().journalEntries.find(x=>x.id===f.jeId);if(e&&lockedDate(e.date))return toast('The payment entry is in a closed fiscal year. Reopen the year first.');dropJE(f.jeId)}
+ delete T().filed[i.key];save();refreshBooks();renderCal();badge()}
+
+// ---------- business & income tax page ----------
+let bizY,bizQ;
+function curQ(){const t=today(),m=+t.slice(5,7);return[+t.slice(0,4),Math.ceil(m/3)]}
+function renderBiz(){
+ const c=C();if(!c)return;if(!bizY)[bizY,bizQ]=curQ();$('txBY').value=bizY;$('txBQ').value=bizQ;
+ const p=T().profile,F=bizFig(bizY,bizQ),y=bizY,q=bizQ,ms=qMonths(q);
+ const TR=[['T','Taxable'],['Z','Zero-rated'],['E','Exempt'],['X','Not business income']];
+ let h='<p class="hr-note">Profile: <b>'+({VAT:'VAT-registered',PT:'Non-VAT (percentage tax)',EIGHT:'8% income tax option',EXEMPT:'Exempt from business tax'})[p.biz]+'</b>. Revenue below is from your books (accrual). Choose how each revenue account is treated; the choice is remembered.</p>'
+  +'<div class="hr-scroll"><table class="hr-tbl tx-tbl"><thead><tr><th>Revenue account</th>'+ms.map(m=>'<th class="number">'+MN[m-1].slice(0,3)+'</th>').join('')+'<th class="number">Quarter</th><th>Treatment</th></tr></thead><tbody>'
+  +(F.rows.length?F.rows.map(x=>'<tr><td>'+esc(x.a.code+' – '+x.a.title)+'</td>'+x.ms.map(v=>'<td class="number">'+n2(v)+'</td>').join('')+'<td class="number"><b>'+n2(x.tot)+'</b></td><td><select data-tr="'+x.a.code+'">'+TR.filter(o=>p.biz==='VAT'||o[0]!=='Z').map(o=>'<option value="'+o[0]+'"'+(x.tr===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></td></tr>').join(''):'<tr><td colspan="6" class="bk-mut" style="text-align:center;padding:1.2rem">No revenue recorded in Q'+q+' '+y+'.</td></tr>')+'</tbody></table></div>';
+ const L=(a,b,cls)=>'<span'+(cls?' class="'+cls+'"':'')+'>'+a+'</span><b'+(cls?' class="'+cls+'"':'')+'>'+b+'</b>';
+ if(p.biz==='PT'){h+='<h3 style="margin:1.2rem 0 .2rem;font-size:1.02rem">2551Q – Quarterly percentage tax</h3><div class="tx-sum">'+L('Taxable gross sales / receipts',fm(F.taxable))+L('Exempt receipts (not taxed)',fm(F.exempt))+L('Tax rate',p.ptRate+'%')+L('Percentage tax due',fm(F.pt),'tot')+'</div>'
+  +'<button class="btn btn-outline btn-sm" data-acc="2551Q-'+y+'-Q'+q+'">'+(accrued('2551Q-'+y+'-Q'+q)?'Update':'Record')+' percentage tax in the books (Dr Taxes and Licenses / Cr Percentage Tax Payable)</button>'}
+ if(p.biz==='VAT'){h+='<h3 style="margin:1.2rem 0 .2rem;font-size:1.02rem">2550Q – Quarterly VAT</h3><div class="tx-sum">'+L('VATable sales (net of VAT)',fm(F.taxable))+L('Zero-rated sales',fm(F.zero))+L('Exempt sales',fm(F.exempt))+L('Output VAT at '+p.vatRate+'% of VATable sales',fm(F.outCalc))
+  +(F.outBooks!=null?L('Output VAT per books (account '+esc(p.outVat)+')',fm(F.outBooks)):'')+L('Less: input VAT'+(p.inVat?' per books (account '+esc(p.inVat)+')':' (set your Input VAT account in Tax Profile)'),fm(F.inp))+L(F.vat>=0?'VAT payable':'Excess input VAT (carry over)',fm(Math.abs(F.vat)),'tot')+'</div>'
+  +(F.outBooks!=null&&Math.abs(F.outBooks-F.outCalc)>100?'<div class="rq-note">Output VAT in the books differs from '+p.vatRate+'% of VATable sales by '+fm(Math.abs(F.outBooks-F.outCalc))+'. Check for sales recorded VAT-inclusive or without output VAT.</div>':'')}
+ if(p.biz==='EIGHT')h+='<div class="rq-ok">Under the 8% option you do not file percentage tax (2551Q). Income tax is 8% of gross sales above ₱250,000 (see below).</div>';
+ if(p.biz==='EXEMPT')h+='<div class="rq-ok">Marked exempt from business tax: no 2550Q/2551Q.</div>';
+ if(q<4){const I=itrFig(y,q),f=p.itr==='corp'?'1702Q':'1701Q';
+  h+='<h3 style="margin:1.4rem 0 .2rem;font-size:1.02rem">'+f+' – Quarterly income tax (Q'+q+' '+y+')</h3><div class="tx-sum">'+L(p.biz==='EIGHT'?'Gross sales / receipts, year to date':'Net income per books, year to date',fm(I.base))+L('Income tax due, year to date',fm(I.tax))+L('Less: due in earlier quarters',fm(I.prev))+L('Payable this quarter',fm(I.pay),'tot')+'</div><p class="hr-note">'+esc(I.how)+'.'+(p.biz==='EIGHT'?'':' This is an estimate to plan cash; your accountant prepares the actual return.')+'</p>'}
+ else h+='<p class="hr-note" style="margin-top:1.2rem">Q4 has no quarterly income tax return; it is covered by the annual return due April 15.</p>';
+ $('txBOut').innerHTML=h;
+}
+['txBY','txBQ'].forEach(id=>$(id).addEventListener('change',()=>{bizY=+$('txBY').value||bizY;bizQ=+$('txBQ').value;renderBiz()}));
+$('txBOut').addEventListener('change',e=>{const s=e.target.closest('[data-tr]');if(!s)return;T().profile.rev[s.dataset.tr]=s.value;save();renderBiz()});
+$('txBOut').addEventListener('click',e=>{const b=e.target.closest('[data-acc]');if(!b)return;const key=b.dataset.acc,F=bizFig(bizY,bizQ),[,end]=qRange(bizY,bizQ);
+ if(!F.pt)return toast('No percentage tax to record for this quarter.');if(lockedDate(end))return toast('That quarter is in a closed fiscal year.');
+ const dr=ensureAcct('tl'),cr=ensureAcct('ptp');postJE('entry_tax_acc_'+key,end,'PT-'+bizY+'-Q'+bizQ,'Percentage tax for Q'+bizQ+' '+bizY+' ('+T().profile.ptRate+'% of '+n2(F.taxable)+')',[{accountCode:dr,debit:F.pt/100,credit:0},{accountCode:cr,debit:0,credit:F.pt/100}],{taxKey:key});
+ save();refreshBooks();renderBiz();toast('Percentage tax for Q'+bizQ+' recorded in the books.','success')});
+
+// ---------- withholding on suppliers page ----------
+let ewtY,ewtQ_;
+function renderEwt(){
+ const c=C();if(!c)return;if(!ewtY)[ewtY,ewtQ_]=curQ();$('txEY').value=ewtY;$('txEQ').value=ewtQ_;
+ const L=ewtQ(ewtY,ewtQ_),ms=qMonths(ewtQ_);
+ const K=(a,b,n)=>'<div class="bk-kpi"><span>'+a+'</span><b>'+b+'</b><small>'+(n||'')+'</small></div>';
+ $('txEKpis').innerHTML=K('Income payments',fm(sumBy(L,'base')),L.length+' record(s)')+ms.map(m=>K(MN[m-1]+' withheld',fm(sumBy(ewtMonth(ewtY,m),'tax')),m%3?'0619-E':'in 1601-EQ')).join('')+K('Quarter total withheld',fm(sumBy(L,'tax')),'1601-EQ');
+ $('txEBody').innerHTML=L.length?L.map(x=>{const p=payee(x.payee),a=atcOf(x.atc);return '<tr><td>'+esc(fdl(x.date))+'</td><td>'+esc(p.name)+'</td><td>'+esc(p.tin||'–')+'</td><td title="'+esc(a.desc)+'">'+esc(x.atc)+'</td><td class="wrap">'+esc(x.desc||'')+'</td><td class="number">'+n2(x.base)+'</td><td class="number">'+x.rate+'%</td><td class="number"><b>'+n2(x.tax)+'</b></td><td>'+(x.jeId?'<span class="badge badge-vat">Posted</span>':'<span class="bk-mut">Tracked only</span>')+'</td><td class="hr-acts-cell"><button class="btn btn-outline btn-sm" data-ed="'+x.id+'">Edit</button> <button class="btn btn-danger btn-outline btn-sm" data-del="'+x.id+'">Delete</button></td></tr>'}).join(''):'<tr><td colspan="10" class="bk-mut" style="text-align:center;padding:1.4rem">No withholding recorded for Q'+ewtQ_+' '+ewtY+'.</td></tr>';
+ ms.forEach((m,k)=>$('txEM'+(k+1)).textContent=MN[m-1].slice(0,3));
+ const by=new Map();L.forEach(x=>{const o=by.get(x.atc)||{m:[0,0,0],tax:0};o.m[ms.indexOf(+x.date.slice(5,7))]+=x.base;o.tax+=x.tax;by.set(x.atc,o)});
+ $('txESum').innerHTML=by.size?[...by.entries()].map(([k,o])=>'<tr><td>'+esc(k)+'</td><td class="wrap">'+esc(atcOf(k).desc)+'</td>'+o.m.map(v=>'<td class="number">'+n2(v)+'</td>').join('')+'<td class="number">'+n2(o.m[0]+o.m[1]+o.m[2])+'</td><td class="number"><b>'+n2(o.tax)+'</b></td></tr>').join('')+'<tr style="font-weight:800"><td colspan="5">TOTAL</td><td class="number">'+n2(sumBy(L,'base'))+'</td><td class="number">'+n2(sumBy(L,'tax'))+'</td></tr>':'<tr><td colspan="7" class="bk-mut" style="text-align:center">–</td></tr>';
+}
+['txEY','txEQ'].forEach(id=>$(id).addEventListener('change',()=>{ewtY=+$('txEY').value||ewtY;ewtQ_=+$('txEQ').value;renderEwt()}));
+$('tab-tx-ewt').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ if(d.a==='new')ewtForm();else if(d.ed)ewtForm(T().ewt.find(x=>x.id===d.ed));else if(d.del)ewtDel(d.del);else if(d.a==='payees')payeesDlg();
+ else if(d.a==='2307')print2307();else if(d.a==='qap')qap();else if(d.a==='csv')ewtCsv()});
+function payeeFields(pr){return '<div class="grid-2"><div class="form-group"><label for="'+pr+'Nm">Registered name</label><input id="'+pr+'Nm" maxlength="120"></div><div class="form-group"><label for="'+pr+'Tin">TIN (000-000-000-00000)</label><input id="'+pr+'Tin" maxlength="20" placeholder="000-000-000-00000"></div><div class="form-group"><label for="'+pr+'Ad">Registered address</label><input id="'+pr+'Ad" maxlength="200"></div><div class="form-group"><label for="'+pr+'Kd">Type</label><select id="'+pr+'Kd"><option value="I">Individual</option><option value="C">Corporation / partnership</option></select></div></div>'}
+const fmtTin=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,14);return d?[d.slice(0,3),d.slice(3,6),d.slice(6,9),d.slice(9)].filter(Boolean).join('-'):''};
+function ewtForm(x){
+ const t=T(),cash=cashAccts(),edit=!!x;x=x||{date:today(),payee:'',atc:'',base:0,rate:0,tax:0,desc:''};
+ const pOpts='<option value="">– choose –</option>'+t.payees.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>'<option value="'+p.id+'"'+(p.id===x.payee?' selected':'')+'>'+esc(p.name)+(p.tin?' ('+esc(p.tin)+')':'')+'</option>').join('')+'<option value="__new">+ New payee…</option>';
+ const m=modal('<h2 style="margin-top:0">'+(edit?'Edit':'Record')+' withholding</h2>'
+  +'<div class="grid-2"><div class="form-group"><label for="txWDate">Payment date</label><input type="date" id="txWDate" value="'+esc(x.date)+'"></div><div class="form-group"><label for="txWPay">Payee</label><select id="txWPay">'+pOpts+'</select></div></div>'
+  +'<div id="txWNew" style="display:none;border:1px dashed var(--border-color);border-radius:10px;padding:10px 12px;margin-bottom:10px">'+payeeFields('txWN')+'</div>'
+  +'<div class="form-group"><label for="txWAtc">Nature of payment (ATC)</label><select id="txWAtc"></select></div>'
+  +'<div class="grid-2"><div class="form-group"><label for="txWBase">Income payment (amount before withholding, net of VAT)</label><input type="number" step="0.01" min="0" id="txWBase" value="'+(x.base?(x.base/100).toFixed(2):'')+'"></div><div class="form-group"><label for="txWTax">Tax withheld (<span id="txWRate"></span>)</label><input type="number" step="0.01" min="0" id="txWTax" value="'+(x.tax?(x.tax/100).toFixed(2):'')+'"></div></div>'
+  +'<div class="form-group"><label for="txWDesc">Particulars</label><input id="txWDesc" maxlength="160" value="'+esc(x.desc||'')+'" placeholder="e.g. Store rent for October, Accounting fee Q3"></div>'
+  +'<div class="form-group"><label for="txWMode">Books</label><select id="txWMode"><option value="track">Already recorded in the books (track only)</option>'+(cash.length?'<option value="post"'+(x.jeId?' selected':'')+'>Record the payment in the books now</option>':'')+'</select></div>'
+  +'<div id="txWBooks" class="grid-2"><div class="form-group"><label for="txWDr">Expense / account (debit, full amount)</label><select id="txWDr">'+acctOpts(x.dr||'',a=>a.roleTag!=='cash')+'</select></div><div class="form-group"><label for="txWCr">Paid from (credit, net of tax)</label><select id="txWCr">'+cash.map(a=>'<option value="'+a.code+'"'+(a.code===x.cr?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')+'</select></div><p class="hr-note" style="grid-column:1/-1;margin:0" id="txWPrev"></p></div>'
+  +'<div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="txWGo">Save</button></div>',680);
+ const q=s=>m.querySelector(s),kind=()=>{const v=q('#txWPay').value;return v==='__new'?q('#txWNKd').value:(t.payees.find(p=>p.id===v)||{}).kind||'I'};
+ let manualTax=edit&&x.tax!==Math.round(x.base*x.rate/100);
+ const fillAtc=()=>{const k=kind(),cur=q('#txWAtc').value||x.atc;q('#txWAtc').innerHTML=t.atc.filter(a=>!a.kind||a.kind===k||a.atc===cur).map(a=>'<option value="'+esc(a.atc)+'"'+(a.atc===cur?' selected':'')+'>'+esc(a.atc+' – '+a.desc+' ('+a.rate+'%)')+'</option>').join('')};
+ const rate=()=>(atcOf(q('#txWAtc').value).rate)||0;
+ const recalc=()=>{q('#txWRate').textContent=rate()+'%';if(!manualTax)q('#txWTax').value=q('#txWBase').value?(Math.round(c100(q('#txWBase').value)*rate()/100)/100).toFixed(2):'';const b=c100(q('#txWBase').value),tx=c100(q('#txWTax').value);q('#txWPrev').textContent=b?'Dr expense '+n2(b)+' • Cr cash '+n2(b-tx)+' • Cr Expanded Withholding Tax Payable '+n2(tx):''};
+ const mode=()=>{q('#txWBooks').style.display=q('#txWMode').value==='post'?'':'none'};
+ q('#txWPay').onchange=()=>{q('#txWNew').style.display=q('#txWPay').value==='__new'?'':'none';fillAtc();recalc()};q('#txWNKd').onchange=()=>{fillAtc();recalc()};
+ q('#txWAtc').onchange=()=>{manualTax=false;recalc()};q('#txWBase').oninput=recalc;q('#txWTax').oninput=()=>{manualTax=true;recalc()};q('#txWMode').onchange=mode;
+ fillAtc();recalc();mode();
+ q('#txWGo').onclick=()=>{
+  const date=q('#txWDate').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return toast('Choose the payment date.');
+  let pid=q('#txWPay').value;if(!pid)return toast('Choose the payee.');
+  const base=c100(q('#txWBase').value),tax=c100(q('#txWTax').value),atc=q('#txWAtc').value;
+  if(base<=0)return toast('Enter the income payment.');if(tax<0||tax>base)return toast('Tax withheld must be between zero and the income payment.');if(!atc)return toast('Choose the ATC.');
+  const post=q('#txWMode').value==='post';if(post&&lockedDate(date))return toast('That date is in a closed fiscal year.');if(post&&!q('#txWDr').value)return toast('Choose the expense account.');
+  if(pid==='__new'){const nm=q('#txWNNm').value.trim();if(!nm)return toast('Enter the payee name.');const p={id:'py_'+uid(),name:nm.slice(0,120),tin:fmtTin(q('#txWNTin').value),addr:q('#txWNAd').value.trim().slice(0,200),kind:q('#txWNKd').value};t.payees.push(p);pid=p.id}
+  const rec=edit?x:{id:'ewt_'+uid()};Object.assign(rec,{date,payee:pid,atc,base,rate:rate(),tax,desc:q('#txWDesc').value.trim().slice(0,160)});
+  if(rec.jeId){dropJE(rec.jeId);delete rec.jeId}
+  if(post){const dr=resolve(q('#txWDr').value),cr=+q('#txWCr').value,ew=ensureAcct('ewt'),id='entry_tax_ewt_'+rec.id;
+   const lines=[{accountCode:dr,debit:base/100,credit:0},{accountCode:cr,debit:0,credit:(base-tax)/100}];if(tax)lines.push({accountCode:ew,debit:0,credit:tax/100});
+   postJE(id,date,'EWT-'+atc,'Payment to '+payee(pid).name+(rec.desc?' – '+rec.desc:'')+' (less '+rec.rate+'% EWT)',lines,{taxKey:'ewt:'+rec.id});rec.jeId=id;rec.dr=dr;rec.cr=cr}
+  if(!edit)t.ewt.push(rec);save();refreshBooks();m.remove();ewtY=+date.slice(0,4);ewtQ_=Math.ceil(+date.slice(5,7)/3);renderEwt();badge();toast('Withholding saved'+(rec.jeId?' and recorded in the books':'')+'.','success')};
+}
+function ewtDel(id){const t=T(),x=t.ewt.find(r=>r.id===id);if(!x)return;if(x.jeId&&lockedDate(x.date))return toast('This payment is in a closed fiscal year.');if(!confirm('Delete this withholding record'+(x.jeId?' and its journal entry':'')+'?'))return;if(x.jeId)dropJE(x.jeId);t.ewt=t.ewt.filter(r=>r.id!==id);save();refreshBooks();renderEwt();badge()}
+function payeesDlg(){const t=T();
+ const m=modal('<h2 style="margin-top:0">Payees</h2><p class="hr-note">Suppliers, landlords and professionals you withhold from. Their TIN and address print on the 2307 and QAP.</p><div class="hr-scroll" style="max-height:50vh"><table class="hr-tbl tx-tbl"><thead><tr><th>Name</th><th>TIN</th><th>Address</th><th>Type</th><th></th></tr></thead><tbody id="txPyB"></tbody></table></div><details style="margin:.8rem 0"><summary style="cursor:pointer;font-weight:700">+ Add payee</summary>'+payeeFields('txPyN')+'<button class="btn btn-sm" id="txPyAdd">Add</button></details><div style="text-align:right"><button class="btn" data-x>Done</button></div>',820);
+ const draw=()=>{m.querySelector('#txPyB').innerHTML=t.payees.length?t.payees.map(p=>'<tr data-id="'+p.id+'"><td><input data-f="name" value="'+esc(p.name)+'"></td><td><input data-f="tin" value="'+esc(p.tin||'')+'" style="width:150px"></td><td><input data-f="addr" value="'+esc(p.addr||'')+'"></td><td><select data-f="kind"><option value="I"'+(p.kind==='I'?' selected':'')+'>Individual</option><option value="C"'+(p.kind==='C'?' selected':'')+'>Corporation</option></select></td><td><button class="btn btn-danger btn-outline btn-sm" data-rm="'+p.id+'">Remove</button></td></tr>').join(''):'<tr><td colspan="5" class="bk-mut">No payees yet.</td></tr>'};draw();
+ m.addEventListener('change',e=>{const tr=e.target.closest('tr[data-id]');if(!tr||!e.target.dataset.f)return;const p=t.payees.find(x=>x.id===tr.dataset.id);let v=e.target.value.trim();if(e.target.dataset.f==='tin'){v=fmtTin(v);e.target.value=v}if(e.target.dataset.f==='name'&&!v)return draw();p[e.target.dataset.f]=v;save()});
+ m.addEventListener('click',e=>{const r=e.target.closest('[data-rm]');if(r){if(t.ewt.some(x=>x.payee===r.dataset.rm))return toast('This payee has withholding records. Delete those first.');t.payees=t.payees.filter(p=>p.id!==r.dataset.rm);save();draw()}});
+ m.querySelector('#txPyAdd').onclick=()=>{const nm=m.querySelector('#txPyNNm').value.trim();if(!nm)return toast('Enter the payee name.');t.payees.push({id:'py_'+uid(),name:nm.slice(0,120),tin:fmtTin(m.querySelector('#txPyNTin').value),addr:m.querySelector('#txPyNAd').value.trim().slice(0,200),kind:m.querySelector('#txPyNKd').value});save();['Nm','Tin','Ad'].forEach(k=>m.querySelector('#txPyN'+k).value='');draw()};
+}
+function printDoc(title,body){const w=window.open('','_blank');if(!w)return toast('Allow pop-ups to print.');
+ w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Arial,Helvetica,sans-serif;color:#000;font-size:10pt;margin:14mm}h1{font-size:13pt;margin:0 0 2mm}h2{font-size:11pt;margin:5mm 0 2mm}table{width:100%;border-collapse:collapse;margin:2mm 0}th,td{border:1px solid #000;padding:4px 6px;text-align:left;vertical-align:top}th{background:#eee}.r{text-align:right}.pg{page-break-after:always}.pg:last-child{page-break-after:auto}.kv td:first-child{width:38%;background:#f6f6f6;font-weight:bold}.note{font-size:8.5pt;color:#333;margin-top:4mm}</style></head><body>'+body+'<scr'+'ipt>window.onload=()=>window.print()<\/script></body></html>');w.document.close()}
+function print2307(){const c=C(),L=ewtQ(ewtY,ewtQ_),ms=qMonths(ewtQ_);if(!L.length)return toast('No withholding recorded for this quarter.');
+ const [s,e]=qRange(ewtY,ewtQ_),by=new Map();L.forEach(x=>{const a=by.get(x.payee)||[];a.push(x);by.set(x.payee,a)});
+ let h='';by.forEach((list,pid)=>{const p=payee(pid),atcs=new Map();list.forEach(x=>{const o=atcs.get(x.atc)||{m:[0,0,0],tax:0};o.m[ms.indexOf(+x.date.slice(5,7))]+=x.base;o.tax+=x.tax;atcs.set(x.atc,o)});
+  h+='<div class="pg"><h1>BIR Form 2307 details – Certificate of Creditable Tax Withheld at Source</h1><div>For the period '+esc(fdl(s))+' to '+esc(fdl(e))+'</div>'
+  +'<h2>Payee</h2><table class="kv"><tr><td>Name</td><td>'+esc(p.name)+'</td></tr><tr><td>TIN</td><td>'+esc(p.tin||'')+'</td></tr><tr><td>Registered address</td><td>'+esc(p.addr||'')+'</td></tr></table>'
+  +'<h2>Payor (withholding agent)</h2><table class="kv"><tr><td>Name</td><td>'+esc(c.name)+'</td></tr><tr><td>TIN</td><td>'+esc(c.tin||'')+'</td></tr><tr><td>Registered address</td><td>'+esc(c.address||'')+'</td></tr></table>'
+  +'<h2>Income payments subject to expanded withholding tax</h2><table><tr><th>Income payment</th><th>ATC</th>'+ms.map((m,i)=>'<th class="r">'+(i+1)+(i?i===1?'nd':'rd':'st')+' month ('+MN[m-1].slice(0,3)+')</th>').join('')+'<th class="r">Total</th><th class="r">Tax withheld</th></tr>'
+  +[...atcs.entries()].map(([k,o])=>'<tr><td>'+esc(atcOf(k).desc)+'</td><td>'+esc(k)+'</td>'+o.m.map(v=>'<td class="r">'+n2(v)+'</td>').join('')+'<td class="r">'+n2(o.m[0]+o.m[1]+o.m[2])+'</td><td class="r">'+n2(o.tax)+'</td></tr>').join('')
+  +'<tr><th colspan="5">Total</th><th class="r">'+n2(sumBy(list,'base'))+'</th><th class="r">'+n2(sumBy(list,'tax'))+'</th></tr></table>'
+  +'<p class="note">Transfer these figures to the official BIR Form 2307 (eBIRForms or the BIR PDF), sign, and give it to the payee within 20 days after the quarter.</p></div>'});
+ printDoc('2307 details Q'+ewtQ_+' '+ewtY,h)}
+function qap(){const c=C(),L=ewtQ(ewtY,ewtQ_);if(!L.length)return toast('No withholding recorded for this quarter.');
+ const rows=[['Seq','TIN','Registered name','ATC','Nature of income payment','Tax rate (%)','Income payment','Tax withheld','Return period']],per=MN[ewtQ_*3-1]+' '+ewtY;let i=0;
+ const g=new Map();L.forEach(x=>{const k=x.payee+'|'+x.atc;const o=g.get(k)||{p:payee(x.payee),atc:x.atc,rate:x.rate,base:0,tax:0};o.base+=x.base;o.tax+=x.tax;g.set(k,o)});
+ g.forEach(o=>rows.push([++i,o.p.tin||'',o.p.name,o.atc,atcOf(o.atc).desc,o.rate,(o.base/100).toFixed(2),(o.tax/100).toFixed(2),per]));
+ dl(slug(c.name)+'_QAP_'+ewtY+'Q'+ewtQ_+'.csv',csv(rows));toast('QAP data exported. Load it into the BIR Alphalist Data Entry module (or have your accountant convert it to the .DAT file).','success')}
+function ewtCsv(){const L=T().ewt.slice().sort((a,b)=>a.date.localeCompare(b.date));if(!L.length)return toast('No withholding records yet.');dl(slug(C().name)+'_withholding_records.csv',csv([['Date','Payee','TIN','Address','ATC','Particulars','Income payment','Rate %','Tax withheld','Posted to books']].concat(L.map(x=>{const p=payee(x.payee);return[x.date,p.name,p.tin,p.addr,x.atc,x.desc,(x.base/100).toFixed(2),x.rate,(x.tax/100).toFixed(2),x.jeId?'Yes':'No']}))))}
+
+// ---------- payroll remittances page ----------
+let payY,payM,payView='m';
+function renderPay(){
+ const c=C();if(!c)return;const t=today();if(!payY){payY=+t.slice(0,4);payM=+t.slice(5,7)}
+ $('txPY').value=payY;$('txPM').value=payM;$('txPView').value=payView;$('txPMWrap').style.display=payView==='m'?'':'none';$('txPY').closest('.form-group').style.display=payView==='ids'?'none':'';
+ const H='<th class="number">',out=$('txPOut');
+ if(payView==='ids'){const emps=(HR().employees||[]).slice().sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first)),E=T().emp;
+  out.innerHTML='<p class="hr-note">Government numbers print on remittance lists, the alphalist and 2316. Tick <b>MWE</b> for minimum wage earners (their basic, holiday and overtime pay are not taxed)'+(T().pay.mwe?'; anyone with a daily rate of '+fm(c100(T().pay.mwe))+' or less is treated as MWE automatically':'')+'.</p><div class="hr-scroll"><table class="hr-tbl tx-tbl"><thead><tr><th>Employee</th><th>Business</th><th>TIN</th><th>SSS no.</th><th>PhilHealth no.</th><th>Pag-IBIG MID no.</th><th>MWE</th></tr></thead><tbody>'
+  +(emps.length?emps.map(e=>{const x=E[e.id]||{};return '<tr data-emp="'+e.id+'"><td>'+esc(e.last+', '+e.first)+'</td><td class="hr-bz">'+esc(e.business||'')+'</td>'+['tin','sss','ph','hdmf'].map(k=>'<td><input data-f="'+k+'" maxlength="20" value="'+esc(x[k]||'')+'" style="width:140px"></td>').join('')+'<td><input type="checkbox" data-f="mwe"'+(x.mwe?' checked':'')+' aria-label="Minimum wage earner"></td></tr>'}).join(''):'<tr><td colspan="7" class="bk-mut">No employees yet. Add them in HR &gt; Employee Management.</td></tr>')+'</tbody></table></div>';return}
+ if(payView==='m'){const L=payByEmp(payY,payM),tot=k=>sumBy(L,k);
+  out.innerHTML=(L.length?'':'<p class="bk-mut">No saved payroll for '+MN[payM-1]+' '+payY+'.</p>')
+  +(missingEr(payY,payM)?'<div class="rq-note">Some payroll for this month was saved before automatic deductions, so its employer shares are missing. Open the payroll run, press <b>Recompute deductions</b> (or keep your figures) and save again.</div>':'')
+  +'<div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Employee</th>'+H+'Gross</th>'+H+'Non-taxable</th>'+H+'Taxable</th>'+H+'W/tax</th>'+H+'SSS EE</th>'+H+'SSS ER</th>'+H+'EC</th>'+H+'PhilHealth EE</th>'+H+'PhilHealth ER</th>'+H+'Pag-IBIG EE</th>'+H+'Pag-IBIG ER</th></tr></thead><tbody>'
+  +L.map(x=>'<tr><td>'+esc(x.name)+(x.mwe?' <span class="badge badge-nonvat">MWE</span>':'')+'</td>'+['gross','nontax','taxable','tax','sss','erSss','erEc','ph','erPh','pg','erPg'].map(k=>'<td class="number">'+n2(x[k])+'</td>').join('')+'</tr>').join('')
+  +'</tbody><tfoot><tr style="font-weight:800"><td>TOTAL</td>'+['gross','nontax','taxable','tax','sss','erSss','erEc','ph','erPh','pg','erPg'].map(k=>'<td class="number">'+n2(tot(k))+'</td>').join('')+'</tr></tfoot></table></div>'
+  +'<div class="tx-grid2" style="margin-top:1rem">'+[['1601-C','BIR withholding on compensation',tot('tax'),'bir'],['SSS','Employee '+n2(tot('sss'))+' + employer '+n2(tot('erSss'))+' + EC '+n2(tot('erEc')),tot('sss')+tot('erSss')+tot('erEc'),'sss'],['PhilHealth','Employee '+n2(tot('ph'))+' + employer '+n2(tot('erPh')),tot('ph')+tot('erPh'),'ph'],['Pag-IBIG','Employee '+n2(tot('pg'))+' + employer '+n2(tot('erPg')),tot('pg')+tot('erPg'),'hdmf']].map(r=>'<div class="bk-kpi"><span>'+r[0]+' – '+MN[payM-1]+'</span><b>'+fm(r[2])+'</b><small>'+r[1]+'</small><div style="margin-top:6px"><button class="btn btn-outline btn-sm" data-csv="'+r[3]+'">CSV</button></div></div>').join('')+'</div>';return}
+ const L=payByEmp(payY,null),E=T().emp;
+ const rows=L.map(x=>{const due=taxYear(x.taxable);return Object.assign({},x,{due,diff:due-x.tax})});
+ out.innerHTML='<p class="hr-note">Year '+payY+' from saved payroll. Tax due uses the annual graduated table; a negative difference is a refund to the employee, a positive one is still to be withheld (usually from the December payroll). 13th month pay and other benefits up to ₱90,000 are not taxed; add them to the payroll if you pay them.</p>'
+  +'<div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Employee</th><th>TIN</th>'+H+'Gross compensation</th>'+H+'Non-taxable</th>'+H+'Taxable</th>'+H+'Tax due (annual)</th>'+H+'Tax withheld</th>'+H+'Difference</th></tr></thead><tbody>'
+  +(rows.length?rows.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+esc((E[x.empId]||{}).tin||'–')+'</td>'+['gross','nontax','taxable','due','tax'].map(k=>'<td class="number">'+n2(x[k])+'</td>').join('')+'<td class="number"'+(x.diff>0?' style="color:var(--danger)"':'')+'>'+n2(x.diff)+'</td></tr>').join(''):'<tr><td colspan="8" class="bk-mut" style="text-align:center">No saved payroll for '+payY+'.</td></tr>')
+  +'</tbody></table></div><div class="hr-acts" style="margin-top:1rem"><button class="btn btn-outline" data-y="2316">Print 2316 details</button><button class="btn btn-outline" data-y="alpha">Alphalist for 1604-C (CSV)</button></div>';
+}
+['txPY','txPM'].forEach(id=>$(id).addEventListener('change',()=>{payY=+$('txPY').value||payY;payM=+$('txPM').value;renderPay()}));
+$('txPView').onchange=()=>{payView=$('txPView').value;renderPay()};
+$('txPOut').addEventListener('change',e=>{const tr=e.target.closest('tr[data-emp]');if(!tr)return;const E=T().emp,id=tr.dataset.emp,f=e.target.dataset.f;E[id]=E[id]||{};
+ if(f==='mwe')E[id].mwe=e.target.checked;else{let v=e.target.value.trim().slice(0,20);if(f==='tin')v=fmtTin(v);e.target.value=v;E[id][f]=v}save()});
+$('txPOut').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const c=C(),E=T().emp;
+ if(b.dataset.csv){const L=payByEmp(payY,payM),k=b.dataset.csv,per=MN[payM-1]+' '+payY;let rows;
+  if(k==='bir')rows=[['Employee','TIN','Gross','Non-taxable','Taxable','Tax withheld']].concat(L.map(x=>[x.name,(E[x.empId]||{}).tin||'',(x.gross/100).toFixed(2),(x.nontax/100).toFixed(2),(x.taxable/100).toFixed(2),(x.tax/100).toFixed(2)]));
+  if(k==='sss')rows=[['Employee','SSS no.','Employee share','Employer share','EC','Total']].concat(L.map(x=>[x.name,(E[x.empId]||{}).sss||'',(x.sss/100).toFixed(2),(x.erSss/100).toFixed(2),(x.erEc/100).toFixed(2),((x.sss+x.erSss+x.erEc)/100).toFixed(2)]));
+  if(k==='ph')rows=[['Employee','PhilHealth no.','Employee share','Employer share','Total']].concat(L.map(x=>[x.name,(E[x.empId]||{}).ph||'',(x.ph/100).toFixed(2),(x.erPh/100).toFixed(2),((x.ph+x.erPh)/100).toFixed(2)]));
+  if(k==='hdmf')rows=[['Employee','Pag-IBIG MID no.','Employee share','Employer share','Total']].concat(L.map(x=>[x.name,(E[x.empId]||{}).hdmf||'',(x.pg/100).toFixed(2),(x.erPg/100).toFixed(2),((x.pg+x.erPg)/100).toFixed(2)]));
+  return dl(slug(c.name)+'_'+k+'_'+payY+'-'+p2(payM)+'.csv',csv([['Period',per]].concat(rows)))}
+ if(b.dataset.y){const L=payByEmp(payY,null);if(!L.length)return toast('No saved payroll for '+payY+'.');
+  if(b.dataset.y==='alpha')return dl(slug(c.name)+'_alphalist_1604C_'+payY+'.csv',csv([['Seq','TIN','Employee','MWE','Gross compensation','Non-taxable compensation','Taxable compensation','Tax due','Tax withheld','Over/(under) withheld']].concat(L.map((x,i)=>{const d=taxYear(x.taxable);return[i+1,(E[x.empId]||{}).tin||'',x.name,x.mwe?'Y':'N',(x.gross/100).toFixed(2),(x.nontax/100).toFixed(2),(x.taxable/100).toFixed(2),(d/100).toFixed(2),(x.tax/100).toFixed(2),((x.tax-d)/100).toFixed(2)]}))));
+  printDoc('2316 details '+payY,L.map(x=>{const d=taxYear(x.taxable),id=E[x.empId]||{};return '<div class="pg"><h1>BIR Form 2316 details – Certificate of Compensation Payment / Tax Withheld</h1><div>For the year '+payY+'</div><h2>Employee</h2><table class="kv"><tr><td>Name</td><td>'+esc(x.name)+'</td></tr><tr><td>TIN</td><td>'+esc(id.tin||'')+'</td></tr><tr><td>Minimum wage earner</td><td>'+(x.mwe?'Yes':'No')+'</td></tr></table><h2>Employer</h2><table class="kv"><tr><td>Name</td><td>'+esc(c.name)+'</td></tr><tr><td>TIN</td><td>'+esc(c.tin||'')+'</td></tr><tr><td>Address</td><td>'+esc(c.address||'')+'</td></tr></table><h2>Compensation</h2><table class="kv"><tr><td>Gross compensation</td><td class="r">'+n2(x.gross)+'</td></tr><tr><td>Non-taxable (MWE pay, de minimis, SSS/PhilHealth/Pag-IBIG employee share)</td><td class="r">'+n2(x.nontax)+'</td></tr><tr><td>Taxable compensation</td><td class="r">'+n2(x.taxable)+'</td></tr><tr><td>Tax due</td><td class="r">'+n2(d)+'</td></tr><tr><td>Tax withheld</td><td class="r">'+n2(x.tax)+'</td></tr><tr><td>Over / (under) withheld</td><td class="r">'+n2(x.tax-d)+'</td></tr></table><p class="note">Transfer these figures to the official BIR Form 2316, sign with the employee, and give a copy by January 31.</p></div>'}).join(''))}});
+
+// ---------- tax profile & rates page ----------
+function renderSet(){
+ const c=C();if(!c)return;const t=T(),p=t.profile,y=t.pay,R=t.rates,ch=c.chartOfAccounts.slice().sort((a,b)=>a.code-b.code);
+ const sel=(id,v,opts)=>'<select id="'+id+'">'+opts.map(o=>'<option value="'+o[0]+'"'+(String(v)===String(o[0])?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>';
+ const fg=(lab,inner,hint)=>'<div class="form-group"><label>'+lab+'</label>'+inner+(hint?'<small class="bk-mut" style="display:block;margin-top:3px">'+hint+'</small>':'')+'</div>';
+ const num=(id,v,st)=>'<input type="number" id="'+id+'" value="'+v+'" step="'+(st||'0.01')+'" min="0">';
+ const aSel=(id,v)=>'<select id="'+id+'"><option value="">– none –</option>'+ch.filter(a=>a.category==='Liability'||a.category==='Asset').map(a=>'<option value="'+a.code+'"'+(String(a.code)===String(v)?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')+'</select>';
+ $('txSOut').innerHTML='<p class="hr-note">Settings for <b>'+esc(c.name)+'</b>. Each company keeps its own profile. Changes save immediately.</p>'
+ +'<h3 style="font-size:1.02rem">Registration</h3><div class="tx-grid2">'
+ +fg('Business tax',sel('txSBiz',p.biz,[['VAT','VAT-registered (2550Q)'],['PT','Non-VAT – percentage tax (2551Q)'],['EIGHT','8% income tax option (individuals)'],['EXEMPT','Exempt from business tax']]))
+ +fg('Percentage tax rate (%)',num('txSPt',p.ptRate))+fg('VAT rate (%)',num('txSVat',p.vatRate))
+ +fg('Income tax return',sel('txSItr',p.itr,[['ind','Individual / sole proprietor (1701Q, 1701)'],['corp','Corporation / partnership (1702Q, 1702)']]))
+ +fg('Corporate income tax rate (%)',num('txSCorp',p.corpRate),'25% regular; 20% if net taxable income ≤ ₱5M and assets ≤ ₱100M')
+ +fg('Employees',sel('txSEmp',p.emp,[['auto','Automatic (when HR has employees)'],['yes','Yes'],['no','No employees']]))
+ +fg('Withholds tax on suppliers (EWT)',sel('txSEwt',p.ewt?'1':'0',[['1','Yes: 0619-E, 1601-EQ, 2307, 1604-E'],['0','No']]))
+ +fg('Top withholding agent',sel('txSTwa',p.twa?'1':'0',[['0','No'],['1','Yes (withhold 1% goods / 2% services)']]))
+ +fg('Filing system',sel('txSEfps',p.efps?'1':'0',[['0','eBIRForms / manual'],['1','eFPS']]))+fg('eFPS group',sel('txSGrp',p.grp,['A','B','C','D','E'].map(g=>[g,'Group '+g])))
+ +fg('PhilHealth employer no. (PEN) ends in',sel('txSPen',p.pen,'0123456789'.split('').map(d=>[d,d])),'0–4: pay by the 15th • 5–9: by the 20th')
+ +fg('Pag-IBIG: first letter of employer name',sel('txSHd',p.hdmf,'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(d=>[d,d])),'A–D 14th • E–L 19th • M–Q 24th • R–Z end of month')
+ +fg('Track deadlines starting',  '<input type="month" id="txSSince" value="'+esc(p.since)+'">','Earlier deadlines are not shown as overdue')
+ +'</div><h3 style="font-size:1.02rem">VAT accounts</h3><div class="tx-grid2">'+fg('Output VAT account',aSel('txSOut',p.outVat))+fg('Input VAT account',aSel('txSIn',p.inVat))+'</div>'
+ +'<h3 style="font-size:1.02rem">Payroll deductions</h3><div class="tx-grid2">'
+ +fg('Automatic deductions in payroll runs',sel('txSAuto',y.auto?'1':'0',[['1','On: compute Tax, SSS, PhilHealth, Pag-IBIG'],['0','Off: I type them']]))
+ +fg('Deduct SSS / PhilHealth / Pag-IBIG',sel('txSSch',y.sched,[['split','Half each cutoff'],['second','Whole month on the 2nd cutoff']]))
+ +fg('Meal allowance',sel('txSMeal',y.mealNT?'1':'0',[['1','Not taxable (de minimis); not in SSS base'],['0','Taxable compensation']]))
+ +fg('Minimum wage (daily rate)',num('txSMwe',y.mwe),'Employees at or below this daily rate are not taxed. 0 = mark them one by one in Payroll Remittances')
+ +'</div><details style="margin-top:1rem"><summary style="cursor:pointer;font-weight:700">Contribution rates ('+esc(R.asOf||'')+')</summary><div class="tx-grid2" style="margin-top:.6rem">'
+ +fg('SSS employee / employer %','<div style="display:flex;gap:6px">'+num('r_sss_ee',R.sss.ee)+num('r_sss_er',R.sss.er)+'</div>')+fg('SSS min / max salary credit','<div style="display:flex;gap:6px">'+num('r_sss_min',R.sss.min,1)+num('r_sss_max',R.sss.max,1)+'</div>')
+ +fg('EC below / from ₱'+R.sss.ecAt,'<div style="display:flex;gap:6px">'+num('r_sss_ecLow',R.sss.ecLow)+num('r_sss_ecHigh',R.sss.ecHigh)+'</div>')
+ +fg('PhilHealth % (split 50/50)',num('r_ph_rate',R.ph.rate))+fg('PhilHealth floor / ceiling','<div style="display:flex;gap:6px">'+num('r_ph_floor',R.ph.floor,1)+num('r_ph_ceil',R.ph.ceil,1)+'</div>')
+ +fg('Pag-IBIG employee % / employer %','<div style="display:flex;gap:6px">'+num('r_hdmf_ee',R.hdmf.ee)+num('r_hdmf_er',R.hdmf.er)+'</div>','Employee pays '+R.hdmf.eeLow+'% if salary ≤ ₱'+R.hdmf.low)+fg('Pag-IBIG max fund salary',num('r_hdmf_cap',R.hdmf.cap,1))
+ +'</div><button class="btn btn-outline btn-sm" id="txSReset">Reset to built-in '+RATES.asOf+' rates</button><p class="hr-note">Withholding tax on compensation uses the BIR semi-monthly table in force since January 1, 2023.</p></details>'
+ +'<details style="margin-top:.6rem"><summary style="cursor:pointer;font-weight:700">Withholding tax codes (ATC) and rates</summary><div class="hr-scroll" style="margin-top:.6rem"><table class="hr-tbl tx-tbl"><thead><tr><th>ATC</th><th>Nature of payment</th><th>Payee</th><th class="number">Rate %</th><th></th></tr></thead><tbody id="txSAtc">'
+ +t.atc.map((a,i)=>'<tr data-i="'+i+'"><td><input data-f="atc" value="'+esc(a.atc)+'" style="width:80px"></td><td><input data-f="desc" value="'+esc(a.desc)+'" style="min-width:300px"></td><td><select data-f="kind"><option value="I"'+(a.kind==='I'?' selected':'')+'>Individual</option><option value="C"'+(a.kind==='C'?' selected':'')+'>Corporation</option></select></td><td><input type="number" step="0.01" min="0" data-f="rate" value="'+a.rate+'" style="width:80px"></td><td><button class="btn btn-danger btn-outline btn-sm" data-rmatc="'+i+'">Remove</button></td></tr>').join('')
+ +'</tbody></table></div><button class="btn btn-outline btn-sm" id="txSAddAtc">+ Add code</button></details>'+DISC;
+}
+const SETMAP={txSBiz:['profile','biz'],txSPt:['profile','ptRate',1],txSVat:['profile','vatRate',1],txSItr:['profile','itr'],txSCorp:['profile','corpRate',1],txSEmp:['profile','emp'],txSEwt:['profile','ewt',2],txSTwa:['profile','twa',2],txSEfps:['profile','efps',2],txSGrp:['profile','grp'],txSPen:['profile','pen'],txSHd:['profile','hdmf'],txSSince:['profile','since'],txSOut:['profile','outVat'],txSIn:['profile','inVat'],txSAuto:['pay','auto',2],txSSch:['pay','sched'],txSMeal:['pay','mealNT',2],txSMwe:['pay','mwe',1]};
+$('txSOut').addEventListener('change',e=>{const el=e.target,t=T();
+ if(SETMAP[el.id]){const[g,k,ty]=SETMAP[el.id];let v=el.value;if(ty===1)v=Math.max(0,parseFloat(v)||0);if(ty===2)v=v==='1';if(k==='since'&&!/^\d{4}-\d{2}$/.test(v))return;t[g][k]=v;save();badge();if(el.id==='txSBiz'&&(v==='VAT')!==/^vat/i.test(C().vat||''))toast('Tip: the company VAT status in Settings > Company still says '+(C().vat||'Non-VAT')+'.');return}
+ const m=el.id.match(/^r_(sss|ph|hdmf)_(\w+)$/);if(m){t.rates[m[1]][m[2]]=Math.max(0,parseFloat(el.value)||0);t.rates.asOf='custom';save();return}
+ const tr=el.closest('tr[data-i]');if(tr&&el.dataset.f){const a=t.atc[+tr.dataset.i];a[el.dataset.f]=el.dataset.f==='rate'?Math.max(0,parseFloat(el.value)||0):el.value.trim().slice(0,el.dataset.f==='desc'?160:10);save()}});
+$('txSOut').addEventListener('click',e=>{const t=T(),b=e.target.closest('button');if(!b)return;
+ if(b.id==='txSReset'){if(!confirm('Replace the contribution rates with the built-in '+RATES.asOf+' rates?'))return;t.rates=JSON.parse(JSON.stringify(RATES));save();renderSet()}
+ else if(b.id==='txSAddAtc'){t.atc.push({atc:'W',desc:'',rate:0,kind:'I'});save();renderSet()}
+ else if(b.dataset.rmatc!=null){t.atc.splice(+b.dataset.rmatc,1);save();renderSet()}});
+
+// ---------- dashboard: upcoming deadlines ----------
+const banner=document.querySelector('#tab-home .welcome-banner');
+if(banner)banner.insertAdjacentHTML('afterend','<div class="card" id="txDash" style="display:none"><div class="hr-head"><h3 style="margin:0;font-size:1.05rem">Tax &amp; compliance deadlines</h3><a href="#" data-txgo="tx-cal" style="font-weight:700">Open calendar</a></div><div class="tx-up" id="txDashList"></div></div>');
+function renderDash(){const box=$('txDash');if(!box)return;const c=C();if(!c||!can()){box.style.display='none';return}
+ const t=today(),L=overdue().concat(itemsBetween(t,addDays(t,21)).filter(i=>!isDone(i))).slice(0,6);
+ box.style.display=L.length?'':'none';$('txDashList').innerHTML=L.map(i=>{const a=amtOf(i);return '<div><span><span class="tx-form">'+esc(i.form)+'</span> '+esc(i.per)+'</span><span style="display:flex;gap:10px;align-items:center">'+(a?'<b>'+fm(a)+'</b>':'')+stOf(i)+'</span></div>'}).join('')}
+
+// ---------- routing ----------
+const RENDER={'tx-cal':renderCal,'tx-biz':renderBiz,'tx-ewt':renderEwt,'tx-pay':renderPay,'tx-set':renderSet};
+const oTab=window.showTab;
+window.showTab=function(id){const r=oTab.apply(this,arguments);const a=document.querySelector('.tab-section.active'),cur=a?a.id.slice(4):'';
+ if(RENDER[cur]){toggleTx(true);par.classList.add('active');const li=$('nav-sub-'+cur);if(li)li.classList.add('active');try{RENDER[cur]()}catch(e){console.error(e)}}
+ if(cur==='home')renderDash();if(cur==='hr-run')autoNote();badge();return r};
+const w=(n,f)=>{const o=window[n];if(typeof o!=='function')return;window[n]=function(){const r=o.apply(this,arguments);try{f()}catch(e){}return r}};
+w('switchCompany',()=>{calY=0;bizY=0;ewtY=0;payY=0;badge();renderDash()});
+// keep the run-page note fresh after loading employees
+(function(){const b=$('hrRLoad');if(b)b.addEventListener('click',()=>setTimeout(autoNote,0))})();
+// tax entries are managed from Tax & Compliance
+['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);if(e&&e.src==='tax')return toast('This entry came from Tax & Compliance ('+e.ref+'). Change or undo it there.');return o.apply(this,arguments)}});
+// backups keep the tax data
+const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);
+ if(d.tax&&typeof d.tax==='object'){try{const x=JSON.parse(JSON.stringify(d.tax)),S=(v,n)=>String(v==null?'':v).slice(0,n||120),N=v=>{const z=parseFloat(v);return Number.isFinite(z)?z:0},I=v=>{const z=parseInt(v,10);return Number.isFinite(z)?z:0},D=/^\d{4}-\d{2}-\d{2}$/;
+  const t={profile:{},pay:{},rates:null,atc:[],payees:[],ewt:[],filed:{},emp:{}};
+  if(x.profile&&typeof x.profile==='object'){const p=x.profile;t.profile={biz:['VAT','PT','EIGHT','EXEMPT'].includes(p.biz)?p.biz:'PT',ptRate:N(p.ptRate),vatRate:N(p.vatRate),itr:p.itr==='corp'?'corp':'ind',corpRate:N(p.corpRate)||25,emp:['auto','yes','no'].includes(p.emp)?p.emp:'auto',ewt:!!p.ewt,twa:!!p.twa,efps:!!p.efps,grp:/^[A-E]$/.test(p.grp)?p.grp:'A',pen:/^\d$/.test(p.pen)?p.pen:'0',hdmf:/^[A-Z]$/.test(p.hdmf)?p.hdmf:'A',since:/^\d{4}-\d{2}$/.test(p.since)?p.since:'2000-01',rev:{},outVat:I(p.outVat)||'',inVat:I(p.inVat)||''};
+   if(p.rev&&typeof p.rev==='object')Object.keys(p.rev).forEach(k=>{if(/^\d+$/.test(k)&&['T','E','Z','X'].includes(p.rev[k]))t.profile.rev[k]=p.rev[k]})}
+  if(x.pay&&typeof x.pay==='object')t.pay={auto:x.pay.auto!==false,sched:x.pay.sched==='second'?'second':'split',mealNT:x.pay.mealNT!==false,mwe:N(x.pay.mwe)};
+  if(x.rates&&x.rates.sss&&x.rates.ph&&x.rates.hdmf){t.rates={asOf:S(x.rates.asOf,20)};['sss','ph','hdmf'].forEach(g=>{t.rates[g]={};Object.keys(RATES[g]).forEach(k=>t.rates[g][k]=N(x.rates[g][k])||RATES[g][k])})}else delete t.rates;
+  if(Array.isArray(x.atc))t.atc=x.atc.filter(a=>a&&a.atc).slice(0,200).map(a=>({atc:S(a.atc,10),desc:S(a.desc,160),rate:N(a.rate),kind:a.kind==='C'?'C':'I'}));
+  if(Array.isArray(x.payees))t.payees=x.payees.filter(p=>p&&p.id).map(p=>({id:safeId(p.id),name:S(p.name),tin:S(p.tin,20),addr:S(p.addr,200),kind:p.kind==='C'?'C':'I'}));
+  if(Array.isArray(x.ewt))t.ewt=x.ewt.filter(r=>r&&r.id&&D.test(r.date||'')).map(r=>{const o={id:safeId(r.id),date:r.date,payee:safeId(r.payee),atc:S(r.atc,10),base:I(r.base),rate:N(r.rate),tax:I(r.tax),desc:S(r.desc,160)};if(r.jeId){o.jeId=safeId(r.jeId);o.dr=I(r.dr);o.cr=I(r.cr)}return o});
+  if(x.filed&&typeof x.filed==='object')Object.keys(x.filed).forEach(k=>{const f=x.filed[k];if(/^[\w.-]{1,40}$/.test(k)&&f&&D.test(f.date||''))t.filed[k]={date:f.date,ref:S(f.ref,60),amt:f.amt==null?undefined:I(f.amt),jeId:f.jeId?safeId(f.jeId):undefined,at:S(f.at,40),by:S(f.by,80)}});
+  if(x.emp&&typeof x.emp==='object')Object.keys(x.emp).forEach(k=>{const e=x.emp[k];if(e&&typeof e==='object')t.emp[safeId(k)]={tin:S(e.tin,20),sss:S(e.sss,20),ph:S(e.ph,20),hdmf:S(e.hdmf,20),mwe:!!e.mwe}});
+  o.tax=t}catch(err){}}
+ if(Array.isArray(d.journalEntries))o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='tax'){e.src='tax';e.taxKey=String(x.taxKey||'').slice(0,60)}});return o};
+window.TAXMOD={T,sssOf,phOf,hdmfOf,wtaxSemi,taxYear,items,itemsBetween,bizFig,itrFig,payByEmp,fillRow,overdue};
+setTimeout(()=>{badge();renderDash()},0);
 })();
 
 // ===== Movable sidebar menu: press and hold an item for 5 seconds, then drag it into place =====
