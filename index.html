@@ -1012,10 +1012,10 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 <div class="welcome-banner">
                     <div>
                         <h2 style="margin:0; font-size:1.5rem;" id="welcomeHeading">Welcome Back!</h2>
-                        <p style="margin:4px 0 0 0; opacity: 0.85; font-size: 0.9rem;">Here is your financial overview for today.</p>
+                        <p id="dashSubtitle" style="margin:4px 0 0 0; opacity: 0.85; font-size: 0.9rem;">Here is your financial overview for today.</p>
                     </div>
                     <div>
-                        <button class="btn btn-outline" style="color: white; border-color: rgba(255,255,255,0.4);" onclick="openWidgetConfigModal()"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg> Customize Widgets</button>
+                        <select id="dashBasisSel" class="hidden" onchange="setDashBasis(this.value)" aria-label="Dashboard accounting basis" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:9px;padding:9px 12px;font-weight:600;"><option value="accrual" style="color:#000">Accrual basis</option><option value="cash" style="color:#000">Cash basis</option></select><button class="btn btn-outline" style="color: white; border-color: rgba(255,255,255,0.4);" onclick="openWidgetConfigModal()"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg> Customize Widgets</button>
                         <button class="btn" style="background: var(--fiery-red-bright);" onclick="openJournalModal()">+ New Entry</button>
                     </div>
                 </div>
@@ -1173,7 +1173,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap:10px; margin-bottom: 1rem;">
                             <h2 style="margin:0;">Books of Accounts: General Ledger</h2>
                             <div>
-                                <label style="font-size: 0.88rem; font-weight:600; margin-right: 6px;">Filter Account:</label>
+                                <span id="ledgerBasisWrap" class="hidden"><label style="font-size: 0.88rem; font-weight:600; margin-right: 6px;">Basis:</label><select id="ledgerBasisSelect" onchange="renderGeneralLedger(document.getElementById('ledgerFilterSelect').value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); margin-right: 10px;"><option value="accrual">Accrual</option><option value="cash">Cash</option></select></span><label style="font-size: 0.88rem; font-weight:600; margin-right: 6px;">Filter Account:</label>
                                 <select id="ledgerFilterSelect" onchange="renderGeneralLedger(this.value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
                                     <option value="ALL">All General Ledger Accounts</option>
                                 </select>
@@ -1348,7 +1348,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                                     <select id="setCompFyStart" onchange="updateFyHint()">
                                         <option value="1">January (calendar year)</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option>
                                     </select>
-                                    <small id="setCompFyHint" style="color: var(--text-muted);"></small>
+                                    <small id="setCompFyHint" style="color: var(--text-muted);"></small></div><div class="form-group"><label>Accounting Basis</label><select id="setCompBasis"><option value="accrual">Accrual basis</option><option value="cash">Cash basis</option><option value="both">Both (accrual and cash)</option></select><small style="color: var(--text-muted);">Entries are recorded once in the journal. Cash-basis figures are derived from it using the accounts tagged Cash, Accounts Receivable and Accounts Payable.</small>
                                 </div>
                             </div>
 
@@ -1538,7 +1538,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 <div class="grid-2">
                     <div class="form-group">
                         <label>Accounting Basis *</label>
-                        <select id="rptBasis" required>
+                        <select id="rptBasis" required onchange="updateBasisHint()">
                             <option value="Accrual Basis">Accrual Basis Accounting</option>
                             <option value="Cash Basis">Cash Basis Accounting</option>
                         </select>
@@ -1613,7 +1613,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 </div>
                 <div class="form-group">
                     <label>Service Line * <small style="font-weight:normal; color:var(--text-muted);">(choose one or more)</small></label>
-                    <div id="newCompLineBox"></div>
+                    <div id="newCompLineBox"></div></div><div class="form-group"><label>Accounting Basis *</label><select id="newCompBasis" required><option value="accrual">Accrual basis</option><option value="cash">Cash basis</option><option value="both">Both (choose when viewing reports)</option></select><small style="color:var(--text-muted);">You can change this later in Settings.</small>
                 </div>
 
                 <div class="form-group card" style="background: rgba(0,0,0,0.02); border: 1px dashed var(--border-color); padding: 1rem;">
@@ -2196,15 +2196,16 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             const now = new Date();
             updateBackupReminder();
             const curMonthStr = localDateStr(now).slice(0, 7); 
-            const balancesAllTime = computeAccountBalances(comp.journalEntries);
+            const dashKey = dashBasisKey(comp), dashEnts = reportEntries(comp, dashKey);
+            const balancesAllTime = computeAccountBalances(dashEnts);
 
             let monthlySalesCents = 0;
             let cashCents = 0, arCents = 0, apCents = 0;
             let currentAssetCents = 0, currentLiabCents = 0;
-            let totalLiabCents = 0, totalEquityCents = 0;
+            let totalLiabCents = 0, totalEquityCents = 0, totalAssetCents = 0;
             let periodNetIncomeCents = 0, monthlyNICents = 0;
 
-            comp.journalEntries.forEach(e => {
+            dashEnts.forEach(e => {
                 if (e.date.startsWith(curMonthStr)) {
                     e.lines.forEach(l => {
                         const acc = comp.chartOfAccounts.find(a => a.code === l.accountCode);
@@ -2228,6 +2229,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 if (acc.subCategoryClass === 'Current Asset') currentAssetCents += (acc.isContra ? -netCents : netCents);
                 if (acc.subCategoryClass === 'Current Liability') currentLiabCents += (acc.isContra ? -netCents : netCents);
 
+                if (acc.category === 'Asset') totalAssetCents += (acc.isContra ? -netCents : netCents);
                 if (acc.category === 'Liability') totalLiabCents += (acc.isContra ? -netCents : netCents);
                 if (acc.category === 'Equity') totalEquityCents += (acc.isContra ? -netCents : netCents);
 
@@ -2243,7 +2245,16 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             document.getElementById('ratioCurrent').innerText = currentLiabCents > 0 ? (currentAssetCents / currentLiabCents).toFixed(2) : "n/a";
             document.getElementById('ratioQuick').innerText = currentLiabCents > 0 ? ((cashCents + arCents) / currentLiabCents).toFixed(2) : "n/a";
             document.getElementById('ratioMargin').innerText = monthlySalesCents > 0 ? ((monthlyNICents / monthlySalesCents) * 100).toFixed(1) + "%" : "n/a";
-            document.getElementById('ratioDebtEquity').innerText = (totalEquityCents + periodNetIncomeCents) > 0 ? (totalLiabCents / (totalEquityCents + periodNetIncomeCents)).toFixed(2) : "n/a";
+            const effEquityCents = dashKey === 'cash' ? (totalAssetCents - totalLiabCents) : (totalEquityCents + periodNetIncomeCents);
+            document.getElementById('ratioDebtEquity').innerText = effEquityCents > 0 ? (totalLiabCents / effEquityCents).toFixed(2) : "n/a";
+            if (dashKey === 'cash') {
+                document.getElementById('kpiReceivables').innerText = 'n/a';
+                document.getElementById('kpiPayables').innerText = 'n/a';
+            }
+            const dSel = document.getElementById('dashBasisSel');
+            if (dSel) { dSel.classList.toggle('hidden', companyBasis(comp) !== 'both'); dSel.value = dashKey; }
+            const dSub = document.getElementById('dashSubtitle');
+            if (dSub) dSub.textContent = 'Here is your financial overview for today' + (companyBasis(comp) === 'accrual' ? '' : ' (' + (dashKey === 'cash' ? 'cash basis' : 'accrual basis') + ')') + '.';
         }
 
         function renderDashboardJournalLog() {
@@ -2637,6 +2648,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             if (!canCmp) document.getElementById('rptCompare').value = 'none';
             const _fc = activeCompany(); if (_fc) document.getElementById('rptFiscalYear').value = defaultFyYear(_fc);
             handleRptPeriodTypeChange();
+            fillBasisOptions();
             document.getElementById('reportPromptModal').classList.remove('hidden');
         }
 
@@ -2690,6 +2702,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 standard: document.getElementById('rptStandard').value,
                 preparedBy: document.getElementById('rptPreparedBy').value || 'Prepared Signature',
                 approvedBy: document.getElementById('rptApprovedBy').value || 'Management',
+                basisKey: basisKeyFromLabel(document.getElementById('rptBasis').value),
                 startDateStr, endDateStr, compare, prevStartDateStr, prevEndDateStr,
                 curCol: endDateStr.slice(0, 4), prevCol: prevEndDateStr.slice(0, 4)
             };
@@ -2710,11 +2723,12 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
 
         function renderReportHTMLString(comp, params) {
             let bodyHTML = "";
-            const balancesAllTime = computeAccountBalances(comp.journalEntries, params.endDateStr);
-            const balancesPeriod = computeAccountBalances(comp.journalEntries, params.endDateStr, params.startDateStr);
+            const ents = reportEntries(comp, params.basisKey || 'accrual'); params.entries = ents;
+            const balancesAllTime = computeAccountBalances(ents, params.endDateStr);
+            const balancesPeriod = computeAccountBalances(ents, params.endDateStr, params.startDateStr);
             const cmp = params.compare === 'prevYear';
-            const prevAll = cmp ? computeAccountBalances(comp.journalEntries, params.prevEndDateStr) : null;
-            const prevPeriod = cmp ? computeAccountBalances(comp.journalEntries, params.prevEndDateStr, params.prevStartDateStr) : null;
+            const prevAll = cmp ? computeAccountBalances(ents, params.prevEndDateStr) : null;
+            const prevPeriod = cmp ? computeAccountBalances(ents, params.prevEndDateStr, params.prevStartDateStr) : null;
 
             if (params.type === 'tb') {
                 let rows = "", totalDr = 0, totalCr = 0;
@@ -2733,6 +2747,11 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                         rows += `<tr><td>${acc.code}</td><td>${escapeHtml(acc.title)}</td><td class="number">${netDrCents ? formatMoney(fromCents(netDrCents), comp.currency) : '-'}</td><td class="number">${netCrCents ? formatMoney(fromCents(netCrCents), comp.currency) : '-'}</td></tr>`;
                     }
                 });
+                if (params.basisKey === 'cash' && totalDr !== totalCr) {
+                    const d = totalDr - totalCr, m = x => formatMoney(fromCents(x), comp.currency);
+                    rows += `<tr><td></td><td><em>Cash-basis adjustment (receivables / payables)</em></td><td class="number">${d < 0 ? m(-d) : '-'}</td><td class="number">${d > 0 ? m(d) : '-'}</td></tr>`;
+                    if (d > 0) totalCr += d; else totalDr += -d;
+                }
                 bodyHTML = `<table><thead><tr><th>Code</th><th>Account Title</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="font-weight:bold;"><td>Totals</td><td></td><td class="number">${formatMoney(fromCents(totalDr), comp.currency)}</td><td class="number">${formatMoney(fromCents(totalCr), comp.currency)}</td></tr></tfoot></table>`;
             
             } else if (params.type === 'is') {
@@ -2796,6 +2815,13 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 if (ni !== 0 || pni !== 0) {
                     equityRows += `<tr><td>Retained Earnings / Net Income (Cumulative to Date)</td>${cmpCells(ni, pni, comp.currency, cmp)}</tr>`;
                 }
+                if (params.basisKey === 'cash') {
+                    const adj = tA - tL - tE, padj = pA - pL - pE;
+                    if (adj !== 0 || padj !== 0) {
+                        equityRows += `<tr><td>Cash-basis adjustment (unpaid receivables / payables)</td>${cmpCells(adj, padj, comp.currency, cmp)}</tr>`;
+                        tE += adj; pE += padj;
+                    }
+                }
                 const diff = tA - tL - tE, pdiff = pA - pL - pE;
                 const warn = (diff !== 0 || (cmp && pdiff !== 0))
                     ? `<p style="color:#b91c1c;font-weight:bold;"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg> Out of balance by ${formatMoney(fromCents(diff), comp.currency)}${cmp && pdiff !== 0 ? ` (prior period: ${formatMoney(fromCents(pdiff), comp.currency)})` : ''}</p>` : '';
@@ -2817,6 +2843,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 bodyHTML = buildCashFlowBody(comp, params);
             }
 
+            if (params.basisKey === 'cash' && params.type !== 'cf') bodyHTML += '<p style="font-size:0.8rem; color:#475569; margin-top:1.2rem;">Cash basis: income and expenses are recognized when cash is received or paid. Accounts Receivable and Accounts Payable accounts are not reported, and any resulting difference appears as a cash-basis adjustment. Inventory and cost of goods sold follow the accrual entries.</p>';
             // SUBTITLE: SHOW ADDRESS OR TIN / VAT IF ADDRESS IS BLANK
             const subTitleText = comp.address ? escapeHtml(comp.address) : `TIN: ${escapeHtml(comp.tin)} | ${escapeHtml(vatLabel(comp))}`;
 
@@ -2826,6 +2853,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                     <p>${subTitleText}</p>
                     <h3>${reportTitles[params.type]}</h3>
                     <p><strong>${escapeHtml(params.periodLabel)}</strong></p>
+                    ${params.type !== 'cf' && params.basis ? `<p>${escapeHtml(params.basis)}</p>` : ''}
                     ${cmp ? `<p>Compared with ${params.prevCol}</p>` : ''}
                 </div>
                 ${bodyHTML}
@@ -2874,7 +2902,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 tin: document.getElementById('newCompTin').value,
                 entity: document.getElementById('newCompEntity').value,
                 currency: document.getElementById('newCompCurrency').value,
-                vat: 'Non-VAT Registered', vatRate: 12, line: lineLabelText(sl.lines, sl.other), serviceLines: sl.lines, otherLine: sl.other,
+                basis: document.getElementById('newCompBasis').value, vat: 'Non-VAT Registered', vatRate: 12, line: lineLabelText(sl.lines, sl.other), serviceLines: sl.lines, otherLine: sl.other,
                 passwordHash: enablePass ? await hashPassword(document.getElementById('newCompPassword').value) : null,
                 chartOfAccounts: [], coaSetupDone: false,
                 journalEntries: [], reportsHistory: []
@@ -2901,6 +2929,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             toggleVatRateField();
             document.getElementById('setCompOpeningDate').value = getOpeningDate(comp);
             document.getElementById('setCompFyStart').value = String(comp.fyStart || 1);
+            document.getElementById('setCompBasis').value = companyBasis(comp);
             updateFyHint();
             document.getElementById('setCompAddress').value = comp.address || '';
             document.getElementById('setCompEnablePass').checked = !!comp.passwordHash;
@@ -2930,6 +2959,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             const od = document.getElementById('setCompOpeningDate').value;
             if (od) comp.openingDate = od;
             comp.fyStart = parseInt(document.getElementById('setCompFyStart').value) || 1;
+            comp.basis = document.getElementById('setCompBasis').value;
             comp.address = document.getElementById('setCompAddress').value;
 
             if (document.getElementById('setCompEnablePass').checked) {
@@ -3358,7 +3388,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 logo: typeof d.logo === 'string' && d.logo.startsWith('data:image/') ? d.logo : null,
                 openingDate: DATE.test(d.openingDate || '') ? d.openingDate : undefined,
                 fyStart: Number.isInteger(+d.fyStart) && +d.fyStart >= 1 && +d.fyStart <= 12 ? +d.fyStart : 1,
-                coaSetupDone: d.coaSetupDone !== false, serviceLines: lineInfo.serviceLines, otherLine: lineInfo.otherLine,
+                coaSetupDone: d.coaSetupDone !== false, basis: ['accrual', 'cash', 'both'].includes(d.basis) ? d.basis : 'accrual', dashBasis: d.dashBasis === 'cash' ? 'cash' : 'accrual', serviceLines: lineInfo.serviceLines, otherLine: lineInfo.otherLine,
                 chartOfAccounts: d.chartOfAccounts.map(normalizeAccount), journalEntries: [], reportsHistory: []
             };
             d.journalEntries.forEach((e, i) => {
@@ -3386,6 +3416,93 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             return localDateStr(new Date(y, m - 1, d - 1));
         }
         function activeCompany() { return companies.find(c => c.id === activeCompanyId); }
+
+        // ===== ACCOUNTING BASIS (accrual / cash / both) =====
+        // The journal is recorded once. Accrual figures read it as-is. Cash-basis figures are derived from it:
+        //  - revenue/expense lines that create a receivable/payable (accounts tagged AR / AP) are held back;
+        //  - they are recognized when cash settles that receivable/payable (pro rata across the held-back accounts);
+        //  - AR / AP accounts themselves are not reported.
+        function companyBasis(c) { return c && ['accrual', 'cash', 'both'].includes(c.basis) ? c.basis : 'accrual'; }
+        function basisKeyFromLabel(l) { return /cash/i.test(String(l)) ? 'cash' : 'accrual'; }
+        function dashBasisKey(c) { const b = companyBasis(c); return b === 'both' ? (c.dashBasis === 'cash' ? 'cash' : 'accrual') : b; }
+        function setDashBasis(v) {
+            const c = activeCompany(); if (!c) return;
+            c.dashBasis = v === 'cash' ? 'cash' : 'accrual';
+            saveToLocalStorage(); calculateDashboardMetrics();
+        }
+        // Split `amt` across the values of `src` (which sum to `tot`) in proportion, exact to the cent.
+        function basisAllocate(src, amt, tot) {
+            const out = new Map(); let given = 0, run = 0;
+            src.forEach((v, c) => { run += v; const target = Math.round(amt * run / tot); out.set(c, target - given); given = target; });
+            return out;
+        }
+        function basisSettle(cur, delta, pool, hasCash) {
+            const res = new Map(cur);
+            if (delta > 0) {
+                const tot = [...cur.values()].reduce((a, b) => a + b, 0);
+                if (tot > 0) basisAllocate(cur, Math.min(delta, tot), tot).forEach((v, c) => {
+                    res.set(c, res.get(c) - v); pool.set(c, (pool.get(c) || 0) + v);
+                });
+            } else if (delta < 0) {
+                const ptot = [...pool.values()].reduce((a, b) => a + b, 0);
+                if (ptot > 0) basisAllocate(pool, Math.min(-delta, ptot), ptot).forEach((v, c) => {
+                    pool.set(c, pool.get(c) - v);
+                    if (hasCash) res.set(c, (res.get(c) || 0) + v);
+                });
+            }
+            return res;
+        }
+        function cashBasisEntries(comp) {
+            const byCode = new Map(comp.chartOfAccounts.map(a => [a.code, a]));
+            const kindOf = code => {
+                const a = byCode.get(code); if (!a) return 'other';
+                if (a.roleTag === 'ar') return 'ar';
+                if (a.roleTag === 'ap') return 'ap';
+                if (a.category === 'Revenue') return 'rev';
+                if (a.category === 'Expense') return 'exp';
+                return 'other';
+            };
+            const revPool = new Map(), expPool = new Map(), out = [];
+            comp.journalEntries.map((e, i) => [e, i])
+                .sort((x, y) => x[0].date < y[0].date ? -1 : x[0].date > y[0].date ? 1 : x[1] - y[1])
+                .forEach(([e]) => {
+                    const keep = [], rev = new Map(), exp = new Map();
+                    let dAR = 0, dAP = 0, hasCash = false;
+                    e.lines.forEach(l => {
+                        const dr = toCents(l.debit), cr = toCents(l.credit), k = kindOf(l.accountCode), a = byCode.get(l.accountCode);
+                        if (a && a.roleTag === 'cash') hasCash = true;
+                        if (k === 'ar') dAR += dr - cr;
+                        else if (k === 'ap') dAP += cr - dr;
+                        else if (k === 'rev') rev.set(l.accountCode, (rev.get(l.accountCode) || 0) + cr - dr);
+                        else if (k === 'exp') exp.set(l.accountCode, (exp.get(l.accountCode) || 0) + dr - cr);
+                        else keep.push({ accountCode: l.accountCode, debit: l.debit, credit: l.credit });
+                    });
+                    const revNet = basisSettle(rev, dAR, revPool, hasCash), expNet = basisSettle(exp, dAP, expPool, hasCash);
+                    // A non-cash entry that reduces a receivable/payable (write-off, credit memo) only adjusts accrued items.
+                    if (!hasCash && (dAR < 0 || dAP < 0)) { revNet.clear(); expNet.clear(); }
+                    const lines = keep.slice();
+                    revNet.forEach((v, code) => { if (v > 0) lines.push({ accountCode: code, debit: 0, credit: fromCents(v) }); else if (v < 0) lines.push({ accountCode: code, debit: fromCents(-v), credit: 0 }); });
+                    expNet.forEach((v, code) => { if (v > 0) lines.push({ accountCode: code, debit: fromCents(v), credit: 0 }); else if (v < 0) lines.push({ accountCode: code, debit: 0, credit: fromCents(-v) }); });
+                    out.push({ id: e.id, date: e.date, ref: e.ref, desc: e.desc, lines });
+                });
+            return out;
+        }
+        function reportEntries(comp, basis) { return basis === 'cash' ? cashBasisEntries(comp) : comp.journalEntries; }
+        function fillBasisOptions() {
+            const comp = activeCompany(), sel = document.getElementById('rptBasis'); if (!comp || !sel) return;
+            const b = companyBasis(comp);
+            const all = [['Accrual Basis', 'Accrual Basis Accounting'], ['Cash Basis', 'Cash Basis Accounting']];
+            const list = b === 'both' ? all : all.filter(x => (b === 'cash') === (x[0] === 'Cash Basis'));
+            sel.innerHTML = list.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('');
+            if (!document.getElementById('rptBasisHint')) sel.insertAdjacentHTML('afterend', '<small id="rptBasisHint" style="color:var(--text-muted);display:block;margin-top:4px;"></small>');
+            updateBasisHint();
+        }
+        function updateBasisHint() {
+            const h = document.getElementById('rptBasisHint'), sel = document.getElementById('rptBasis'); if (!h || !sel) return;
+            h.textContent = basisKeyFromLabel(sel.value) === 'cash'
+                ? 'Income and expenses count when cash is received or paid. Receivable and payable accounts are left out.'
+                : 'Income and expenses count when earned or incurred.';
+        }
         function readFileAsJSON(file) {
             return new Promise((resolve, reject) => {
                 const r = new FileReader();
@@ -3550,7 +3667,10 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             fillLedgerFilter();
             document.getElementById('ledgerFilterSelect').value = filterCode;
             const [from, to] = getBooksRange();
-            const sorted = comp.journalEntries.slice().sort((a, b) => a.date.localeCompare(b.date));
+            const lb = companyBasis(comp), lw = document.getElementById('ledgerBasisWrap');
+            if (lw) lw.classList.toggle('hidden', lb !== 'both');
+            const lkey = lb === 'both' ? document.getElementById('ledgerBasisSelect').value : lb;
+            const sorted = reportEntries(comp, lkey).slice().sort((a, b) => a.date.localeCompare(b.date));
             let targets = comp.chartOfAccounts;
             if (filterCode !== 'ALL') targets = targets.filter(a => a.code === parseInt(filterCode));
             let html = '';
@@ -3574,12 +3694,12 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                     <thead><tr><th>Date</th><th>Ref</th><th>Particulars</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Ending Balance</th></tr></thead>
                     <tbody>${openRow}${rows}</tbody></table></div>`;
             });
-            container.innerHTML = html || '<p style="color: var(--text-muted);">No ledger activity in this period.</p>';
+            container.innerHTML = (lkey === 'cash' ? '<p class="inv-note">Cash basis view: revenue and expenses appear when cash settles them. Receivable and payable accounts are not shown.</p>' : '') + (html || '<p style="color: var(--text-muted);">No ledger activity in this period.</p>');
         }
 
         // ===== FINANCIAL STATEMENT BUILDERS =====
-        function periodNetIncomeCents(comp, endStr, startStr = null) {
-            const bal = computeAccountBalances(comp.journalEntries, endStr, startStr);
+        function periodNetIncomeCents(comp, endStr, startStr = null, entries = null) {
+            const bal = computeAccountBalances(entries || comp.journalEntries, endStr, startStr);
             let ni = 0;
             comp.chartOfAccounts.forEach(a => {
                 const b = bal.get(a.code) || { drCents: 0, crCents: 0 };
@@ -3589,23 +3709,37 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             return ni;
         }
         function buildOwnersEquityBody(comp, params) {
+            const ents = params.entries || comp.journalEntries;
             const start = params.startDateStr, end = params.endDateStr, before = prevDay(start);
-            const balBefore = computeAccountBalances(comp.journalEntries.filter(e => e.date <= before || (isInit(e) && e.date <= end)), end);
-            const balPeriod = computeAccountBalances(comp.journalEntries.filter(e => !isInit(e)), end, start);
+            const balBefore = computeAccountBalances(ents.filter(e => e.date <= before || (isInit(e) && e.date <= end)), end);
+            const balPeriod = computeAccountBalances(ents.filter(e => !isInit(e)), end, start);
             let beginning = 0, invest = 0, draws = 0;
             comp.chartOfAccounts.filter(a => a.category === 'Equity').forEach(a => {
                 const b0 = balBefore.get(a.code) || { drCents: 0, crCents: 0 }, b1 = balPeriod.get(a.code) || { drCents: 0, crCents: 0 };
                 beginning += b0.crCents - b0.drCents;
                 if (a.normal === 'Credit') invest += b1.crCents - b1.drCents; else draws += b1.drCents - b1.crCents;
             });
-            beginning += periodNetIncomeCents(comp, before);
-            const ni = periodNetIncomeCents(comp, end, start);
-            const ending = beginning + invest + ni - draws, c = comp.currency;
+            beginning += periodNetIncomeCents(comp, before, null, ents);
+            const ni = periodNetIncomeCents(comp, end, start, ents);
+            let ending = beginning + invest + ni - draws, adj = 0; const c = comp.currency;
+            if (params.basisKey === 'cash') {
+                // Cash basis: capital = assets less liabilities (no receivables/payables), tied to the balance sheet.
+                const netAssets = bal => { let t = 0; comp.chartOfAccounts.forEach(a => {
+                    if (a.category !== 'Asset' && a.category !== 'Liability') return;
+                    const b = bal.get(a.code) || { drCents: 0, crCents: 0 };
+                    const net = (a.normal === 'Debit' ? b.drCents - b.crCents : b.crCents - b.drCents) * (a.isContra ? -1 : 1);
+                    t += a.category === 'Asset' ? net : -net; }); return t; };
+                beginning = netAssets(balBefore);
+                const endTotal = netAssets(computeAccountBalances(ents, end));
+                adj = endTotal - (beginning + invest + ni - draws);
+                ending = endTotal;
+            }
             return `<table><tbody>
                 <tr><td>Beginning Owner's Capital</td><td class="number">${formatMoney(fromCents(beginning), c)}</td></tr>
                 <tr><td>Add: Additional Investments</td><td class="number">${formatMoney(fromCents(invest), c)}</td></tr>
                 <tr><td>Add: Net Income / (Loss) for the Period</td><td class="number">${formatMoney(fromCents(ni), c)}</td></tr>
                 <tr><td>Less: Owner's Withdrawals / Drawings</td><td class="number">${formatMoney(fromCents(-draws), c)}</td></tr>
+                ${adj ? `<tr><td>Cash-basis adjustment (receivables / payables)</td><td class="number">${formatMoney(fromCents(adj), c)}</td></tr>` : ''}
                 </tbody><tfoot><tr style="font-weight:bold; font-size:1.1rem; border-top:2px solid var(--fiery-navy-deep);"><td>Ending Owner's Capital</td><td class="number">${formatMoney(fromCents(ending), c)}</td></tr></tfoot></table>`;
         }
         function buildCashFlowBody(comp, params) {
@@ -3705,6 +3839,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 try { companies = JSON.parse(stored); } catch(e) { companies = []; }
                 companies.forEach(c => { 
                     if (c.coaSetupDone === undefined) c.coaSetupDone = true;
+                    if (!['accrual', 'cash', 'both'].includes(c.basis)) c.basis = 'accrual';
                     if (!Array.isArray(c.serviceLines)) { const m = deriveServiceLines(c); c.serviceLines = m.serviceLines; c.otherLine = m.otherLine; }
                     delete c.installedExtensions;
                     backfillContraLinks(c); 
