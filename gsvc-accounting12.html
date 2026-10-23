@@ -5474,13 +5474,13 @@ document.head.insertAdjacentHTML('beforeend','<style>'
  +'.bk-card{border:1px solid var(--border-color);border-radius:14px;padding:14px 16px;background:var(--bg-card)}.bk-card h3{margin:0;font-size:1.05rem}.bk-card .sub{color:var(--text-muted);font-size:.85rem;margin:.15rem 0 .7rem}'
  +'.bk-fig{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:.88rem}.bk-fig b{font-variant-numeric:tabular-nums;text-align:right}.bk-fig .tot{border-top:1px solid var(--border-color);padding-top:4px;font-weight:700}'
  +'.bk-tbl td.wrap{white-space:normal;min-width:180px}.bk-tbl select.bk-st{padding:3px 6px;font-size:.78rem}'
- +'@media(max-width:768px){.bk-grid{grid-template-columns:1fr}.bk-wd,.bk-day.off,.bk-day.empty{display:none}.bk-day{min-height:0}.bk-dn::after{content:" • " attr(data-wd)}}'
+ +'@media(max-width:768px){.bk-grid{grid-template-columns:1fr}.bk-wd,.bk-day.off{display:none}.bk-day{min-height:0}.bk-day.empty .bk-items{display:none}.bk-day.empty{flex-direction:row;justify-content:space-between}.bk-day.empty .bk-dn{flex:1}.bk-day.empty .bk-dt{border-top:0;background:rgba(229,48,63,.06)}.bk-dn::after{content:" • " attr(data-wd)}}'
  +'</style>');
 
 const par=document.createElement('li');par.id='nav-bank-parent';par.tabIndex=0;par.setAttribute('role','button');par.title='Banking';
 par.innerHTML='<span class="nav-icon"><svg class="i"><use href="#i-bank"/></svg></span><span class="nav-text">Banking</span><span class="chevron-icon" id="bkChevron" style="font-size:0.75rem;"><svg class="i"><use href="#i-chev"/></svg></span>';
 const sub=document.createElement('ul');sub.className='sub-menu';sub.id='bankSubMenu';sub.style.display='none';
-[['cal','Check Calendar'],['chk','Check Register'],['txn','Bank Transactions'],['acc','Bank Accounts']].forEach(n=>{
+[['cal','Check Calendar'],['pdc','PDC Monitoring'],['chk','Check Register'],['txn','Bank Transactions'],['acc','Bank Accounts']].forEach(n=>{
  const li=document.createElement('li');li.id='nav-sub-bk-'+n[0];li.textContent=n[1];li.tabIndex=0;li.setAttribute('role','button');
  li.onclick=()=>showTab('bk-'+n[0]);li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();li.click()}};sub.appendChild(li)});
 function toggleBk(force){
@@ -5495,6 +5495,11 @@ document.querySelector('main.main-content').insertAdjacentHTML('beforeend',
  '<div id="tab-bk-cal" class="tab-section"><div class="card"><div class="bk-top"><div class="bk-nav"><button class="btn btn-outline btn-sm" id="bkPrev" aria-label="Previous month">&#8249;</button><div class="bk-title" id="bkTitle"></div><button class="btn btn-outline btn-sm" id="bkNext" aria-label="Next month">&#8250;</button><button class="btn btn-outline btn-sm" id="bkToday">This month</button></div>'
  +'<div class="hr-bar"><div class="form-group"><label for="bkCMon">Month</label><select id="bkCMon">'+MONTHS.map((m,i)=>'<option value="'+i+'">'+m+'</option>').join('')+'</select></div><div class="form-group" style="min-width:90px"><label for="bkCYr">Year</label><input type="number" id="bkCYr" min="2000" max="2100" style="width:100px"></div><div class="form-group"><label for="bkCAcct">Bank account</label><select id="bkCAcct"></select></div><button class="btn" id="bkCNew" type="button">+ New Check</button></div></div>'
  +'<div class="bk-kpis" id="bkKpis"></div><div id="bkCal"></div><div class="bk-legend"><span><i>10732</i> outstanding</span><span class="cl"><i>10732 ✓</i> cleared</span><span class="od"><i>10732</i> past due, not yet cleared</span><span>Click a check to open it, or an empty part of a day to write a check due that day. Cancelled checks are not shown.</span></div></div></div>'
+ +'<div id="tab-bk-pdc" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">PDC Monitoring</h2><div class="hr-acts"><button class="btn" data-act="new">+ New Check</button></div></div>'
+ +'<p class="hr-note">Checks you have issued that the bank has not paid yet, by due date. When a check shows in your bank statement as paid, press <b>Clear Check</b>.</p>'
+ +'<div class="bk-kpis" id="bkPKpis"></div>'
+ +'<div class="hr-bar"><div class="form-group grow"><label for="bkPQ">Search</label><input type="search" id="bkPQ" placeholder="Check no. or payee"></div><div class="form-group"><label for="bkPAcct">Bank account</label><select id="bkPAcct"></select></div><div class="form-group"><label for="bkPSt">Show</label><select id="bkPSt"><option value="OUT">Not yet cleared</option><option value="CLR">Cleared</option></select></div></div>'
+ +'<div class="hr-scroll"><table class="hr-tbl hr-hist bk-tbl"><thead><tr><th>Check date</th><th>When</th><th>Check No.</th><th>Bank Account</th><th>Payee / Supplier</th><th>Particulars</th><th>Date Issued</th><th class="number">Amount</th><th></th></tr></thead><tbody id="bkPBody"></tbody></table></div></div></div>'
  +'<div id="tab-bk-chk" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Check Register</h2><div class="hr-acts"><button class="btn btn-outline" data-act="imp">Import CSV</button><button class="btn btn-outline" data-act="csv">Export CSV</button><button class="btn" data-act="new">+ New Check</button></div></div>'
  +'<div class="hr-bar"><div class="form-group grow"><label for="bkKQ">Search</label><input type="search" id="bkKQ" placeholder="Check no., payee or particulars"></div><div class="form-group"><label for="bkKAcct">Bank account</label><select id="bkKAcct"></select></div><div class="form-group"><label for="bkKSt">Status</label><select id="bkKSt"><option value="ALL">All</option><option value="OUTSTANDING">Outstanding</option><option value="OVERDUE">Outstanding, past due</option><option value="CLEARED">Cleared</option><option value="CANCELLED">Cancelled</option></select></div><div class="form-group"><label for="bkKYr">Due year</label>'+yrSel('bkKYr')+'</div><div class="form-group"><label for="bkKMon">Due month</label><select id="bkKMon"><option value="ALL">All</option>'+MONTHS.map((m,i)=>'<option value="'+(i+1)+'">'+m+'</option>').join('')+'</select></div></div>'
  +'<p class="hr-note" id="bkKInfo"></p><div class="hr-scroll"><table class="hr-tbl bk-tbl"><thead><tr><th>Txn #</th><th>Date Issued</th><th>Check No.</th><th>Bank Account</th><th>Particulars</th><th>Payee / Supplier</th><th class="number">Amount</th><th>Due Date</th><th>Status</th><th>Books</th><th></th></tr></thead><tbody id="bkKBody"></tbody><tfoot id="bkKFoot"></tfoot></table></div></div></div>'
@@ -5516,7 +5521,7 @@ function renderCal(){
  const sum=a=>a.reduce((t,k)=>t+c100(k.amount),0),cl=inM.filter(k=>k.status==='CLEARED'),os=inM.filter(k=>k.status==='OUTSTANDING'),od=os.filter(isOverdue);
  const K=(t,v,n,w)=>'<div class="bk-kpi'+(w?' warn':'')+'"><span>'+t+'</span><b>'+n2(v)+'</b><small>'+n+' check'+(n===1?'':'s')+'</small></div>';
  $('bkKpis').innerHTML=K('Monthly dues',sum(inM),inM.length)+K('Cleared checks',sum(cl),cl.length)+K('Outstanding checks',sum(os),os.length)+(od.length?K('Past due, not cleared',sum(od),od.length,true):'');
- if(!b.accounts.length){$('bkCal').innerHTML='<div class="hrp-empty" style="padding:2rem;text-align:center;color:var(--text-muted)">No bank accounts yet. <button class="btn btn-sm" data-go="acc">Add a bank account</button> or <button class="btn btn-outline btn-sm" data-go="imp">import your check log</button>.</div>';return}
+ const notice=b.accounts.length?'':'<div class="rq-note" style="margin-bottom:.8rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap">No bank accounts yet, so there are no checks to show. <button class="btn btn-sm" data-go="acc">Add a bank account</button> <button class="btn btn-outline btn-sm" data-go="imp">Import your check log</button></div>';
  const first=new Date(y,m,1),start=new Date(y,m,1-first.getDay()),lastD=new Date(y,m+1,0),end=new Date(y,m,lastD.getDate()+(6-lastD.getDay()));
  let h=WD.map(w=>'<div class="bk-wd">'+w+'</div>').join('');
  for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
@@ -5525,7 +5530,7 @@ function renderCal(){
    +list.map(k=>'<button type="button" class="bk-chk'+(k.status==='CLEARED'?' cl':isOverdue(k)?' od':'')+'" data-id="'+esc(k.id)+'" title="'+esc((k.payee||'')+(k.particulars?' – '+k.particulars:'')+' • '+label(accOf(k.acct))+' • '+k.status)+'"><span class="no">'+esc(k.number)+'</span><span>'+n2(c100(k.amount))+'</span></button>').join('')
    +'</div><div class="bk-dt'+(tot?'':' z')+'">'+n2(tot)+'</div></div>';
  }
- $('bkCal').innerHTML='<div class="bk-grid">'+h+'</div>';
+ $('bkCal').innerHTML=notice+'<div class="bk-grid">'+h+'</div>';
 }
 $('bkCal').addEventListener('click',e=>{
  const g=e.target.closest('[data-go]');if(g){if(g.dataset.go==='acc')openAcct();else openImp('chk');return}
@@ -5536,6 +5541,47 @@ const go=n=>{cal.m+=n;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}
 $('bkPrev').onclick=()=>go(-1);$('bkNext').onclick=()=>go(1);$('bkToday').onclick=()=>{const n=new Date();cal.y=n.getFullYear();cal.m=n.getMonth();renderCal()};
 $('bkCMon').onchange=e=>{cal.m=+e.target.value;renderCal()};$('bkCYr').onchange=e=>{const v=parseInt(e.target.value,10);if(v>=2000&&v<=2100){cal.y=v;renderCal()}};
 $('bkCAcct').onchange=e=>{cal.acct=e.target.value;renderCal()};$('bkCNew').onclick=()=>openCheck(null,{acct:cal.acct!=='ALL'?cal.acct:undefined});
+
+
+// ---------- PDC Monitoring: issued checks not yet cleared, with a Clear Check button ----------
+let pf={q:'',acct:'ALL',st:'OUT'};
+const dayDiff=s=>Math.round((new Date(s+'T00:00')-new Date(td()+'T00:00'))/864e5);
+function renderPdc(){
+ const b=B(),today=td();
+ fillSel($('bkPAcct'),acctOpts(true),pf.acct);pf.acct=$('bkPAcct').value;$('bkPSt').value=pf.st;
+ const q=pf.q.trim().toLowerCase(),match=k=>(pf.acct==='ALL'||k.acct===pf.acct)&&(!q||(k.number+' '+k.payee+' '+k.particulars).toLowerCase().includes(q));
+ const out=b.checks.filter(k=>k.status==='OUTSTANDING'&&k.amount>0&&match(k)),sum=a=>a.reduce((t,k)=>t+c100(k.amount),0);
+ const wk=new Date();wk.setDate(wk.getDate()+7);const w=localDateStr(wk);
+ const G=[['Past due, not yet cleared',k=>k.due&&k.due<today,'od'],['Due today',k=>k.due===today,''],['Due in the next 7 days',k=>k.due>today&&k.due<=w,''],['Later',k=>!k.due||k.due>w,'']];
+ const K=(t,a,warn)=>'<div class="bk-kpi'+(warn&&a.length?' warn':'')+'"><span>'+t+'</span><b>'+n2(sum(a))+'</b><small>'+a.length+' check'+(a.length===1?'':'s')+'</small></div>';
+ $('bkPKpis').innerHTML=K('All uncleared checks',out)+K('Past due, not cleared',out.filter(G[0][1]),true)+K('Due today',out.filter(G[1][1]))+K('Due in the next 7 days',out.filter(G[2][1]));
+ const when=k=>{if(!k.due)return '';const d=dayDiff(k.due);return d<0?'<span style="color:var(--ember);font-weight:600">'+(-d)+' day'+(d===-1?'':'s')+' past due</span>':d===0?'<b>Today</b>':'in '+d+' day'+(d===1?'':'s')};
+ const row=(k,btn)=>'<tr><td><b>'+esc(fd(k.due))+'</b></td><td>'+when(k)+'</td><td><b>'+esc(k.number)+'</b></td><td>'+esc(label(accOf(k.acct)))+'</td><td class="wrap">'+esc(k.payee)+'</td><td class="wrap">'+esc(k.particulars)+'</td><td>'+esc(fd(k.issued))+'</td><td class="number">'+n2(c100(k.amount))+'</td><td style="white-space:nowrap">'+btn+'</td></tr>';
+ let h='';
+ if(pf.st==='OUT'){
+  G.forEach(g=>{const list=out.filter(g[1]).sort((a,b)=>String(a.due).localeCompare(String(b.due))||nameCmp(a.number,b.number));if(!list.length)return;
+   h+='<tr><td colspan="9" style="background:rgba(128,150,190,.1);font-weight:700'+(g[2]?';color:var(--ember)':'')+'">'+g[0]+' • '+list.length+' check'+(list.length===1?'':'s')+' • '+n2(sum(list))+'</td></tr>';
+   h+=list.map(k=>row(k,'<button class="btn btn-sm" data-clear="'+esc(k.id)+'">Clear Check</button> <button class="btn btn-outline btn-sm" data-open="'+esc(k.id)+'">Open</button>')).join('')});
+  h=h||'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">'+(b.checks.length?'No uncleared checks. All issued checks have been cleared.':'No checks yet. Press "+ New Check", or import your check log under Check Register.')+'</td></tr>';
+ }else{
+  const cl=b.checks.filter(k=>k.status==='CLEARED'&&match(k)).sort((a,b)=>String(b.cleared||b.due).localeCompare(String(a.cleared||a.due))).slice(0,300);
+  h=cl.map(k=>row(k,'<span class="badge badge-vat">Cleared '+esc(fd(k.cleared))+'</span> <button class="btn btn-outline btn-sm" data-unclear="'+esc(k.id)+'" title="Mark as not yet cleared">Undo</button>')).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">No cleared checks yet.</td></tr>';
+ }
+ $('bkPBody').innerHTML=h;
+}
+function clearCheck(id){
+ const k=B().checks.find(x=>x.id===id);if(!k)return;
+ const m=modal('<h2 style="margin-top:0">Clear Check '+esc(k.number)+'</h2><p>'+esc(k.payee||'')+' • <b>'+n2(c100(k.amount))+'</b> • '+esc(label(accOf(k.acct)))+' • check date '+esc(fd(k.due))+'</p><p class="hr-note">Mark this check as successfully paid by the bank. Use the date it appears on your bank statement.</p><div class="form-group" style="max-width:260px"><label for="bkClD">Date cleared</label><input type="date" id="bkClD" value="'+td()+'"></div><div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="bkClGo">Clear Check</button></div>',520);
+ m.querySelector('#bkClGo').onclick=()=>{const d=m.querySelector('#bkClD').value;if(!DT.test(d))return toast('Enter the date cleared.');k.status='CLEARED';k.cleared=d;commit();m.remove();rerender();toast('Check '+k.number+' cleared.','success')};
+}
+const tabP=$('tab-bk-pdc');
+tabP.addEventListener('click',e=>{const t=e.target;
+ const c=t.closest('[data-clear]');if(c)return clearCheck(c.dataset.clear);
+ const o=t.closest('[data-open]');if(o)return openCheck(o.dataset.open);
+ const u=t.closest('[data-unclear]');if(u){const k=B().checks.find(x=>x.id===u.dataset.unclear);if(k&&confirm('Mark check '+k.number+' as not yet cleared?')){k.status='OUTSTANDING';k.cleared='';commit();renderPdc()}return}
+ const n=t.closest('[data-act=new]');if(n)openCheck()});
+tabP.addEventListener('change',e=>{const map={bkPAcct:'acct',bkPSt:'st'};if(map[e.target.id]){pf[map[e.target.id]]=e.target.value;renderPdc()}});
+$('bkPQ').addEventListener('input',e=>{pf.q=e.target.value;renderPdc()});
 
 // ---------- Check form ----------
 let lastAcct=null;
@@ -5557,7 +5603,8 @@ function openCheck(id,pre){
   +'<div class="form-group"><label for="bkfSt">Status</label><select id="bkfSt">'+ST.map(s=>'<option'+(s===v.status?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
   +'<div class="form-group" id="bkfClW"><label for="bkfCl">Date cleared</label><input type="date" id="bkfCl" value="'+esc(v.cleared||'')+'"></div>'
   +'<div class="form-group" id="bkfDrW"><label for="bkfDr">Debit account (books)</label><select id="bkfDr">'+debitOpts()+'</select><small class="bk-mut" id="bkfDrN"></small></div>'
-  +'</div><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:.5rem"><span>'+(k?'<button type="button" class="btn btn-danger btn-outline" id="bkfDel">Delete</button>':'')+'</span><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">Save Check</button></span></div></form>',760);
+  +'</div><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:.5rem"><span>'+(k?'<button type="button" class="btn btn-danger btn-outline" id="bkfDel">Delete</button>':'')+(k&&k.status==='OUTSTANDING'?' <button type="button" class="btn btn-outline" id="bkfClr">Clear Check</button>':'')+'</span><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">Save Check</button></span></div></form>',760);
+ if(k&&k.status==='OUTSTANDING')m.querySelector('#bkfClr').onclick=()=>{m.remove();clearCheck(k.id)};
  const q=s=>m.querySelector(s),noTouched={v:!!k};
  q('#bkfNo').addEventListener('input',()=>noTouched.v=true);
  const upd=()=>{const a=accOf(q('#bkfAcct').value),cl=q('#bkfSt').value==='CLEARED';q('#bkfClW').style.display=cl?'':'none';
@@ -5752,12 +5799,16 @@ function findOrMakeAcct(numStr,bank,name,made,names){
 function openImp(kind){
  let plan=null,names={};
  const m=modal('<h2 style="margin-top:0">Import from CSV</h2><div class="form-group"><label for="bkiK">What are you importing?</label><select id="bkiK"><option value="chk"'+(kind==='chk'?' selected':'')+'>Checks (Check Transaction Log)</option><option value="txn"'+(kind==='txn'?' selected':'')+'>Deposits and transfers (Bank Transaction Log)</option></select></div>'
-  +'<p class="hr-note" id="bkiHelp"></p><div class="form-group"><label for="bkiF">CSV file</label><input type="file" id="bkiF" accept=".csv,text/csv"></div><div id="bkiOut"></div>'
+  +'<p class="hr-note" id="bkiHelp"></p><div style="margin:-.3rem 0 1rem"><button type="button" class="btn btn-outline btn-sm" id="bkiTpl">Download template</button> <span class="bk-mut">Fill it in with Excel or Google Sheets, save as CSV, then choose it below. Example rows are ignored.</span></div><div class="form-group"><label for="bkiF">CSV file</label><input type="file" id="bkiF" accept=".csv,text/csv"></div><div id="bkiOut"></div>'
   +'<p class="hr-note">New bank accounts found in the file are added as "monitor only". Link them to the books later under Bank Accounts and choose the date to start posting from.</p>'
   +'<div style="text-align:right;margin-top:1rem"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="bkiGo" disabled>Import</button></div>',780);
  const q=s=>m.querySelector(s);
- const help=()=>{q('#bkiHelp').textContent=q('#bkiK').value==='chk'?'In Google Sheets open the Check Transaction Log tab, then File > Download > Comma-separated values. Columns used: Transaction #, Date Issued, Check Number, Bank, Account Number, Particulars, Supplier Code, Amount, Due Date, Status.':'Open the Bank Transaction Log tab, then File > Download > Comma-separated values. Columns used: Date, Recipient Bank, Account Number, Account Name, Type, Source Bank Account (For Transfers), Amount.';plan=null;q('#bkiGo').disabled=true;q('#bkiOut').innerHTML='';q('#bkiF').value=''};
+ const help=()=>{q('#bkiHelp').textContent=q('#bkiK').value==='chk'?'In Google Sheets open the Check Transaction Log tab, then File > Download > Comma-separated values. Columns used: Transaction #, Date Issued, Check Number, Bank, Account Number, Particulars, Supplier Code, Amount, Due Date, Status (CLEARED, CANCELLED, or blank for outstanding). Dates as MM/DD/YYYY.':'Open the Bank Transaction Log tab, then File > Download > Comma-separated values. Columns used: Date, Recipient Bank, Account Number, Account Name, Type (Cash Deposit, Check Deposit, Fund Transfer, Withdrawal, Bank Charge, Interest Earned), Source Bank Account (For Transfers), Amount, Reference, Notes.';plan=null;q('#bkiGo').disabled=true;q('#bkiOut').innerHTML='';q('#bkiF').value=''};
  q('#bkiK').onchange=help;help();
+ q('#bkiTpl').onclick=()=>{const chk=q('#bkiK').value==='chk',a=B().accounts[0],bank=a?(a.bank+(a.branch?' '+a.branch:'')):'BDO GUINDULMAN',num=a?a.number:'46610005876';
+  const rows=chk?[['Transaction #','Date Issued','Check Number','Bank','Account Number','Particulars','Supplier Code','Amount','Due Date','Status'],['1','10/07/2026','10732',bank,num,'EXAMPLE - delete this row','SUPPLIER NAME','17900.00','10/20/2026','CLEARED'],['2','10/10/2026','10743',bank,num,'EXAMPLE - delete this row','SUPPLIER NAME','54426.00','11/08/2026',''],['3','','10744',bank,num,'EXAMPLE - delete this row','','','','CANCELLED']]
+   :[['Date','Recipient Bank','Account Number','Account Name','Type','Source Bank Account (For Transfers)','Amount','Reference','Notes'],['10/02/2026',bank,num,'EXAMPLE - delete this row','Cash Deposit','','642000.00','DS-0001',''],['10/05/2026',bank,num,'EXAMPLE - delete this row','Check Deposit','','37120.00','',''],['10/09/2026',bank,num,'EXAMPLE - delete this row','Fund Transfer','46610008433','100000.00','','From the owner account'],['10/31/2026',bank,num,'EXAMPLE - delete this row','Bank Charge','','150.00','','Service charge']];
+  download((chk?'check-log':'bank-transactions')+'-template.csv',toCsv(rows)+'\r\n')};
  q('#bkiF').onchange=ev=>{const f=ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{plan=null;q('#bkiGo').disabled=true;
   const rows=parseCsv(rd.result),out=q('#bkiOut');
   let hi=rows.findIndex(r=>r.some(x=>/amount/i.test(x)));if(hi<0){out.innerHTML='<p style="color:var(--ember)">Could not find the header row (no "Amount" column).</p>';return}
@@ -5767,7 +5818,7 @@ function openImp(kind){
    const I={txn:ix('transaction','transactionno','txn','transactionnumber'),iss:ix('dateissued','issued','date'),no:ix('checknumber','checkno','check'),bank:ix('bank'),num:ix('accountnumber','accountno'),part:ix('particulars'),pay:ix('suppliercode','supplier','payee'),amt:ix('amount'),due:ix('duedate','checkdate'),st:ix('status'),cl:ix('datecleared')};
    if(I.no<0||I.amt<0){out.innerHTML='<p style="color:var(--ember)">Missing columns: Check Number and Amount are required.</p>';return}
    const have=new Set(b.checks.map(k=>k.acct+'|'+k.number));let lastA=null;
-   rows.slice(hi+1).forEach((r,i)=>{const line=hi+i+2,no=val(r,I.no);if(!no)return;
+   rows.slice(hi+1).forEach((r,i)=>{const line=hi+i+2,no=val(r,I.no);if(!no||r.some(x=>/^\s*example\b/i.test(String(x))))return;
     const stRaw=val(r,I.st).toUpperCase(),st=/CANCEL|VOID/.test(stRaw)?'CANCELLED':/CLEAR/.test(stRaw)?'CLEARED':'OUTSTANDING';
     let a=val(r,I.num)?findOrMakeAcct(val(r,I.num),val(r,I.bank),'',made):lastA;
     if(!a)return bad.push('Row '+line+': check '+no+' has no account number');lastA=a;
@@ -5781,7 +5832,7 @@ function openImp(kind){
    const I={date:ix('date'),bank:ix('recipientbank','bank'),num:ix('accountnumber','accountno'),name:ix('accountname'),type:ix('type'),src:ix('sourcebankaccountfortransfers','sourcebankaccount','source','from'),amt:ix('amount'),ref:ix('reference','referenceno'),notes:ix('notes','remarks')};
    if(I.date<0||I.num<0||I.amt<0){out.innerHTML='<p style="color:var(--ember)">Missing columns: Date, Account Number and Amount are required.</p>';return}
    const key=t=>[t.date,t.acct,t.type,t.source||'',r2(t.amount)].join('|'),cnt=new Map();b.txns.forEach(t=>cnt.set(key(t),(cnt.get(key(t))||0)+1));
-   rows.slice(hi+1).forEach((r,i)=>{const line=hi+i+2,amt=r2(num(val(r,I.amt)));if(!val(r,I.num)&&!amt)return;
+   rows.slice(hi+1).forEach((r,i)=>{const line=hi+i+2,amt=r2(num(val(r,I.amt)));if((!val(r,I.num)&&!amt)||r.some(x=>/^\s*example\b/i.test(String(x))))return;
     const date=parseDate(val(r,I.date));if(!date)return bad.push('Row '+line+': unreadable date "'+val(r,I.date)+'"');if(!(amt>0))return bad.push('Row '+line+': no amount');
     const a=findOrMakeAcct(val(r,I.num),val(r,I.bank),val(r,I.name),made,names);if(!a)return bad.push('Row '+line+': no account number');
     const tr=val(r,I.type).toLowerCase(),type=/transfer/.test(tr)?'Fund Transfer':/withdraw/.test(tr)?'Withdrawal':/charge|fee/.test(tr)?'Bank Charge':/interest/.test(tr)?'Interest Earned':/check|cheque/.test(tr)?'Check Deposit':'Cash Deposit';
@@ -5801,11 +5852,11 @@ function openImp(kind){
 }
 
 // ---------- page wiring ----------
-function enter(p){if(p==='cal')renderCal();else if(p==='chk')renderChecks();else if(p==='txn')renderTxns();else if(p==='acc')renderAccts()}
+function enter(p){if(p==='pdc')renderPdc();else if(p==='cal')renderCal();else if(p==='chk')renderChecks();else if(p==='txn')renderTxns();else if(p==='acc')renderAccts()}
 function rerender(){const a=document.querySelector('.tab-section.active');if(a&&/^tab-bk-/.test(a.id))enter(a.id.slice(7))}
 const wrap=(n,f)=>{const o=window[n];window[n]=function(){const r=o.apply(this,arguments);f();return r}};
 wrap('showTab',()=>{const a=document.querySelector('.tab-section.active');if(!a||!/^tab-bk-/.test(a.id))return;const p=a.id.slice(7);par.classList.add('active');toggleBk(true);const it=$('nav-sub-bk-'+p);if(it)it.classList.add('active');enter(p)});
-wrap('switchCompany',()=>{const n=new Date();cal={y:n.getFullYear(),m:n.getMonth(),acct:'ALL'};kf={q:'',acct:'ALL',st:'ALL',yr:'ALL',mon:'ALL'};tf={acct:'ALL',type:'ALL',yr:'ALL',mon:'ALL'};lastAcct=null;$('bkKQ').value='';posted=new Set();if(C()&&C().bank)sync();rerender()});
+wrap('switchCompany',()=>{const n=new Date();cal={y:n.getFullYear(),m:n.getMonth(),acct:'ALL'};kf={q:'',acct:'ALL',st:'ALL',yr:'ALL',mon:'ALL'};pf={q:'',acct:'ALL',st:'OUT'};if($('bkPQ'))$('bkPQ').value='';tf={acct:'ALL',type:'ALL',yr:'ALL',mon:'ALL'};lastAcct=null;$('bkKQ').value='';posted=new Set();if(C()&&C().bank)sync();rerender()});
 ['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);if(e&&e.src==='bank')return toast('This entry came from Banking ('+e.ref+'). Edit, cancel or delete the '+(e.bankKind==='chk'?'check':'transaction')+' in Banking instead.');return o.apply(this,arguments)}});
 
 // keep Banking data when a company backup is imported
