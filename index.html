@@ -4702,6 +4702,118 @@ const D=/^\d{4}-\d{2}-\d{2}$/;
 const clean=t=>({lists:(t.lists||[]).map(l=>({id:safeId(l.id),name:String(l.name||'List')})),tasks:(t.tasks||[]).map(x=>({id:safeId(x.id),list:safeId(x.list),title:String(x.title||''),notes:String(x.notes||''),due:D.test(x.due||'')?x.due:'',done:!!x.done,star:!!x.star,sub:(x.sub||[]).map(s=>({t:String(s.t||''),done:!!s.done})),files:(x.files||[]).filter(f=>f&&typeof f.data==='string'&&f.data.startsWith('data:')).map(f=>({id:safeId(f.id)||'f_'+uid(),name:String(f.name||'file'),type:String(f.type||''),size:String(f.size||''),data:f.data}))})),events:(t.events||[]).map(e=>({id:safeId(e.id),title:String(e.title||''),date:D.test(e.date||'')?e.date:'',time:/^\d{2}:\d{2}$/.test(e.time||'')?e.time:'',notes:String(e.notes||'')})).filter(e=>e.date)});
 const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.tk&&typeof d.tk==='object'&&Array.isArray(d.tk.lists)&&d.tk.lists.length)o.tk=clean(d.tk);return o};
 })();
+
+// ===== Movable sidebar menu: press and hold an item for 5 seconds, then drag it into place =====
+(function(){
+ const KEY = 'accounting_navorder', HOLD_MS = 5000;
+ const nav = document.querySelector('nav.sidebar-nav'), aside = document.getElementById('mainSidebar');
+ if (!nav || !aside) return;
+ const tops = () => [...nav.children].filter(n => n.tagName === 'LI');
+ const isSub = n => !!n && n.classList && n.classList.contains('sub-menu');
+ const unit = li => isSub(li.nextElementSibling) ? [li, li.nextElementSibling] : [li];   // a menu item plus its sub-menu travel together
+ const unitEnd = li => unit(li).pop();
+ const DEFAULT = tops().map(l => l.id);
+
+ function put(ids) {
+   const have = tops().map(l => l.id);
+   ids.filter(i => have.includes(i)).concat(have.filter(i => !ids.includes(i)))
+     .forEach(id => unit(document.getElementById(id)).forEach(n => nav.appendChild(n)));
+ }
+ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(tops().map(l => l.id))); } catch (e) {} };
+ try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (Array.isArray(saved)) put(saved.map(String)); } catch (e) {}
+
+ document.head.insertAdjacentHTML('beforeend', '<style>'
+  + 'nav.sidebar-nav > li.nav-holding::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--ember);transform-origin:left;animation:navHold ' + (HOLD_MS / 1000) + 's linear forwards}'
+  + '@keyframes navHold{from{transform:scaleX(0)}to{transform:scaleX(1)}}'
+  + '@media(prefers-reduced-motion:reduce){nav.sidebar-nav > li.nav-holding::after{display:none}}'
+  + 'body.nav-arranging nav.sidebar-nav .sub-menu{display:none!important}'
+  + 'body.nav-arranging nav.sidebar-nav > li{cursor:grab;touch-action:none;outline:1px dashed rgba(255,255,255,.35);outline-offset:-1px}'
+  + 'body.nav-arranging nav.sidebar-nav > li.hidden{display:none}'
+  + 'nav.sidebar-nav > li.nav-dragging{cursor:grabbing!important;background:rgba(255,255,255,.2)!important;color:#fff!important;box-shadow:0 6px 16px rgba(0,0,0,.35)}'
+  + '#navArrangeBar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;margin:.6rem .6rem 0;padding:8px 10px;border-radius:10px;background:rgba(229,48,63,.2);color:#fff;font-size:.78rem}'
+  + '</style>');
+
+ const bar = document.createElement('div');
+ bar.id = 'navArrangeBar'; bar.className = 'hidden'; bar.setAttribute('role', 'status');
+ bar.innerHTML = '<span>Drag items to rearrange</span><span><button type="button" class="btn btn-outline btn-sm" id="navResetBtn" style="color:#fff;border-color:rgba(255,255,255,.35)">Reset</button> <button type="button" class="btn btn-sm" id="navDoneBtn">Done</button></span>';
+ aside.insertAdjacentElement('afterbegin', bar);
+
+ let timer = null, hold = null, drag = null, arranging = false, wasCollapsed = false;
+ const cancelHold = () => { clearTimeout(timer); timer = null; if (hold) { hold.li.classList.remove('nav-holding'); hold = null; } };
+ function enter() {
+   if (arranging) return;
+   arranging = true;
+   document.body.classList.add('nav-arranging');
+   wasCollapsed = document.body.classList.contains('collapsed');
+   if (wasCollapsed) document.body.classList.remove('collapsed');
+   bar.classList.remove('hidden');
+ }
+ function exit() {
+   if (!arranging) return;
+   if (drag) endDrag();
+   arranging = false;
+   document.body.classList.remove('nav-arranging');
+   if (wasCollapsed) document.body.classList.add('collapsed');
+   bar.classList.add('hidden');
+   save();
+ }
+ function startDrag(li, pointerId) { drag = { li, id: pointerId }; li.classList.add('nav-dragging'); }
+ function endDrag() { if (!drag) return; drag.li.classList.remove('nav-dragging'); drag = null; save(); }
+
+ // Move a whole menu item (with its sub-menu) before or after another one.
+ function moveBefore(li, over) { const f = document.createDocumentFragment(); unit(li).forEach(n => f.appendChild(n)); nav.insertBefore(f, over); }
+ function moveAfter(li, over) { const f = document.createDocumentFragment(); unit(li).forEach(n => f.appendChild(n)); nav.insertBefore(f, unitEnd(over).nextSibling); }
+
+ nav.addEventListener('pointerdown', e => {
+   if (e.pointerType === 'mouse' && e.button !== 0) return;
+   const li = e.target.closest('li');
+   if (!li || li.parentElement !== nav) return;            // only top-level menu items can be moved
+   if (arranging) { startDrag(li, e.pointerId); e.preventDefault(); return; }
+   cancelHold();
+   hold = { li, id: e.pointerId, x: e.clientX, y: e.clientY };
+   li.classList.add('nav-holding');
+   timer = setTimeout(() => {
+     const h = hold; cancelHold(); if (!h) return;
+     enter(); startDrag(h.li, h.id);                         // keep dragging in the same gesture if the pointer is still down
+   }, HOLD_MS);
+ });
+ document.addEventListener('pointermove', e => {
+   if (hold && e.pointerId === hold.id && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 10) cancelHold();
+   if (!drag || e.pointerId !== drag.id) return;
+   const t = document.elementFromPoint(e.clientX, e.clientY), over = t && t.closest('li');
+   if (!over || over.parentElement !== nav || over === drag.li) return;
+   const r = over.getBoundingClientRect();
+   if (e.clientY < r.top + r.height / 2) moveBefore(drag.li, over); else moveAfter(drag.li, over);
+ });
+ ['pointerup', 'pointercancel'].forEach(type => document.addEventListener(type, e => {
+   if (hold && e.pointerId === hold.id) cancelHold();       // released early: it was an ordinary click
+   if (drag && e.pointerId === drag.id) endDrag();
+ }));
+ // While arranging, clicks must not open pages.
+ nav.addEventListener('click', e => { if (arranging) { e.stopPropagation(); e.preventDefault(); } }, true);
+ nav.addEventListener('contextmenu', e => { if (hold || arranging) e.preventDefault(); });
+ // Keyboard alternative: while arranging, Up / Down moves the focused item.
+ nav.addEventListener('keydown', e => {
+   if (!arranging || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+   const li = e.target.closest('li'); if (!li || li.parentElement !== nav) return;
+   e.preventDefault(); e.stopPropagation();
+   const visible = tops().filter(x => !x.classList.contains('hidden')), i = visible.indexOf(li);
+   if (e.key === 'ArrowUp' && i > 0) moveBefore(li, visible[i - 1]);
+   if (e.key === 'ArrowDown' && i >= 0 && i < visible.length - 1) moveAfter(li, visible[i + 1]);
+   li.focus(); save();
+ }, true);
+ document.addEventListener('keydown', e => { if (e.key === 'Escape' && arranging) exit(); });
+ document.getElementById('navDoneBtn').onclick = exit;
+ const reset = () => { put(DEFAULT); try { localStorage.removeItem(KEY); } catch (e) {} };
+ document.getElementById('navResetBtn').onclick = reset;
+
+ window.NAVARR = {
+   reset,
+   start() { if (window.innerWidth <= 768) document.body.classList.add('sidebar-open'); enter(); }
+ };
+ const grid = document.querySelector('#setTab-theme .grid-2');
+ if (grid) grid.insertAdjacentHTML('beforeend', '<div class="card"><h4>Sidebar Menu</h4><p style="font-size:0.88rem;color:var(--text-muted);margin-top:0;">Press and hold any menu item for 5 seconds, then drag it to a new position. Press Done (or Esc) when finished. The order is remembered on this device.</p><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn btn-outline" onclick="NAVARR.start()">Rearrange now</button><button type="button" class="btn btn-outline" onclick="NAVARR.reset()">Reset menu order</button></div></div>');
+})();
 </script>
 </body>
 </html>
