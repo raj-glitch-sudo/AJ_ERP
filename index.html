@@ -4796,6 +4796,7 @@ const HR_UI_CSS=`
 .hr-in{width:96px;text-align:right;padding:5px 7px!important}
 .hr-in.bad{border-color:var(--ember)!important}
 .hr-tbl .neg{color:var(--ember)}
+.hr-hist{white-space:normal}.hr-hist td:first-child{position:static}.hr-hist th:first-child{left:auto}.hr-hist td.hr-acts-cell{min-width:150px}.hr-hist td.hr-acts-cell .btn{margin:2px 0}.hr-hist td.number,.hr-hist td:first-child{white-space:nowrap}
 .hr-off td{opacity:.55}
 .hr-chk{display:flex;gap:8px;align-items:center;font-weight:600;margin:.4rem 0 1rem}
 .hr-frame{display:block;width:100%;height:72vh;border:1px solid var(--border-color);border-radius:10px;background:#fff}
@@ -4942,7 +4943,7 @@ document.querySelector('main.main-content').insertAdjacentHTML('beforeend',
  +'<p class="hr-note" id="hrPInfo">A signing sheet for the saved payroll, printed on A4 landscape with a signature column.</p><div class="hr-prev" id="hrPPrev" hidden></div></div></div>'
  +'<div id="tab-hr-hist" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Payroll History</h2><div class="hr-acts"><button class="btn btn-outline" data-act="csv">Export CSV</button></div></div>'
  +'<div class="hr-bar"><div class="form-group"><label for="hrHYr">Year</label><select id="hrHYr"></select></div><div class="form-group"><label for="hrHMon">Month</label><select id="hrHMon"></select></div><div class="form-group"><label for="hrHBiz">Business</label><select id="hrHBiz"></select></div></div>'
- +'<p class="hr-note" id="hrHInfo"></p><div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Period</th><th>Business</th><th>Status</th><th class="number">Employees</th><th class="number">Gross</th><th class="number">Deductions</th><th class="number">Net</th><th>Saved</th><th></th></tr></thead><tbody id="hrHBody"></tbody><tfoot id="hrHFoot"></tfoot></table></div></div></div>');
+ +'<p class="hr-note" id="hrHInfo"></p><div class="hr-scroll"><table class="hr-tbl hr-hist"><thead><tr><th>Period</th><th>Business</th><th>Status</th><th class="number">Employees</th><th class="number">Gross</th><th class="number">Deductions</th><th class="number">Net</th><th>Payment</th><th>Saved</th><th></th></tr></thead><tbody id="hrHBody"></tbody><tfoot id="hrHFoot"></tfoot></table></div></div></div>');
 
 // ---------- Employee Management ----------
 function renderEmp(){
@@ -5098,6 +5099,8 @@ function saveRun(){
  const neg=rows.filter(r=>calc(r).net<0);
  if(neg.length&&!confirm(neg.length+' employee'+(neg.length===1?' has':'s have')+' deductions greater than gross pay (negative net pay), for example '+neg[0].name+'.\n\nSave anyway?'))return;
  const ids=new Set(draft.map(r=>r.empId));let hits=0;
+ syncPaid();
+ if(RUNS().some(run=>run.paid&&run.year===runF.year&&run.month===runF.month&&run.quincena===runF.q&&run.rows.some(r=>ids.has(r.empId))))return toast('Payroll for some of these employees is already marked paid for '+periodLabel(runF.year,runF.month,runF.q)+'. Press Undo paid in Payroll History before changing it.');
  RUNS().forEach(run=>{if(run.year===runF.year&&run.month===runF.month&&run.quincena===runF.q)hits+=run.rows.filter(r=>ids.has(r.empId)).length});
  if(hits&&!confirm('Payroll for '+hits+' of these employees is already saved for '+periodLabel(runF.year,runF.month,runF.q)+'.\n\nReplace the saved figures with these?'))return;
  RUNS().forEach(run=>{if(run.year===runF.year&&run.month===runF.month&&run.quincena===runF.q)run.rows=run.rows.filter(r=>!ids.has(r.empId))});
@@ -5146,6 +5149,7 @@ function genPrint(){
 // ---------- Payroll History ----------
 const rTot=run=>{const T={g:0,d:0,n:0};run.rows.forEach(r=>{const c=calc(r);T.g+=c.gross;T.d+=c.ded;T.n+=c.net});return T};
 function renderHist(){
+ syncPaid();
  const runs=RUNS(),years=[...new Set(runs.map(r=>r.year))].sort((a,b)=>b-a);
  fillSel($('hrHYr'),[['ALL','All']].concat(years.map(y=>[String(y),String(y)])));
  fillSel($('hrHMon'),[['ALL','All']].concat(MONTHS.map((m,i)=>[String(i+1),m])));
@@ -5157,10 +5161,10 @@ function renderHist(){
  let G=0,D=0,N=0;
  $('hrHBody').innerHTML=list.map(run=>{
   const t=rTot(run);G+=t.g;D+=t.d;N+=t.n;
-  const when=run.savedAt?new Date(run.savedAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
-  return '<tr><td>'+esc(periodLabel(run.year,run.month,run.quincena))+'</td><td>'+esc(run.business==='ALL'?'All businesses':run.business)+'</td><td>'+esc(run.status==='ALL'?'All':run.status)+'</td><td class="number">'+run.rows.length+'</td><td class="number">'+n2(t.g)+'</td><td class="number">'+n2(t.d)+'</td><td class="number">'+n2(t.n)+'</td><td>'+esc(when)+'</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-act="view" data-id="'+esc(run.id)+'">View</button> <button class="btn btn-outline btn-sm" data-act="slips" data-id="'+esc(run.id)+'">Payslips</button> <button class="btn btn-outline btn-sm" data-act="pay" data-id="'+esc(run.id)+'">Payroll</button> <button class="btn btn-danger btn-outline btn-sm" data-act="delrun" data-id="'+esc(run.id)+'">Delete</button></td></tr>';
- }).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">Nothing to show.</td></tr>';
- $('hrHFoot').innerHTML=list.length?'<tr><td colspan="4">TOTAL</td><td class="number">'+n2(G)+'</td><td class="number">'+n2(D)+'</td><td class="number">'+n2(N)+'</td><td colspan="2"></td></tr>':'';
+  const when=run.savedAt?new Date(run.savedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+  return '<tr><td>'+esc(periodLabel(run.year,run.month,run.quincena))+'</td><td>'+esc(run.business==='ALL'?'All businesses':run.business)+'</td><td>'+esc(run.status==='ALL'?'All':run.status)+'</td><td class="number">'+run.rows.length+'</td><td class="number">'+n2(t.g)+'</td><td class="number">'+n2(t.d)+'</td><td class="number">'+n2(t.n)+'</td><td style="white-space:nowrap">'+(run.paid?'<span class="badge badge-vat" title="Posted to the journal">Paid '+esc(fd(run.paid.date))+'</span> <button class="btn btn-outline btn-sm" data-act="unpaid" data-id="'+esc(run.id)+'" title="Remove the journal entry and mark unpaid">Undo</button>':'<span class="badge badge-credit">Unpaid</span> <button class="btn btn-sm" data-act="paid" data-id="'+esc(run.id)+'" title="Post this payroll to the journal">Paid</button>')+'</td><td>'+esc(when)+'</td><td class="hr-acts-cell"><button class="btn btn-outline btn-sm" data-act="view" data-id="'+esc(run.id)+'">View</button> <button class="btn btn-outline btn-sm" data-act="slips" data-id="'+esc(run.id)+'">Payslips</button> <button class="btn btn-outline btn-sm" data-act="pay" data-id="'+esc(run.id)+'">Payroll</button> <button class="btn btn-danger btn-outline btn-sm" data-act="delrun" data-id="'+esc(run.id)+'">Delete</button></td></tr>';
+ }).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:2rem">Nothing to show.</td></tr>';
+ $('hrHFoot').innerHTML=list.length?'<tr><td colspan="4">TOTAL</td><td class="number">'+n2(G)+'</td><td class="number">'+n2(D)+'</td><td class="number">'+n2(N)+'</td><td colspan="3"></td></tr>':'';
 }
 function jump(run,to){
  const d={biz:run.business,stat:run.status,month:run.month,year:run.year,q:run.quincena};
@@ -5171,7 +5175,7 @@ function viewRun(id){
  const run=RUNS().find(r=>r.id===id);if(!run)return;
  const per=periodLabel(run.year,run.month,run.quincena),t=rTot(run);
  const m=modal('<div class="hr-head"><h2 style="margin:0">'+esc(per)+'</h2><div class="hr-acts"><button class="btn btn-outline btn-sm" data-go="run">Edit in Payroll Run</button><button class="btn btn-outline btn-sm" data-go="slips">Payslips</button><button class="btn btn-outline btn-sm" data-go="print">Payroll sheet</button><button class="btn btn-sm" data-x>Close</button></div></div>'
-  +'<p class="hr-note">'+esc(run.business==='ALL'?'All businesses':run.business)+' • '+run.rows.length+' employees • Gross '+esc(sym())+' '+n2(t.g)+' • Net '+esc(sym())+' '+n2(t.n)+'</p>'
+  +'<p class="hr-note">'+(run.paid?'Paid '+esc(fd(run.paid.date))+' (journal '+esc((jeOfRun(run)||{}).ref||'')+') • ':'Unpaid • ')+esc(run.business==='ALL'?'All businesses':run.business)+' • '+run.rows.length+' employees • Gross '+esc(sym())+' '+n2(t.g)+' • Net '+esc(sym())+' '+n2(t.n)+'</p>'
   +'<iframe class="hr-frame" id="hrVF" title="Payroll detail" style="height:58vh"></iframe>',1240);
  m.querySelector('#hrVF').srcdoc=docHtml(regHtml(run.rows.slice(),{noHead:true,noSig:true}),true,'Payroll','plain');
  m.querySelector('[data-x]').onclick=()=>m.remove();
@@ -5179,6 +5183,7 @@ function viewRun(id){
 }
 function delRun(id){
  const run=RUNS().find(r=>r.id===id);if(!run)return;
+ syncPaid();if(run.paid)return toast('This payroll is marked paid and posted to the journal. Press Undo paid first, then delete it.');
  if(!confirm('Delete the saved payroll for '+periodLabel(run.year,run.month,run.quincena)+' ('+(run.business==='ALL'?'All businesses':run.business)+', '+run.rows.length+' employees)?\n\nThis cannot be undone.'))return;
  H().runs=RUNS().filter(r=>r.id!==id);save();renderHist();toast('Saved payroll deleted.','success');
 }
@@ -5191,6 +5196,79 @@ function exportCsv(){
  }));
  if(!out.length)return toast('There is no saved payroll to export for these filters.');
  download('payroll-history-'+localDateStr(new Date())+'.csv',[head].concat(out).map(r=>r.map(csvCell).join(',')).join('\r\n'));
+}
+
+// ---------- Paid: post the payroll to the journal ----------
+// Dr Salaries and Wages (basic, holiday, overtime) and Meal Allowance Expense;
+// Cr Withholding Tax / SSS / PhilHealth / Pag-IBIG payables, Advances to Employees, Receivable from Employees; Cr Cash for the net pay.
+const TPL={wages:[5100,'Salaries and Wages Expense','Expense'],meal:[5110,'Meal Allowance Expense','Expense'],wtax:[2110,'Withholding Tax Payable','Liability'],sss:[2120,'SSS Contributions Payable','Liability'],ph:[2130,'PhilHealth Contributions Payable','Liability'],pg:[2140,'Pag-IBIG Contributions Payable','Liability'],adv:[1130,'Advances to Employees','Asset'],rec:[1140,'Receivable from Employees','Asset']};
+const WAGE=/salar|wage/i,EREC=/receivable.*employee|employee.*receivable|due from employee/i;
+const COMPS=[['basic','Basic pay','D','wages',WAGE],['allow','Meal allowance','D','meal',/meal|allowance/i],['hol','Holiday pay','D','wages',/holiday/i,WAGE],['ot','Overtime pay','D','wages',/overtime/i,WAGE],['tax','Tax withheld','C','wtax',/withholding|tax payable/i],['sss','SSS','C','sss',/\bsss\b/i],['ph','PhilHealth','C','ph',/philhealth/i],['pg','Pag-IBIG','C','pg',/pag-?ibig|hdmf/i],['ca','Cash advance','C','adv',/advance/i],['cr','Credit','C','rec',EREC],['cb','Credit balance','C','rec',EREC]];
+const jeOfRun=run=>run.paid&&C().journalEntries.find(e=>e.id===run.paid.jeId);
+function syncPaid(){let ch=false;RUNS().forEach(r=>{if(r.paid&&!jeOfRun(r)){delete r.paid;ch=true}});if(ch)save()}
+function runSums(run){const T={basic:0,allow:0,hol:0,ot:0,tax:0,sss:0,ph:0,pg:0,ca:0,cr:0,cb:0,gross:0,net:0};run.rows.forEach(r=>{const c=calc(r);Object.keys(T).forEach(k=>T[k]+=c[k])});return T}
+const okCat=(a,side)=>!!a&&!a.isContra&&a.roleTag!=='cash'&&(side==='D'?a.category==='Expense':(a.category==='Liability'||a.category==='Asset'));
+function defAcct(cp){
+ const ch=C().chartOfAccounts,mem=(H().acct||{})[cp[0]];
+ if(mem&&okCat(ch.find(a=>a.code===mem),cp[2]))return String(mem);
+ for(const rx of [cp[4],cp[5]].filter(Boolean)){const a=ch.find(x=>okCat(x,cp[2])&&rx.test(x.title));if(a)return String(a.code)}
+ const t=TPL[cp[3]],same=ch.find(a=>okCat(a,cp[2])&&a.title.toLowerCase()===t[1].toLowerCase());
+ return same?String(same.code):'new:'+cp[3];
+}
+function refreshBooks(){try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}}
+function openPaid(run){
+ syncPaid();if(run.paid)return renderHist();
+ const S=runSums(run),c=C();
+ if(!S.gross)return toast('This payroll has no pay to post.');
+ if(S.net<0)return toast('Total net pay for this run is negative, so it cannot be paid. Check the deductions first.');
+ const cash=c.chartOfAccounts.filter(a=>a.roleTag==='cash'&&!a.isContra);
+ if(!cash.length)return toast('No cash account found. In Settings > Chart of Accounts, tag your cash or bank account as Cash, then try again.');
+ const per=periodLabel(run.year,run.month,run.quincena),who=(run.business==='ALL'?'All businesses':run.business)+' • '+run.rows.length+' employee'+(run.rows.length===1?'':'s');
+ const used=COMPS.filter(cp=>S[cp[0]]);
+ const opts=cp=>{const d=defAcct(cp),t=TPL[cp[3]];
+  return c.chartOfAccounts.filter(a=>okCat(a,cp[2])).sort((a,b)=>a.code-b.code).map(a=>'<option value="'+a.code+'"'+(String(a.code)===d?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')
+   +'<option value="new:'+cp[3]+'"'+(d==='new:'+cp[3]?' selected':'')+'>+ New account: '+esc(t[1])+'</option>'};
+ const lastCash=(H().acct||{}).cash;
+ const m=modal('<h2 style="margin-top:0">Mark as Paid</h2><p class="hr-note">'+esc(per)+' • '+esc(who)+'. This posts one journal entry to the books.</p>'
+  +'<div class="grid-2"><div class="form-group"><label for="hrPdDate">Payment date</label><input type="date" id="hrPdDate" value="'+localDateStr(new Date())+'"></div>'
+  +'<div class="form-group"><label for="hrPdCash">Paid from (credit)</label><select id="hrPdCash">'+cash.map(a=>'<option value="'+a.code+'"'+(a.code===lastCash?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')+'</select></div></div>'
+  +'<div class="hr-scroll" style="max-height:none"><table class="hr-tbl" style="white-space:normal"><thead><tr><th>Item</th><th>Account</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead><tbody>'
+  +used.map(cp=>'<tr><td>'+cp[1]+'</td><td><select data-k="'+cp[0]+'" aria-label="Account for '+cp[1]+'" style="width:100%;min-width:220px">'+opts(cp)+'</select></td><td class="number">'+(cp[2]==='D'?n2(S[cp[0]]):'')+'</td><td class="number">'+(cp[2]==='C'?n2(S[cp[0]]):'')+'</td></tr>').join('')
+  +'<tr><td>Net pay</td><td id="hrPdCashLbl"></td><td></td><td class="number">'+n2(S.net)+'</td></tr></tbody>'
+  +'<tfoot><tr><td colspan="2">TOTAL</td><td class="number">'+n2(S.gross)+'</td><td class="number">'+n2(S.gross)+'</td></tr></tfoot></table></div>'
+  +'<p class="hr-note" style="margin-top:.8rem">Holiday and overtime pay go to Salaries and Wages unless you choose another account. Your choices are remembered for the next payroll. Deductions stay in their payable accounts until you remit them to BIR, SSS, PhilHealth and Pag-IBIG.</p>'
+  +'<div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="hrPdGo">Post to Journal</button></div>',860);
+ const cs=m.querySelector('#hrPdCash'),lbl=()=>{const a=cash.find(x=>String(x.code)===cs.value);m.querySelector('#hrPdCashLbl').textContent=a?a.code+' – '+a.title:''};cs.onchange=lbl;lbl();
+ m.querySelector('[data-x]').onclick=()=>m.remove();
+ m.querySelector('#hrPdGo').onclick=()=>{
+  const date=m.querySelector('#hrPdDate').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return toast('Choose the payment date.');
+  if(RUNS().indexOf(run)<0||run.paid){m.remove();return renderHist()}
+  const ch=c.chartOfAccounts,made={},added=[];
+  const code=v=>{if(!String(v).startsWith('new:'))return +v;const k=v.slice(4);if(made[k])return made[k];const t=TPL[k];
+   let a=ch.find(x=>x.category===t[2]&&x.title.toLowerCase()===t[1].toLowerCase());
+   if(!a){let n=t[0];while(ch.some(x=>x.code===n))n++;a=acct(n,t[1],t[2],SUBCLASS_DEFAULT[t[2]],t[2]==='Liability'?'Credit':'Debit');ch.push(a);ch.sort((x,y)=>x.code-y.code);added.push(n+' '+t[1])}
+   return made[k]=a.code};
+  const map={},agg=new Map(),addL=(cd,dr,cr)=>{const x=agg.get(cd)||{d:0,c:0};x.d+=dr;x.c+=cr;agg.set(cd,x)};
+  m.querySelectorAll('select[data-k]').forEach(s=>{const cp=COMPS.find(x=>x[0]===s.dataset.k),cd=code(s.value);map[cp[0]]=cd;addL(cd,cp[2]==='D'?S[cp[0]]:0,cp[2]==='C'?S[cp[0]]:0)});
+  const cashCode=+cs.value;addL(cashCode,0,S.net);
+  const lines=[];let dr=0,cr=0;
+  agg.forEach((v,cd)=>{const n=v.d-v.c;if(n>0){lines.push({accountCode:cd,debit:n/100,credit:0});dr+=n}else if(n<0){lines.push({accountCode:cd,debit:0,credit:-n/100});cr-=n}});
+  if(dr!==cr||!lines.length)return toast('The entry does not balance, so nothing was posted. Check the accounts chosen.');
+  lines.sort((a,b)=>(b.debit>0)-(a.debit>0));
+  const id='entry_hr_'+run.id,ref='PR-'+run.year+'-'+String(run.month).padStart(2,'0')+'-'+(run.quincena===1?'1ST':'2ND');
+  c.journalEntries=c.journalEntries.filter(e=>e.id!==id);
+  c.journalEntries.push({id,date,ref,desc:'Payroll – '+per+' • '+who,lines,fileAttachment:null,src:'hr',hrRunId:run.id});
+  run.paid={date,jeId:id,cash:cashCode,at:new Date().toISOString()};
+  H().acct=Object.assign({},H().acct,map,{cash:cashCode});
+  save();refreshBooks();m.remove();renderHist();
+  toast('Payroll marked paid and posted to the journal as '+ref+(added.length?'. New accounts added: '+added.join(', '):'')+'.','success');
+ };
+}
+function unpay(run){
+ syncPaid();if(!run.paid)return renderHist();
+ if(!confirm('Mark '+periodLabel(run.year,run.month,run.quincena)+' as unpaid?\n\nThis removes its payroll journal entry ('+((jeOfRun(run)||{}).ref||'')+') from the books.'))return;
+ const c=C();c.journalEntries=c.journalEntries.filter(e=>e.id!==run.paid.jeId);delete run.paid;save();refreshBooks();renderHist();
+ toast('Payroll marked unpaid. Its journal entry was removed.','success');
 }
 
 // ---------- page entry ----------
@@ -5240,7 +5318,7 @@ $('tab-hr-hist').addEventListener('click',e=>{
  const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
  if(a==='csv')return exportCsv();
  const run=RUNS().find(r=>r.id===b.dataset.id);if(!run)return;
- if(a==='view')viewRun(run.id);else if(a==='slips')jump(run,'slips');else if(a==='pay')jump(run,'print');else if(a==='delrun')delRun(run.id);
+ if(a==='paid')openPaid(run);else if(a==='unpaid')unpay(run);else if(a==='view')viewRun(run.id);else if(a==='slips')jump(run,'slips');else if(a==='pay')jump(run,'print');else if(a==='delrun')delRun(run.id);
 });
 
 // ---------- wiring into the app ----------
@@ -5250,21 +5328,23 @@ wrap('showTab',()=>{
  const p=a.id.slice(7);par.classList.add('active');toggleHr(true);const it=$('nav-sub-hr-'+p);if(it)it.classList.add('active');enter(p);
 });
 wrap('switchCompany',reset);
+['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);if(e&&e.src==='hr')return toast('This entry came from HR payroll ('+e.ref+'). To change or remove it, use Undo paid in HR > Payroll History.');return o.apply(this,arguments)}});
 
 // keep Human Resources data when a company backup is imported
 const cleanHr=h=>{
  const D=/^\d{4}-\d{2}-\d{2}$/,S=(v,n)=>String(v==null?'':v).slice(0,n||120),N=v=>{const x=parseFloat(v);return Number.isFinite(x)&&x>0?Math.round(x*100)/100:0},Z=v=>{const x=parseFloat(v);return Number.isFinite(x)?Math.round(x*100)/100:0};
  const emps=(Array.isArray(h.employees)?h.employees:[]).filter(e=>e&&typeof e==='object').map(e=>({id:safeId(e.id)||'emp_'+uid(),last:S(e.last),first:S(e.first),mi:S(e.mi,4),business:S(e.business),position:S(e.position),status:S(e.status,30)||'REGULAR',hired:D.test(e.hired||'')?e.hired:'',freq:S(e.freq,30)||'SEMI-MONTHLY',rate:N(e.rate),allowance:N(e.allowance),active:e.active!==false}));
  const runs=(Array.isArray(h.runs)?h.runs:[]).filter(r=>r&&typeof r==='object'&&Array.isArray(r.rows)&&+r.month>=1&&+r.month<=12&&+r.year>=2000&&+r.year<=2100).map(r=>({
-  id:safeId(r.id)||'run_'+uid(),savedAt:S(r.savedAt,40),business:S(r.business)||'ALL',status:S(r.status,30)||'ALL',month:Math.floor(+r.month),year:Math.floor(+r.year),quincena:+r.quincena===2?2:1,
+  id:safeId(r.id)||'run_'+uid(),savedAt:S(r.savedAt,40),paid:r.paid&&typeof r.paid==='object'&&D.test(r.paid.date||'')?{date:r.paid.date,jeId:safeId(r.paid.jeId),cash:parseInt(r.paid.cash,10)||0,at:S(r.paid.at,40)}:undefined,business:S(r.business)||'ALL',status:S(r.status,30)||'ALL',month:Math.floor(+r.month),year:Math.floor(+r.year),quincena:+r.quincena===2?2:1,
   rows:r.rows.filter(w=>w&&typeof w==='object').map(w=>{const o={empId:safeId(w.empId),name:S(w.name),business:S(w.business),position:S(w.position),status:S(w.status,30),rate:N(w.rate),allowance:N(w.allowance)};
    INK.forEach(k=>o[k[0]]=N(w[k[0]]));o.gross=Z(w.gross);o.deductions=Z(w.deductions);o.net=Z(w.net);return o})
  }));
- return{employees:emps,runs};
+ const ac={};if(h.acct&&typeof h.acct==='object')Object.keys(h.acct).forEach(k=>{const v=parseInt(h.acct[k],10);if(/^\w{1,12}$/.test(k)&&Number.isInteger(v))ac[k]=v});
+ return{employees:emps,runs,acct:ac};
 };
-const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.hr&&typeof d.hr==='object')o.hr=cleanHr(d.hr);return o};
+const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.hr&&typeof d.hr==='object')o.hr=cleanHr(d.hr);o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='hr'){e.src='hr';e.hrRunId=safeId(x.hrRunId)}});return o};
 
-window.HRMOD={calc,periodLabel,regHtml,slipsHtml,docHtml,cleanHr};
+window.HRMOD={calc,periodLabel,regHtml,slipsHtml,docHtml,cleanHr,runSums};
 })();
 
 
