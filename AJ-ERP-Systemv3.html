@@ -3845,6 +3845,9 @@ main.main-content{overscroll-behavior-y:contain}
                 </tr>`;
             }).join('')).join('');
         }
+        // General ledger: one collapsible block per account (summary line: beginning, debits, credits, ending).
+        // Transactions are drawn only when an account is opened, 300 lines at a time, so very large ledgers stay fast.
+        const GL = { open: new Set(), q: '', data: new Map(), shown: new Map() };
         function renderGeneralLedger(filterCode = 'ALL') {
             const comp = activeCompany(), container = document.getElementById('ledgerContainer'); if (!comp) return;
             fillLedgerFilter();
@@ -3856,29 +3859,58 @@ main.main-content{overscroll-behavior-y:contain}
             const sorted = reportEntries(comp, lkey).slice().sort((a, b) => a.date.localeCompare(b.date));
             let targets = comp.chartOfAccounts;
             if (filterCode !== 'ALL') targets = targets.filter(a => a.code === parseInt(filterCode));
-            let html = '';
-            targets.forEach(acc => {
-                let rows = '', running = 0, opening = 0;
-                sorted.forEach(entry => {
-                    entry.lines.forEach(line => {
-                        if (line.accountCode !== acc.code) return;
-                        const delta = acc.normal === 'Debit' ? toCents(line.debit) - toCents(line.credit) : toCents(line.credit) - toCents(line.debit);
-                        if (entry.date < from) { opening += delta; running = opening; return; }
-                        if (entry.date > to) return;
-                        running += delta;
-                        rows += `<tr><td>${escapeHtml(entry.date)}</td><td><strong>${escapeHtml(entry.ref)}</strong></td><td>${escapeHtml(entry.desc)}</td>
-                            <td class="number">${line.debit ? formatMoney(line.debit, comp.currency) : '-'}</td><td class="number">${line.credit ? formatMoney(line.credit, comp.currency) : '-'}</td>
-                            <td class="number" style="font-weight:bold;">${formatMoney(fromCents(running), comp.currency)}</td></tr>`;
-                    });
-                });
-                if (!rows) return;
-                const openRow = opening ? `<tr><td colspan="5"><em>Balance brought forward</em></td><td class="number">${formatMoney(fromCents(opening), comp.currency)}</td></tr>` : '';
-                html += `<div class="card"><h4>Account: ${acc.code} - ${escapeHtml(acc.title)}</h4><table>
-                    <thead><tr><th>Date</th><th>Ref</th><th>Particulars</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Ending Balance</th></tr></thead>
-                    <tbody>${openRow}${rows}</tbody></table></div>`;
-            });
-            container.innerHTML = (lkey === 'cash' ? '<p class="inv-note">Cash basis view: revenue and expenses appear when cash settles them. Receivable and payable accounts are not shown.</p>' : '') + (html || '<p style="color: var(--text-muted);">No ledger activity in this period.</p>');
+            const byCode = new Map(targets.map(a => [a.code, { acc: a, opening: 0, dr: 0, cr: 0, rows: [] }]));
+            sorted.forEach(entry => entry.lines.forEach(line => {
+                const g = byCode.get(line.accountCode); if (!g) return;
+                const d = toCents(line.debit), c = toCents(line.credit), delta = g.acc.normal === 'Debit' ? d - c : c - d;
+                if (entry.date < from) { g.opening += delta; return; }
+                if (entry.date > to) return;
+                g.dr += d; g.cr += c; g.rows.push({ e: entry, d, c, delta });
+            }));
+            GL.data = new Map(); GL.shown = new Map();
+            const list = [...byCode.values()].filter(g => g.rows.length || g.opening).sort((a, b) => a.acc.code - b.acc.code);
+            list.forEach(g => GL.data.set(g.acc.code, g));
+            const single = filterCode !== 'ALL';
+            const f = c => formatMoney(fromCents(c), comp.currency);
+            const q = GL.q.trim().toLowerCase();
+            const shownList = list.filter(g => !q || (g.acc.code + ' ' + g.acc.title).toLowerCase().includes(q));
+            const head = list.length ? `<div class="gl-bar"><input type="search" id="glSearch" placeholder="Find an account (code or name)" value="${escapeHtml(GL.q)}" aria-label="Find an account"><span class="gl-count">${shownList.length} of ${list.length} accounts</span><button type="button" class="btn btn-outline btn-sm" data-gl="open">Expand all</button><button type="button" class="btn btn-outline btn-sm" data-gl="close">Collapse all</button></div>
+                <div class="gl-row gl-hd"><span>Account</span><span class="number">Entries</span><span class="number">Beginning</span><span class="number">Debits</span><span class="number">Credits</span><span class="number">Ending</span></div>` : '';
+            const html = shownList.map(g => {
+                const end = g.opening + g.rows.reduce((s, r) => s + r.delta, 0), open = single || GL.open.has(g.acc.code);
+                return `<details class="gl-acct" data-code="${g.acc.code}"${open ? ' open' : ''}><summary class="gl-row"><span><b>${g.acc.code}</b> ${escapeHtml(g.acc.title)}</span><span class="number">${g.rows.length}</span><span class="number">${f(g.opening)}</span><span class="number">${f(g.dr)}</span><span class="number">${f(g.cr)}</span><span class="number"><b>${f(end)}</b></span></summary><div class="gl-body"></div></details>`;
+            }).join('');
+            container.innerHTML = (lkey === 'cash' ? '<p class="inv-note">Cash basis view: revenue and expenses appear when cash settles them. Receivable and payable accounts are not shown.</p>' : '') + (list.length ? head + (html || '<p style="color: var(--text-muted);padding:1rem 0">No account matches.</p>') : '<p style="color: var(--text-muted);">No ledger activity in this period.</p>');
+            container.querySelectorAll('details.gl-acct[open]').forEach(glFill);
+            const se = document.getElementById('glSearch');
+            if (se) se.oninput = () => { GL.q = se.value; const p = se.selectionStart; renderGeneralLedger(filterCode); const n = document.getElementById('glSearch'); if (n) { n.focus(); n.setSelectionRange(p, p); } };
         }
+        function glFill(det, more) {
+            const comp = activeCompany(), code = +det.dataset.code, g = GL.data.get(code); if (!g || !comp) return;
+            const f = c => formatMoney(fromCents(c), comp.currency), PAGE = 300, n = Math.min(g.rows.length, (GL.shown.get(code) || 0) + (more ? PAGE : PAGE));
+            GL.shown.set(code, n);
+            let running = g.opening, body = g.opening ? `<tr><td colspan="5"><em>Balance brought forward</em></td><td class="number">${f(g.opening)}</td></tr>` : '';
+            g.rows.forEach((r, i) => { running += r.delta; if (i >= n) return;
+                body += `<tr><td>${escapeHtml(r.e.date)}</td><td><strong>${escapeHtml(r.e.ref)}</strong></td><td>${escapeHtml(r.e.desc)}</td><td class="number">${r.d ? f(r.d) : '-'}</td><td class="number">${r.c ? f(r.c) : '-'}</td><td class="number" style="font-weight:bold;">${f(running)}</td></tr>`; });
+            const left = g.rows.length - n;
+            det.querySelector('.gl-body').innerHTML = `<table><thead><tr><th>Date</th><th>Ref</th><th>Particulars</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Balance</th></tr></thead><tbody>${body}</tbody></table>` + (left > 0 ? `<div class="gl-more"><button type="button" class="btn btn-outline btn-sm" data-glmore="${code}">Show ${Math.min(left, PAGE)} more (${left} left)</button></div>` : '');
+        }
+        document.addEventListener('toggle', e => { const d = e.target; if (!d.classList || !d.classList.contains('gl-acct')) return; const code = +d.dataset.code; if (d.open) { GL.open.add(code); if (!d.querySelector('.gl-body table')) { GL.shown.set(code, 0); glFill(d); } } else GL.open.delete(code); }, true);
+        document.addEventListener('click', e => {
+            const m = e.target.closest('[data-glmore]'); if (m) { const d = m.closest('details.gl-acct'); glFill(d, true); return; }
+            const b = e.target.closest('[data-gl]'); if (!b) return; const open = b.dataset.gl === 'open';
+            document.querySelectorAll('#ledgerContainer details.gl-acct').forEach(d => { d.open = open; });
+        });
+        document.head.insertAdjacentHTML('beforeend', '<style>'
+            + '.gl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:.8rem}.gl-bar input{flex:1;min-width:200px;max-width:360px}.gl-count{color:var(--text-muted);font-size:.85rem;margin-right:auto}'
+            + '.gl-row{display:grid;grid-template-columns:minmax(200px,2.2fr) 70px repeat(4,minmax(110px,1fr));gap:10px;align-items:center;padding:10px 14px;font-variant-numeric:tabular-nums}'
+            + '.gl-hd{font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);border-bottom:1px solid var(--border-color)}'
+            + 'details.gl-acct{border-bottom:1px solid var(--border-color)}details.gl-acct>summary{cursor:pointer;list-style:none;border-radius:8px}details.gl-acct>summary::-webkit-details-marker{display:none}'
+            + 'details.gl-acct>summary>span:first-child::before{content:"\\203A";display:inline-block;width:14px;margin-right:4px;color:var(--text-muted);transition:transform .2s}details.gl-acct[open]>summary>span:first-child::before{transform:rotate(90deg)}'
+            + 'details.gl-acct>summary:hover{background:var(--tint)}details.gl-acct[open]>summary{background:var(--tint)}'
+            + '.gl-body{max-height:60vh;overflow:auto;margin:0 0 .8rem}.gl-body thead th{position:sticky;top:0;z-index:1}.gl-more{text-align:center;padding:8px}'
+            + '@media(max-width:768px){.gl-row{grid-template-columns:1fr auto;gap:2px 10px}.gl-row span:nth-child(2),.gl-row span:nth-child(3),.gl-row span:nth-child(4),.gl-row span:nth-child(5){display:none}.gl-hd span:nth-child(n+2):not(:last-child){display:none}}'
+            + '</style>');
 
         // ===== FINANCIAL STATEMENT BUILDERS =====
         function periodNetIncomeCents(comp, endStr, startStr = null, entries = null) {
@@ -4649,8 +4681,8 @@ function accRun(){const n=sync();render();calculateDashboardMetrics();toast(n?'P
 // ---- Utilities (metered readings) ----
 const metered=()=>R().rooms.filter(r=>!r.elecInclusive||!r.waterInclusive).sort((a,b)=>nameCmp((prop(a.propertyId)||{}).name,(prop(b.propertyId)||{}).name)||nameCmp(a.name,b.name));
 function vUtil(){const X=R(),rows=X.utilities.filter(u=>{if(uProp==='ALL')return true;const r=room(u.roomId);return r&&r.propertyId===uProp}).sort((a,b)=>b.date.localeCompare(a.date));
- return '<div class="inv-bar" style="align-items:flex-end">'+BTN('RE.utilEdit()','+ Post utility reading','btn')+'<div class="form-group"><label>Property</label><select onchange="RE.set(\'uProp\',this.value)"><option value="ALL">All properties</option>'+opts(sProps(),uProp,p=>p.name)+'</select></div></div><p class="inv-note">Meter readings are billed to the room: units used × rate per unit, recorded as utility income (Dr cash / Cr utility income). Rooms with both electricity and water included in the rate are not metered.</p>'
- +T(['Date','Room / tenant','Type','#Units','#Rate','#Total',''],rows.map(u=>{const r=room(u.roomId);return [fd(u.date),(r?esc((prop(r.propertyId)||{name:''}).name)+' · Rm '+esc(r.name):'(room removed)')+'<div class="inv-note" style="margin:0">'+esc(u.tenantName||'')+'</div>',esc(u.type),String(r2(u.pres-u.prev)),fm(u.rate),fm(u.total),BTN('RE.utilEdit(\''+u.id+'\')','Edit')+' '+BTN('RE.utilDel(\''+u.id+'\')','Delete','btn-danger')]}))}
+ return '<div class="inv-bar" style="align-items:flex-end">'+BTN('RE.utilEdit()','+ Post utility reading','btn')+BTN('REX.billForm()','+ Post property bill','btn btn-outline')+'<div class="form-group"><label>Property</label><select onchange="RE.set(\'uProp\',this.value)"><option value="ALL">All properties</option>'+opts(sProps(),uProp,p=>p.name)+'</select></div></div><p class="inv-note">Meter readings are billed to the room: units used × rate per unit, recorded as utility income (Dr cash / Cr utility income). Rooms with both electricity and water included in the rate are not metered.</p>'
+ +T(['Date','Room / tenant','Type','#Units','#Rate','#Total',''],rows.map(u=>{const r=room(u.roomId);return [fd(u.date),(r?esc((prop(r.propertyId)||{name:''}).name)+' · Rm '+esc(r.name):'(room removed)')+'<div class="inv-note" style="margin:0">'+esc(u.tenantName||'')+'</div>',esc(u.type),String(r2(u.pres-u.prev)),fm(u.rate),fm(u.total),BTN('RE.utilEdit(\''+u.id+'\')','Edit')+' '+BTN('RE.utilDel(\''+u.id+'\')','Delete','btn-danger')]}))+(window.REX?REX.extra(uProp):'')}
 function utilEdit(id){const X=R(),u=id?X.utilities.find(x=>x.id===id):null,ms=metered(),cash=cashAccts();if(!ms.length)return toast('No metered rooms. Add rooms where electricity or water is not included in the rate.');if(!cash.length&&!u)return toast('Tag at least one account as Cash first (Settings → Chart of Accounts → Edit).');
  modal(u?'Edit utility reading':'Post utility reading','<form onsubmit="RE.utilSave(event)" data-id="'+(u?u.id:'')+'"><div class="grid-2"><div class="form-group"><label>Date *</label><input type="date" id="ruDate" required value="'+(u?u.date:td())+'"></div><div class="form-group"><label>Room *</label><select id="ruRoom" required onchange="RE.utilRoom()"><option value="">Select metered room</option>'+ms.map(r=>'<option value="'+r.id+'"'+(u&&u.roomId===r.id?' selected':'')+'>'+esc((prop(r.propertyId)||{name:''}).name)+' · Room '+esc(r.name)+'</option>').join('')+'</select></div>'
  +'<div class="form-group"><label>Tenant(s)</label><input id="ruTen" readonly value="'+esc(u?u.tenantName:'')+'"></div><div class="form-group"><label>Utility</label><select id="ruType" onchange="RE.utilPrev()"><option value="Electricity"'+(u&&u.type==='Electricity'?' selected':'')+'>Electricity (kWh)</option><option value="Water"'+(u&&u.type==='Water'?' selected':'')+'>Water (m³)</option></select></div>'
@@ -6083,8 +6115,11 @@ const fd=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day
 const fdt=s=>s?new Date(s).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
 const nk=s=>String(s==null?'':s).replace(/[^0-9a-z]/gi,'').toLowerCase();
 const nameCmp=(a,b)=>String(a==null?'':a).localeCompare(String(b==null?'':b),undefined,{numeric:true,sensitivity:'base'});
-const ROLES={admin:'Admin',bookkeeper:'Bookkeeper',accountant:'Accountant',encoder:'Encoder'};
-const ROLE_NOTE={admin:'Full authority: everything, including users, settings and posting encoder entries to the books.',bookkeeper:'Keeps the books: the modules you tick below. Posts directly to the books and generates reports.',accountant:'Read-only: sees only saved reports (generated by bookkeepers). Cannot see the books or enter anything.',encoder:'Data entry only, in plain forms with no accounts, debits or credits. Every entry waits for an admin to post it.'};
+const ROLES={admin:'Admin',bookkeeper:'Bookkeeper',accountant:'Accountant',encoder:'Encoder',custom:'Custom'};
+const ROLE_NOTE={admin:'Full authority: everything, including users, settings and posting encoder entries to the books.',bookkeeper:'Keeps the books: the modules you tick below. Posts directly to the books and generates reports.',accountant:'Read-only: sees only saved reports (generated by bookkeepers). Cannot see the books or enter anything.',encoder:'Data entry only, in plain forms with no accounts, debits or credits. Every entry waits for an admin to post it.',custom:'Give this person their own title and choose exactly which modules they can open.'};
+const EXTRA_PERMS=[['posting','Post encoder entries (For Posting)'],['rptlib','Saved Reports library (read-only)']];
+const userRec=()=>{const u=me();return u?users().find(x=>x.id===u.id):null};
+const roleTitle=u=>u?(u.role==='custom'&&u.title?u.title:ROLES[u.role]):'';
 const MODS=[['home','Dashboard'],['tasks','Tasks'],['books','Books'],['reports','Reports'],['hr','HR and payroll'],['bank','Banking'],['ar','Sales & Receivables'],['ap','Purchases & Payables'],['fa','Fixed Assets'],['tax','Taxes & Filings'],['inventory','Inventory'],['realestate','Real Estate'],['settings','Settings (company, chart of accounts, data)']];
 const BK_DEFAULT={home:true,tasks:true,books:true,reports:true,hr:false,bank:true,ar:true,ap:true,fa:true,tax:true,inventory:true,realestate:true,settings:false};
 const FORMS=[['check','Checks issued'],['deposit','Deposits, transfers and withdrawals'],['expense','Expenses and receipts'],['collection','Money received']];
@@ -6129,17 +6164,19 @@ function can(m){
  if(r==='accountant')return m==='rptlib';
  if(r==='encoder')return m==='enc';
  if(r==='bookkeeper')return m!=='posting'&&m!=='enc'&&m!=='rptlib'&&m!=='users'&&!!bkPerms()[m];
+ if(r==='custom'){const p=(userRec()||{}).perms||{};if(m==='enc'||m==='users')return false;if(m==='posting')return !!p.posting&&encOn();return !!p[m]}
  return false;
 }
 const tabMod=t=>/^(hr|hx)-/.test(t)?'hr':/^bk-/.test(t)?'bank':/^tx-/.test(t)?'tax':/^bx-/.test(t)?'books':/^rx-/.test(t)?'reports':/^(ar|ap|fa)-/.test(t)?t.slice(0,2):t;
-const firstTab=()=>['home','enc','rptlib','books','reports','bk-cal','ar-inv','ap-bill','fa-reg','tx-cal','hr-emp','inventory','realestate','tasks','settings'].find(t=>can(tabMod(t)))||'home';
+const firstTab=()=>['home','enc','posting','rptlib','books','reports','bk-cal','ar-inv','ap-bill','fa-reg','tx-cal','hr-emp','inventory','realestate','tasks','settings'].find(t=>can(tabMod(t)))||'home';
 const NAV={home:['nav-home'],tasks:['nav-tasks'],books:['nav-books-parent','booksSubMenu'],reports:['nav-reports-parent','reportsSubMenu'],hr:['nav-hr-parent','hrSubMenu'],bank:['nav-bank-parent','bankSubMenu'],tax:['nav-tax-parent','taxSubMenu'],ar:['nav-ar-parent','arSubMenu'],ap:['nav-ap-parent','apSubMenu'],fa:['nav-fa-parent','faSubMenu'],inventory:['nav-inventory'],realestate:['nav-realestate'],settings:['nav-settings'],posting:['nav-posting'],rptlib:['nav-rptlib'],enc:['nav-enc']};
+window.ROLECAN=m=>can(m);window.ROLETITLE=()=>roleTitle(userRec());
 function applyRole(){
  Object.keys(NAV).forEach(m=>NAV[m].forEach(id=>{const e=$(id);if(e)e.classList.toggle('role-hide',!can(m))}));
  const hs=document.querySelector('#headerCompanyBadge button[onclick*="settings"]');if(hs)hs.classList.toggle('role-hide',!can('settings'));
  const un=$('setNav-users');if(un)un.classList.toggle('role-hide',role()!=='admin');
  const cp=$('setCompEnablePass');if(cp){const box=cp.closest('.card')||cp.closest('.form-group');if(box)box.classList.toggle('role-hide',hasUsers())}
- const chip=$('hdrUser');if(chip){const u=me();chip.textContent=u?u.name+' • '+ROLES[u.role]:'';chip.classList.toggle('role-hide',!u)}
+ const chip=$('hdrUser');if(chip){const u=me();chip.textContent=u?u.name+' • '+(u.role==='custom'?roleTitle(userRec())||'Custom':ROLES[u.role]):'';chip.classList.toggle('role-hide',!u)}
  const meta=$('hdrDispMeta');if(meta&&isWS())meta.innerText='Encoder workspace';
  updCount();
 }
@@ -6437,7 +6474,7 @@ $('rqBulk').onclick=()=>{const ids=[...document.querySelectorAll('#rqBody [data-
 
 // ---------- Accountant: saved reports ----------
 const RT={tb:'Trial Balance',pctb:'Post-Closing Trial Balance',is:'Income Statement',bs:'Balance Sheet',oe:'Owner’s Equity',cf:'Cash Flows'};
-function libVisible(r){const s=(C().accountantSees||'bookkeepers');const g=r.genBy||{role:'admin'};return g.role==='bookkeeper'||(s==='all'&&g.role==='admin')}
+function libVisible(r){const s=(C().accountantSees||'bookkeepers');const g=r.genBy||{role:'admin'};return g.role==='bookkeeper'||g.role==='custom'||(s==='all'&&g.role==='admin')}
 function renderLib(){
  const list=(C().reportsHistory||[]).filter(r=>role()==='admin'||libVisible(r)).slice().reverse();
  $('rqLibNote').textContent=list.length+' saved report'+(list.length===1?'':'s')+'. These are the reports the bookkeepers have generated; you can view, print or save them as PDF.';
@@ -6454,7 +6491,7 @@ function renderUsers(){
  $('rqUsers').innerHTML='<div class="hr-head"><h3 style="margin:0">Users &amp; Access</h3><button class="btn" id="rqAddU">+ Add User</button></div>'
   +(us.length?'':'<div class="rq-note" style="margin-bottom:1rem">No user logins yet: anyone who opens this company has full access. Add yourself as an <b>Admin</b> first; after that everyone signs in with a username and password, and the old company password is no longer used.</div>')
   +'<div class="hr-scroll" style="margin-bottom:1.2rem"><table class="hr-tbl"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>'
-  +(us.map(u=>'<tr'+(u.active===false?' class="hr-off"':'')+'><td><b>'+esc(u.name)+'</b>'+(me()&&me().id===u.id?' <span class="badge badge-debit">you</span>':'')+'</td><td>'+esc(u.username)+'</td><td>'+ROLES[u.role]+'</td><td>'+(u.active===false?'Inactive':'Active')+'</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-ue="'+esc(u.id)+'">Edit</button>'+(u.role==='encoder'?' <button class="btn btn-outline btn-sm" data-uf="'+esc(u.id)+'" title="For an encoder on another computer">Encoder file</button>':'')+'</td></tr>').join('')||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.2rem">No users yet.</td></tr>')+'</tbody></table></div>'
+  +(us.map(u=>'<tr'+(u.active===false?' class="hr-off"':'')+'><td><b>'+esc(u.name)+'</b>'+(me()&&me().id===u.id?' <span class="badge badge-debit">you</span>':'')+'</td><td>'+esc(u.username)+'</td><td>'+(u.role==='custom'?esc(u.title||'Custom')+' <small class="bk-mut">custom</small>':ROLES[u.role])+'</td><td>'+(u.active===false?'Inactive':'Active')+'</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-ue="'+esc(u.id)+'">Edit</button>'+(u.role==='encoder'?' <button class="btn btn-outline btn-sm" data-uf="'+esc(u.id)+'" title="For an encoder on another computer">Encoder file</button>':'')+'</td></tr>').join('')||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.2rem">No users yet.</td></tr>')+'</tbody></table></div>'
   +'<div class="card" style="box-shadow:none;border:1px solid var(--border-color)"><h3 style="margin-top:0;font-size:1rem">What each role can do</h3>'
   +'<p><b>Admin.</b> '+ROLE_NOTE.admin+'</p><p style="margin-bottom:.3rem"><b>Bookkeeper.</b> '+ROLE_NOTE.bookkeeper+'</p><div class="rq-perm">'+MODS.map(x=>'<label><input type="checkbox" data-bk="'+x[0]+'"'+(bp[x[0]]?' checked':'')+'> '+x[1]+'</label>').join('')+'</div>'
   +'<p style="margin-bottom:.3rem"><b>Accountant.</b> '+ROLE_NOTE.accountant+'</p><div class="form-group" style="max-width:420px"><label for="rqAccSees">Accountant can see reports saved by</label><select id="rqAccSees"><option value="bookkeepers">Bookkeepers only</option><option value="all">Bookkeepers and admins</option></select></div>'
@@ -6474,12 +6511,15 @@ function openUser(id){
   +'<div class="form-group"><label for="ruName">Full name *</label><input id="ruName" value="'+esc(u?u.name:'')+'" autocomplete="off"></div>'
   +'<div class="form-group"><label for="ruUser">Username *</label><input id="ruUser" value="'+esc(u?u.username:'')+'" autocomplete="off" autocapitalize="none"></div>'
   +'<div class="form-group"><label for="ruRole">Role *</label><select id="ruRole"'+(first?' disabled':'')+'>'+Object.keys(ROLES).map(r=>'<option value="'+r+'"'+((u?u.role:first?'admin':'encoder')===r?' selected':'')+'>'+ROLES[r]+'</option>').join('')+'</select><small class="bk-mut" id="ruNote"></small></div>'
+  +'<div class="form-group ru-cust"><label for="ruTitle">Title / position *</label><input id="ruTitle" maxlength="60" value="'+esc(u&&u.title||'')+'" placeholder="e.g. Store Manager, HR Officer"></div>'
   +'<div class="form-group"><label for="ruActive">Status</label><select id="ruActive"><option value="1">Active</option><option value="0"'+(u&&u.active===false?' selected':'')+'>Inactive (cannot log in)</option></select></div>'
   +'<div class="form-group"><label for="ruPw">'+(u?'New password (leave blank to keep)':'Password *')+'</label><input type="password" id="ruPw" autocomplete="new-password"></div>'
   +'<div class="form-group"><label for="ruPw2">Confirm password</label><input type="password" id="ruPw2" autocomplete="new-password"></div>'
-  +'</div>'+(first?'<p class="hr-note">The first user is always an Admin. After you save, logins are required for this company.</p>':'')
+  +'</div><div class="ru-cust" style="border:1px dashed var(--border-color);border-radius:10px;padding:10px 12px;margin-bottom:1rem"><label style="font-weight:700">What this person can open</label><div class="rq-perm">'+MODS.map(x=>'<label><input type="checkbox" data-cp="'+x[0]+'"'+(u&&u.perms&&u.perms[x[0]]?' checked':'')+'> '+x[1]+'</label>').join('')+'</div><label style="font-weight:700">Extra permissions</label><div class="rq-perm">'+EXTRA_PERMS.map(x=>'<label><input type="checkbox" data-cp="'+x[0]+'"'+(u&&u.perms&&u.perms[x[0]]?' checked':'')+'> '+x[1]+'</label>').join('')+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="bk-mut" style="align-self:center">Start from:</span><button type="button" class="btn btn-outline btn-sm" data-pre="all">Everything</button><button type="button" class="btn btn-outline btn-sm" data-pre="bk">Like a Bookkeeper</button><button type="button" class="btn btn-outline btn-sm" data-pre="hr">HR only</button><button type="button" class="btn btn-outline btn-sm" data-pre="sales">Sales &amp; collections</button><button type="button" class="btn btn-outline btn-sm" data-pre="none">Clear</button></div><p class="hr-note" style="margin:.6rem 0 0">Users &amp; Access and full Admin rights stay with Admins.</p></div>'+(first?'<p class="hr-note">The first user is always an Admin. After you save, logins are required for this company.</p>':'')
   +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>'+(u?'<button type="button" class="btn btn-danger btn-outline" id="ruDel">Delete</button>':'')+'</span><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">Save User</button></span></div></form>',680);
- const q=s=>m.querySelector(s),note=()=>q('#ruNote').textContent=ROLE_NOTE[q('#ruRole').value];q('#ruRole').onchange=note;note();
+ const q=s=>m.querySelector(s),note=()=>{q('#ruNote').textContent=ROLE_NOTE[q('#ruRole').value];m.querySelectorAll('.ru-cust').forEach(x=>x.style.display=q('#ruRole').value==='custom'?'':'none')};q('#ruRole').onchange=note;note();
+ const PRE={all:MODS.map(x=>x[0]).concat(['rptlib']),bk:Object.keys(BK_DEFAULT).filter(k=>BK_DEFAULT[k]),hr:['home','tasks','hr'],sales:['home','tasks','ar','reports'],none:[]};
+ m.querySelectorAll('[data-pre]').forEach(b=>b.onclick=()=>{const L=PRE[b.dataset.pre];m.querySelectorAll('[data-cp]').forEach(i=>i.checked=L.includes(i.dataset.cp))});
  const admins=()=>users().filter(x=>x.role==='admin'&&x.active!==false);
  if(u)q('#ruDel').onclick=()=>{if(me()&&me().id===u.id)return toast('You cannot delete your own login.');if(u.role==='admin'&&admins().length<=1)return toast('Keep at least one active Admin.');if(!confirm('Delete '+u.name+'? Their entries and history are kept.'))return;c.users=users().filter(x=>x.id!==u.id);saveToLocalStorage();m.remove();renderUsers()};
  q('form').onsubmit=async ev=>{ev.preventDefault();
@@ -6489,7 +6529,9 @@ function openUser(id){
   if(!u||pw){if(!pwOk(pw))return toast('Password must be at least 6 characters.');if(pw!==pw2)return toast('The passwords do not match.')}
   if(u&&u.role==='admin'&&(r!=='admin'||!act)&&admins().length<=1)return toast('Keep at least one active Admin.');
   if(u&&me()&&me().id===u.id&&(r!=='admin'||!act))return toast('You cannot remove your own Admin access.');
-  const rec={name,username:un,role:r,active:act};if(!u||pw)rec.pw=await makePw(pw);
+  const rec={name,username:un,role:r,active:act};
+  if(r==='custom'){const t=q('#ruTitle').value.trim();if(!t)return toast('Enter a title for this person, e.g. Store Manager.');const perms={};m.querySelectorAll('[data-cp]:checked').forEach(i=>perms[i.dataset.cp]=true);if(!Object.keys(perms).length)return toast('Tick at least one module this person can open.');rec.title=t.slice(0,60);rec.perms=perms}else{rec.title=undefined;rec.perms=undefined}
+  if(!u||pw)rec.pw=await makePw(pw);
   if(u)Object.assign(u,rec);else{c.users=users().concat([Object.assign({id:'u_'+uid()},rec)])}
   if(first){c.passwordHash=null;window.currentUser={id:c.users[0].id,name,role:'admin'}}
   saveToLocalStorage();m.remove();renderUsers();applyRole();toast(first?'Admin login created. From now on, sign in with your username and password.':'User saved.','success');
@@ -6582,7 +6624,7 @@ window.saveToLocalStorage=function(){const c=C(),u=me();if(c&&u&&Array.isArray(c
 // Books: only admins and bookkeepers may change journal entries
 ['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(){if(me()&&!can('books'))return toast('Your role cannot change the books.');return o.apply(this,arguments)}});
 // backups keep users, permissions, the queue and posting memory
-const cleanUsers=a=>(Array.isArray(a)?a:[]).filter(u=>u&&u.username&&u.pw&&u.pw.salt&&ROLES[u.role]).map(u=>({id:safeId(u.id)||'u_'+uid(),name:String(u.name||u.username).slice(0,80),username:String(u.username).slice(0,40),role:u.role,active:u.active!==false,pw:{salt:String(u.pw.salt).slice(0,64),hash:String(u.pw.hash||'').slice(0,128),iter:parseInt(u.pw.iter,10)||150000}}));
+const cleanUsers=a=>(Array.isArray(a)?a:[]).filter(u=>u&&u.username&&u.pw&&u.pw.salt&&ROLES[u.role]).map(u=>({id:safeId(u.id)||'u_'+uid(),name:String(u.name||u.username).slice(0,80),username:String(u.username).slice(0,40),role:u.role,title:u.role==='custom'?String(u.title||'Custom').slice(0,60):undefined,perms:u.role==='custom'&&u.perms&&typeof u.perms==='object'?Object.fromEntries(Object.keys(u.perms).filter(k=>/^\w{1,20}$/.test(k)&&u.perms[k]).map(k=>[k,true])):undefined,active:u.active!==false,pw:{salt:String(u.pw.salt).slice(0,64),hash:String(u.pw.hash||'').slice(0,128),iter:parseInt(u.pw.iter,10)||150000}}));
 const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);
  const us=cleanUsers(d.users);if(us.length&&us.some(u=>u.role==='admin'))o.users=us;
  if(d.rolePerms&&d.rolePerms.bookkeeper){o.rolePerms={bookkeeper:{}};MODS.forEach(m=>o.rolePerms.bookkeeper[m[0]]=!!d.rolePerms.bookkeeper[m[0]])}
@@ -7175,7 +7217,7 @@ const isDone=i=>!!T().filed[i.key];
 const periodEnded=i=>!i.ym||ymd(i.ym[0],i.ym[1],lastDay(i.ym[0],i.ym[1]))<today();
 function overdue(){const t=today(),since=(T().profile.since||'2000-01')+'-01';return itemsBetween(since,addDays(t,-1)).filter(i=>!isDone(i))}
 function badge(){const b=$('txCount');if(!b)return;const c=C();if(!c||!can())return b.style.display='none';let n=0;try{const t=today();n=overdue().length+itemsBetween(t,addDays(t,7)).filter(i=>!isDone(i)).length}catch(e){}b.textContent=n;b.style.display=n?'':'none';b.title=n+' filing'+(n===1?'':'s')+' overdue or due within 7 days'}
-const can=()=>!window.currentUser||['admin','bookkeeper'].includes(window.currentUser.role);
+const can=()=>!window.currentUser||(window.ROLECAN?window.ROLECAN('tax'):['admin','bookkeeper'].includes(window.currentUser.role));
 
 // ---------- accounts used when posting ----------
 const TPL={wtax:[2110,'Withholding Tax Payable','Liability'],ewt:[2115,'Expanded Withholding Tax Payable','Liability'],sss:[2120,'SSS Contributions Payable','Liability'],ph:[2130,'PhilHealth Contributions Payable','Liability'],pg:[2140,'Pag-IBIG Contributions Payable','Liability'],ptp:[2150,'Percentage Tax Payable','Liability'],vatp:[2160,'VAT Payable','Liability'],itp:[2170,'Income Tax Payable','Liability'],tl:[6100,'Taxes and Licenses','Expense'],ite:[6900,'Income Tax Expense','Expense']};
@@ -8534,6 +8576,60 @@ new MutationObserver(scan).observe(document.body,{childList:true});scan();
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const open=[...document.querySelectorAll('.modal-overlay')].filter(o=>!o.classList.contains('hidden')&&!SKIP.has(o.id)&&getComputedStyle(o).display!=='none');const top=open[open.length-1];if(top){closeOverlay(top)}});
 })();
 
+// ===== Real Estate: property (master) utility bills from providers, with statement attachment and utility cost vs billed summary =====
+(function(){
+const X=window.ERPX,$=X.$,C=X.C,esc=X.esc,fm=X.fm,n2=X.n2;
+const BL=()=>{const c=C();if(!Array.isArray(c.rebills))c.rebills=[];return c.rebills};
+const props=()=>((C().re&&C().re.properties)||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+const pname=id=>(props().find(p=>p.id===id)||{name:'(property removed)'}).name;
+const PROV=[['Electricity','Electricity provider',6310,'Electricity Expense'],['Water','Water provider',6320,'Water Expense'],['Internet','Internet service provider (ISP)',6330,'Internet Expense'],['Other','Other (garbage, association dues, gas…)',6340,'Other Utilities Expense']];
+const defExp=pv=>{const p=PROV.find(x=>x[0]===pv)||PROV[3],ch=C().chartOfAccounts;const a=ch.find(x=>x.category==='Expense'&&x.title.toLowerCase()===p[3].toLowerCase())||(pv!=='Other'&&ch.find(x=>x.category==='Expense'&&new RegExp(pv==='Internet'?'internet|isp':pv,'i').test(x.title)))||ch.find(x=>x.category==='Expense'&&/utilit/i.test(x.title));return a?String(a.code):'new:'+pv};
+function billForm(id){
+ const b=id?BL().find(x=>x.id===id):null,ps=props();if(!ps.length)return toast('Add a property first.');
+ const cr=X.cashAccts().concat(X.role('ap')?[X.acct(X.role('ap'))]:[]).filter(Boolean),exp=C().chartOfAccounts.filter(a=>a.category==='Expense').sort((a,b)=>a.code-b.code);
+ const pv=b?b.provider:'Electricity',d=b?String(b.dr):defExp(pv);
+ const expOpts=sel=>{const nw=sel.startsWith('new:')?sel.slice(4):null;return (nw?'<option value="'+sel+'" selected>+ New account: '+esc((PROV.find(x=>x[0]===nw)||PROV[3])[3])+'</option>':'')+X.opts(exp,sel)};
+ const m=X.modal('<h2 style="margin-top:0">'+(b?'Edit':'Post')+' property bill</h2><p class="hr-note">The provider’s bill for the whole property (electricity, water, internet). It is recorded as an expense; meter readings billed to tenants are recorded separately as income.</p>'
+  +'<div class="grid-2"><div class="form-group"><label for="pbD">Bill date *</label><input type="date" id="pbD" value="'+(b?b.date:X.today())+'"></div><div class="form-group"><label for="pbR">Statement / account no.</label><input id="pbR" maxlength="40" value="'+esc(b?b.ref:'')+'" placeholder="e.g. ELEC-OCT-2026"></div>'
+  +'<div class="form-group"><label for="pbP">Property *</label><select id="pbP">'+ps.map(p=>'<option value="'+p.id+'"'+(b&&b.prop===p.id?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div><div class="form-group"><label for="pbV">Provider *</label><select id="pbV">'+PROV.map(p=>'<option value="'+p[0]+'"'+(pv===p[0]?' selected':'')+'>'+p[1]+'</option>').join('')+'</select></div>'
+  +'<div class="form-group" style="grid-column:1/-1"><label for="pbN">Particulars *</label><input id="pbN" maxlength="140" value="'+esc(b?b.desc:'')+'" placeholder="e.g. October electricity, main building"></div>'
+  +'<div class="form-group"><label for="pbF">Billing period from</label><input type="date" id="pbF" value="'+(b&&b.from||'')+'"></div><div class="form-group"><label for="pbT">to</label><input type="date" id="pbT" value="'+(b&&b.to||'')+'"></div>'
+  +'<div class="form-group"><label for="pbU">Units on the bill (kWh / m³, optional)</label><input type="number" step="any" min="0" id="pbU" value="'+(b&&b.units||'')+'"></div><div class="form-group"><label for="pbA">Amount *</label><input type="number" step="0.01" min="0" id="pbA" value="'+(b?X.p2(b.amt):'')+'"></div>'
+  +'<div class="form-group"><label for="pbDr">Expense account (debit)</label><select id="pbDr">'+expOpts(d)+'</select></div><div class="form-group"><label for="pbCr">Paid from / owed (credit)</label><select id="pbCr">'+X.opts(cr,b?b.cr:(cr[0]||{}).code)+'</select></div>'
+  +'<div class="form-group" style="grid-column:1/-1"><label for="pbFile">Attach provider statement or receipt (photo or PDF, up to 3 MB)</label><input type="file" id="pbFile" accept="image/*,application/pdf"><small class="bk-mut" id="pbFileN">'+(b&&b.hasFile?'A file is attached. Choose another to replace it.':'')+'</small></div></div>'
+  +'<div style="display:flex;justify-content:space-between;gap:8px"><span>'+(b?'<button class="btn btn-outline btn-danger" id="pbDel">Delete</button>':'')+'</span><span><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="pbGo">Post bill</button></span></div>',720);
+ const q=s=>m.querySelector(s);let file=null;
+ q('#pbV').onchange=()=>{if(!b||!q('#pbDr').value.startsWith('new:'))q('#pbDr').innerHTML=expOpts(defExp(q('#pbV').value))};
+ q('#pbFile').onchange=()=>{const f=q('#pbFile').files[0];if(!f)return;if(f.size>3*1024*1024){q('#pbFile').value='';return toast('That file is over 3 MB. Take a smaller photo or compress the PDF.')}const r=new FileReader();r.onload=()=>{file={name:f.name.slice(0,120),type:f.type,data:r.result};q('#pbFileN').textContent='Attached: '+f.name};r.readAsDataURL(f)};
+ if(b)q('#pbDel').onclick=()=>{if(X.locked(b.date))return toast(X.lockMsg());if(!confirm('Delete this property bill and its journal entry?'))return;X.drop(b.jeId);C().rebills=BL().filter(x=>x.id!==b.id);X.save();X.refresh();m.remove();RE.go('util')};
+ q('#pbGo').onclick=()=>{const date=q('#pbD').value,amt=X.c100(q('#pbA').value),desc=q('#pbN').value.trim();
+  if(!X.D.test(date))return toast('Enter the bill date.');if(!desc)return toast('Enter the particulars.');if(amt<=0)return toast('Enter the amount.');if(X.locked(date)||(b&&X.locked(b.date)))return toast(X.lockMsg());
+  let dr=q('#pbDr').value;if(dr.startsWith('new:')){const p=PROV.find(x=>x[0]===dr.slice(4))||PROV[3];dr=X.ensureAcct(p[2],p[3],'Expense')}dr=+dr;const crc=+q('#pbCr').value;if(!crc)return toast('Choose where it was paid from.');if(dr===crc)return toast('Debit and credit accounts must be different.');
+  const rec=b||{id:'pb_'+X.uid()};const pv=q('#pbV').value,ref=q('#pbR').value.trim()||('BILL-'+pv.slice(0,4).toUpperCase()+'-'+date.slice(0,7));
+  Object.assign(rec,{date,ref:ref.slice(0,40),prop:q('#pbP').value,provider:pv,desc:desc.slice(0,140),from:q('#pbF').value||'',to:q('#pbT').value||'',units:parseFloat(q('#pbU').value)||0,amt,dr,cr:crc});
+  const old=rec.jeId&&X.je(rec.jeId),att=file||(old&&old.fileAttachment)||null;rec.hasFile=!!att;
+  rec.jeId=X.post('entry_rebill_'+rec.id,date,rec.ref,'['+pv+'] '+rec.desc+' ('+pname(rec.prop)+')',[[dr,amt,0],[crc,0,amt]],'rebill',{fileAttachment:att,rebill:rec.id});
+  if(!b)BL().push(rec);X.save();X.refresh();m.remove();RE.go('util');toast('Property bill posted.','success')};
+}
+function extra(uProp){
+ const L=BL().filter(b=>uProp==='ALL'||b.prop===uProp).sort((a,b)=>b.date.localeCompare(a.date));
+ // utility cost vs what was billed to tenants, by month, for the property filter
+ const rooms=(C().re&&C().re.rooms)||[],util=((C().re&&C().re.utilities)||[]).filter(u=>{const r=rooms.find(x=>x.id===u.roomId);return uProp==='ALL'||(r&&r.propertyId===uProp)});
+ const months=new Map();const add=(ym,k,type,v)=>{const o=months.get(ym)||{ec:0,eb:0,wc:0,wb:0,oc:0};o[k]+=v;months.set(ym,o)};
+ L.forEach(b=>add((b.to||b.date).slice(0,7),b.provider==='Electricity'?'ec':b.provider==='Water'?'wc':'oc',0,b.amt));
+ util.forEach(u=>add(u.date.slice(0,7),u.type==='Water'?'wb':'eb',0,Math.round((+u.total||0)*100)));
+ const ms=[...months.keys()].sort().reverse().slice(0,12);
+ const T=(h,rows)=>'<div class="hr-scroll"><table class="hr-tbl erp-tbl"><thead><tr>'+h.map(x=>'<th'+(x[0]==='#'?' class="number"':'')+'>'+x.replace(/^#/,'')+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+ const pc=(b,c)=>c?Math.round(b/c*100)+'%':'–';
+ return '<h3 style="font-size:1.02rem;margin:1.6rem 0 .3rem">Property utility bills (from providers)</h3><p class="inv-note">Bills you pay to the electric, water and internet companies for the whole property. Press <b>+ Post property bill</b> above to add one.</p>'
+  +T(['Date','Property','Provider','Particulars','Period','#Units','#Amount','Statement',''],L.length?L.map(b=>'<tr><td>'+esc(X.fdl(b.date))+'<br><small class="bk-mut">'+esc(b.ref)+'</small></td><td>'+esc(pname(b.prop))+'</td><td>'+esc(b.provider)+'</td><td class="wrap">'+esc(b.desc)+'</td><td>'+(b.from?esc(X.fdl(b.from))+' – '+esc(X.fdl(b.to||b.from)):'')+'</td><td class="number">'+(b.units||'')+'</td><td class="number"><b>'+n2(b.amt)+'</b></td><td>'+(b.hasFile?'<button class="btn btn-outline btn-sm" onclick="openFilePreviewModal(\''+b.jeId+'\')">View</button>':'<span class="bk-mut">–</span>')+'</td><td><button class="btn btn-outline btn-sm" onclick="REX.billForm(\''+b.id+'\')">Edit</button></td></tr>').join(''):'<tr><td colspan="9" class="erp-empty">No property bills yet.</td></tr>')
+  +(ms.length?'<h3 style="font-size:1.02rem;margin:1.6rem 0 .3rem">Utility cost vs billed to tenants</h3><p class="inv-note">Shows whether meter billing recovers what the providers charge. Under 100% means the property is absorbing part of the utility cost.</p>'
+  +T(['Month','#Electricity bill','#Electricity billed to rooms','#Recovered','#Water bill','#Water billed to rooms','#Recovered','#Other utilities'],ms.map(k=>{const o=months.get(k);return '<tr><td>'+X.MN[+k.slice(5)-1].slice(0,3)+' '+k.slice(0,4)+'</td><td class="number">'+n2(o.ec)+'</td><td class="number">'+n2(o.eb)+'</td><td class="number"'+(o.ec&&o.eb<o.ec?' style="color:var(--danger)"':'')+'>'+pc(o.eb,o.ec)+'</td><td class="number">'+n2(o.wc)+'</td><td class="number">'+n2(o.wb)+'</td><td class="number"'+(o.wc&&o.wb<o.wc?' style="color:var(--danger)"':'')+'>'+pc(o.wb,o.wc)+'</td><td class="number">'+n2(o.oc)+'</td></tr>'}).join('')):'')}
+X.lockSrc('rebill','Real Estate > Utilities (property bills)');
+X.keep('rebills',d=>X.cleanList(d,b=>({id:safeId(b.id),date:X.D.test(b.date||'')?b.date:'2000-01-01',ref:X.S(b.ref,40),prop:X.S(b.prop,40),provider:['Electricity','Water','Internet','Other'].includes(b.provider)?b.provider:'Other',desc:X.S(b.desc,140),from:X.D.test(b.from||'')?b.from:'',to:X.D.test(b.to||'')?b.to:'',units:X.N(b.units),amt:X.I(b.amt),dr:X.I(b.dr),cr:X.I(b.cr),jeId:safeId(b.jeId),hasFile:!!b.hasFile})),'rebill',['rebill']);
+window.REX={billForm,extra};
+})();
+
 // ===== Calm layout: grouped sidebar, company card, Jump-to search, slim top bar with breadcrumb =====
 (function(){
 const $=id=>document.getElementById(id),esc=escapeHtml;
@@ -8635,7 +8731,7 @@ const user=document.createElement('div');user.id='sbUser';user.innerHTML='<span 
 foot.insertAdjacentElement('afterend',user);
 const ROLE={admin:'Administrator',bookkeeper:'Bookkeeper',accountant:'Accountant',encoder:'Encoder'};
 function syncUser(){const u=window.currentUser,c=C(),ws=c&&c.workspace==='encoder';const name=u?u.name:(ws?'Encoder':'Admin');
- $('sbUName').textContent=name;$('sbURole').textContent=u?ROLE[u.role]||'':(ws?'Encoder':'Administrator');
+ $('sbUName').textContent=name;$('sbURole').textContent=u?(u.role==='custom'&&window.ROLETITLE?ROLETITLE()||'Custom':ROLE[u.role]||''):(ws?'Encoder':'Administrator');
  $('sbAv').textContent=name.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'A'}
 // hide a group label when none of its items are available to this user
 function syncSecs(){const kids=[...nav.children];kids.forEach((n,i)=>{if(!n.classList.contains('nav-sec'))return;let vis=false;for(let j=i+1;j<kids.length&&!kids[j].classList.contains('nav-sec');j++){const x=kids[j];if(x.tagName==='LI'&&!x.classList.contains('hidden')&&!x.classList.contains('role-hide')&&getComputedStyle(x).display!=='none'){vis=true;break}}n.classList.toggle('sec-off',!vis)})}
@@ -8667,12 +8763,12 @@ function crumb(){const a=document.querySelector('.tab-section.active');if(!a)ret
 // ---------- alerts ----------
 function alerts(){const out=[],c=C();if(!c||c.workspace==='encoder')return out;const role=window.currentUser?window.currentUser.role:'admin';
  const pend=(c.queue||[]).filter(x=>x.status==='PENDING').length;if(pend&&role==='admin')out.push({c:'y',t:pend+' encoder entr'+(pend===1?'y':'ies')+' waiting in For Posting',go:()=>showTab('posting')});
- try{if(window.TAXMOD&&['admin','bookkeeper'].includes(role)){const od=TAXMOD.overdue().length,t=localDateStr(new Date()),d=new Date();d.setDate(d.getDate()+7);
+ try{if(window.TAXMOD&&(window.ROLECAN?ROLECAN('tax'):['admin','bookkeeper'].includes(role))){const od=TAXMOD.overdue().length,t=localDateStr(new Date()),d=new Date();d.setDate(d.getDate()+7);
   const soon=TAXMOD.itemsBetween(t,localDateStr(d)).filter(i=>!(TAXMOD.T().filed||{})[i.key]).length;
   if(od)out.push({c:'',t:od+' filing'+(od===1?'':'s')+' overdue',s:'Taxes & Filings',go:()=>showTab('tx-cal')});
   if(soon)out.push({c:'y',t:soon+' filing'+(soon===1?'':'s')+' due in the next 7 days',s:'Taxes & Filings',go:()=>showTab('tx-cal')})}}catch(e){}
  try{const k=(window.CLOSEMOD&&c.closings||[]).length;}catch(e){}
- try{if(window.ERPX&&['admin','bookkeeper'].includes(role))ERPX.alerts().forEach(a=>out.push(a))}catch(e){}
+ try{if(window.ERPX&&(role==='admin'||role==='bookkeeper'||role==='custom'))ERPX.alerts().forEach(a=>out.push(a))}catch(e){}
  const br=$('backupReminder');if(br&&!br.classList.contains('hidden'))out.push({c:'g',t:'Time to download a backup',s:'Dashboard reminder',go:()=>showTab('home')});
  return out}
 function syncBell(){$('tbDot').hidden=!alerts().length}
