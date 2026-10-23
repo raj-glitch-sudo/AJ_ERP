@@ -4951,8 +4951,10 @@ function calc(r){
  const d=Math.max(0,parseFloat(r.days)||0),rate=c100(r.rate),al=c100(r.allowance);
  const basic=Math.round(d*rate),allow=Math.round(d*al),hol=c100(r.holiday),ot=c100(r.ot);
  const tax=c100(r.tax),sss=c100(r.sss),ph=c100(r.philhealth),pg=c100(r.pagibig),ca=c100(r.cashAdvance),cr=c100(r.credit),cb=c100(r.creditBalance);
- const gross=basic+allow+hol+ot,ded=tax+sss+ph+pg+ca+cr+cb;
- return{d,rate,al,basic,allow,hol,ot,gross,tax,sss,ph,pg,ca,cr,cb,ded,net:gross-ded};
+ let xe=0,xd=0,xdm=0,xn=0,xs=0;const items=[];
+ (H().items||[]).forEach(it=>{const v=c100(r['x_'+it.id]);if(!v)return;items.push({id:it.id,name:it.name,kind:it.kind,tax:it.tax,v});if(it.kind==='D')xd+=v;else{xe+=v;if(it.tax==='DM')xdm+=v;else if(it.tax==='N')xn+=v;else if(it.sss)xs+=v}});
+ const gross=basic+allow+hol+ot+xe,ded=tax+sss+ph+pg+ca+cr+cb+xd;
+ return{d,rate,al,basic,allow,hol,ot,gross,tax,sss,ph,pg,ca,cr,cb,ded,net:gross-ded,xe,xd,xdm,xn,xs,items};
 }
 
 // ---------- shared print / preview styles (used on screen and inside the print frame) ----------
@@ -5083,10 +5085,10 @@ function slipHtml(r,per){
  return '<div class="hrp-slip"><div class="hrp-biz">'+esc(r.business)+'</div><div class="hrp-ttl">PAYSLIP</div><div class="hrp-per">'+esc(per)+'</div>'
  +'<table class="hrp-info"><tr><td>Employee</td><td><b>'+esc(r.name)+'</b></td></tr><tr><td>Position</td><td>'+(esc(r.position)||'&ndash;')+'</td></tr><tr><td>Status</td><td>'+esc(r.status)+'</td></tr><tr><td>Daily rate</td><td>'+S+' '+n2(c.rate)+(c.al?' + '+n2(c.al)+' allowance':'')+'</td></tr></table>'
  +'<div class="hrp-two"><div class="hrp-box"><h4>EARNINGS</h4><table>'
- +L('Basic pay',c.basic,fD(c.d)+' day(s) × '+n2(c.rate))+L('Meal allowance',c.allow,c.al?fD(c.d)+' day(s) × '+n2(c.al):'')+L('Holiday pay',c.hol)+L('Overtime pay',c.ot)
+ +L('Basic pay',c.basic,fD(c.d)+' day(s) × '+n2(c.rate))+L('Meal allowance',c.allow,c.al?fD(c.d)+' day(s) × '+n2(c.al):'')+L('Holiday pay',c.hol)+L('Overtime pay',c.ot)+c.items.filter(x=>x.kind!=='D').map(x=>L(esc(x.name),x.v,x.tax==='DM'?'de minimis':x.tax==='N'?'non-taxable':'')).join('')
  +'<tr class="tot"><td>Gross pay</td><td class="r">'+n2(c.gross)+'</td></tr></table></div>'
  +'<div class="hrp-box"><h4>DEDUCTIONS</h4><table>'
- +L('Tax',c.tax)+L('SSS',c.sss)+L('PhilHealth',c.ph)+L('Pag-IBIG',c.pg)+L('Cash advance',c.ca)+L('Credit',c.cr)+L('Credit balance',c.cb)
+ +L('Tax',c.tax)+L('SSS',c.sss)+L('PhilHealth',c.ph)+L('Pag-IBIG',c.pg)+L('Cash advance',c.ca)+L('Credit',c.cr)+L('Credit balance',c.cb)+c.items.filter(x=>x.kind==='D').map(x=>L(esc(x.name),x.v)).join('')
  +'<tr class="tot"><td>Total deductions</td><td class="r">'+n2(c.ded)+'</td></tr></table></div></div>'
  +'<div class="hrp-net"><span>NET PAY</span><b>'+S+' '+n2(c.net)+'</b></div>'
  +'<div class="hrp-sig"><span>Employee signature</span><span>Date received</span></div></div>';
@@ -5096,24 +5098,24 @@ function slipsHtml(rows,per){
  for(let i=0;i<rows.length;i+=4)out+='<div class="hrp-sheet">'+rows.slice(i,i+4).map(r=>slipHtml(r,per)).join('')+'</div>';
  return out;
 }
-const RG_W=[2.2,14.4,4,3,5.4,4.6,4.6,4.6,6.2,4.2,4.2,5.4,4.4,4.4,4.2,4.4,5.4,6.4,9.9];
+const RG_W=[2.2,12.6,4,3,5.2,4.4,4.4,4.4,4.6,5.8,4,4,5,4.2,4.2,4,4.2,4.6,5.2,6.2,8.6];
 function regHtml(rows,o){
  o=o||{};
- const zero=()=>({d:0,basic:0,allow:0,hol:0,ot:0,gross:0,tax:0,sss:0,ph:0,pg:0,ca:0,cr:0,cb:0,ded:0,net:0});
- const add=(T,c)=>{Object.keys(T).forEach(k=>T[k]+=c[k])};
- const cells=c=>[fD(c.d),m2(c.basic),m2(c.allow),m2(c.hol),m2(c.ot),m2(c.gross),m2(c.tax),m2(c.sss),m2(c.ph),m2(c.pg),m2(c.ca),m2(c.cr),m2(c.cb),m2(c.ded),n2(c.net)].map(v=>'<td class="r">'+v+'</td>').join('');
+ const zero=()=>({d:0,basic:0,allow:0,hol:0,ot:0,xe:0,gross:0,tax:0,sss:0,ph:0,pg:0,ca:0,cr:0,cb:0,xd:0,ded:0,net:0});
+ const add=(T,c)=>{Object.keys(T).forEach(k=>T[k]+=c[k]||0)};
+ const cells=c=>[fD(c.d),m2(c.basic),m2(c.allow),m2(c.hol),m2(c.ot),m2(c.xe),m2(c.gross),m2(c.tax),m2(c.sss),m2(c.ph),m2(c.pg),m2(c.ca),m2(c.cr),m2(c.cb),m2(c.xd),m2(c.ded),n2(c.net)].map(v=>'<td class="r">'+v+'</td>').join('');
  const g=new Map();rows.forEach(r=>{if(!g.has(r.business))g.set(r.business,[]);g.get(r.business).push(r)});
  const multi=g.size>1;let body='',G=zero();
  [...g.keys()].sort(nameCmp).forEach(b=>{
   const list=g.get(b).sort(rowCmp),T=zero();
-  if(multi)body+='<tr class="g"><td colspan="19">'+esc(b)+'</td></tr>';
+  if(multi)body+='<tr class="g"><td colspan="21">'+esc(b)+'</td></tr>';
   list.forEach((r,i)=>{const c=calc(r);add(T,c);body+='<tr><td class="c">'+(i+1)+'</td><td>'+esc(r.name)+'</td><td class="r">'+n2(c.rate)+'</td>'+cells(c)+'<td class="sg"></td></tr>'});
   if(multi)body+='<tr class="st"><td colspan="3">Subtotal – '+esc(b)+'</td>'+cells(T)+'<td></td></tr>';
   add(G,T);
  });
  body+='<tr class="gt"><td colspan="3">TOTAL ('+rows.length+' employee'+(rows.length===1?'':'s')+')</td>'+cells(G)+'<td></td></tr>';
  const sum=RG_W.reduce((a,b)=>a+b,0);
- const head=['No.','Employee','Daily rate','Days','Basic pay','Meal allow.','Holiday pay','Overtime pay','Gross pay','Tax','SSS','PhilHealth','Pag-IBIG','Cash advance','Credit','Credit balance','Total deductions','Net pay','Signature'];
+ const head=['No.','Employee','Daily rate','Days','Basic pay','Meal allow.','Holiday pay','Overtime pay','Other pay','Gross pay','Tax','SSS','PhilHealth','Pag-IBIG','Cash advance','Credit','Credit balance','Other deductions','Total deductions','Net pay','Signature'];
  const hd=o.noHead?'':'<div class="hrp-rh"><div class="co">'+esc(o.company||'')+'</div><div class="tt">PAYROLL</div><div class="sb">'+esc(o.sub||'')+'</div></div>';
  const sg=o.noSig?'':'<div class="hrp-sigs"><span>Prepared by</span><span>Checked by</span><span>Approved by</span></div>';
  return hd+'<table class="hrp-rg"><colgroup>'+RG_W.map(w=>'<col style="width:'+(w/sum*100).toFixed(2)+'%">').join('')+'</colgroup><thead><tr>'+head.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+body+'</tbody></table>'+sg;
@@ -5270,6 +5272,9 @@ function setF(p,d){
 const fText=f=>periodLabel(f.year,f.month,f.q)+' • '+(f.biz==='ALL'?'All businesses':f.biz)+(f.stat==='ALL'?'':' • '+f.stat);
 
 // ---------- Generate Payroll Run ----------
+const ITEMS=()=>(H().items||[]).filter(x=>x&&x.id);
+const IK=()=>{const L=INK.slice(),act=ITEMS().filter(x=>x.active!==false),E=act.filter(x=>x.kind!=='D').map(x=>['x_'+x.id,x.name,'0.01','E']),D=act.filter(x=>x.kind==='D').map(x=>['x_'+x.id,x.name,'0.01','D']);L.splice(L.findIndex(k=>k[0]==='ot')+1,0,...E);return L.concat(D)};
+const thRun=()=>'<tr><th>Employee</th><th>Business</th><th class="number">Daily Rate</th><th class="number" title="Daily meal allowance">Allowance</th>'+IK().map(k=>'<th'+(k[3]?' class="hr-xh hr-x'+k[3]+'" title="'+(k[3]==='D'?'Deduction':'Additional pay')+'"':'')+'>'+esc(k[1])+'</th>').join('')+'<th class="number">Gross</th><th class="number">Net</th></tr>';
 const INK=[['days','Days Worked','0.5'],['holiday','Holiday Pay','0.01'],['ot','Overtime Pay','0.01'],['tax','Tax','0.01'],['sss','SSS','0.01'],['philhealth','PhilHealth','0.01'],['pagibig','Pag-IBIG','0.01'],['cashAdvance','Cash Advance','0.01'],['credit','Credit','0.01'],['creditBalance','Credit Balance','0.01']];
 function loadRun(){
  const f=readF('hrR');if(!validF(f))return;
@@ -5278,7 +5283,7 @@ function loadRun(){
  const list=EMP().filter(e=>e.active!==false&&(f.biz==='ALL'||e.business===f.biz)&&(f.stat==='ALL'||e.status===f.stat)).sort(empCmp);
  draft=list.map(e=>{
   const s=saved.get(e.id),b={empId:e.id,name:fullName(e),business:e.business,position:e.position,status:e.status,saved:!!s};
-  INK.forEach(k=>b[k[0]]=s?(+s[k[0]]||0):0);
+  INK.forEach(k=>b[k[0]]=s?(+s[k[0]]||0):0);if(s)Object.keys(s).forEach(k=>{if(/^x_/.test(k))b[k]=+s[k]||0});
   b.rate=s?+s.rate||0:e.rate;b.allowance=s?+s.allowance||0:e.allowance;['erSss','erEc','erPh','erPg'].forEach(k=>b[k]=s?+s[k]||0:0);if(s&&s.man)b._man=Object.assign({},s.man);return b;
  });
  if(window.hrAutoFill)try{window.hrAutoFill(draft,f)}catch(err){console.error(err)}
@@ -5286,7 +5291,7 @@ function loadRun(){
 }
 function renderRun(){
  const has=draft.length>0;
- $('hrRWrap').hidden=!has;$('hrRSave').disabled=!has;$('hrRReset').disabled=!has;
+ $('hrRWrap').hidden=!has;{const th=$('hrRWrap').querySelector('thead');if(th)th.innerHTML=thRun()}$('hrRSave').disabled=!has;$('hrRReset').disabled=!has;
  if(!runF){$('hrRInfo').textContent='Choose the filters, then press Load Employees.';return}
  if(!has){$('hrRInfo').textContent='No active employees match '+fText(runF)+'. Add employees under Employee Management first.';return}
  const sv=draft.filter(r=>r.saved).length;
@@ -5294,7 +5299,7 @@ function renderRun(){
  $('hrRBody').innerHTML=draft.map((r,i)=>{
   const c=calc(r);
   return '<tr><td>'+esc(r.name)+(r.saved?' <span class="badge badge-vat" title="Already saved for this period">saved</span>':'')+'</td><td class="hr-bz">'+esc(r.business)+'</td><td class="number">'+n2(c.rate)+'</td><td class="number">'+n2(c.al)+'</td>'
-  +INK.map(k=>'<td><input class="hr-in" type="number" inputmode="decimal" min="0"'+(k[0]==='days'?' max="16"':'')+' step="'+k[2]+'" data-i="'+i+'" data-k="'+k[0]+'" placeholder="0" value="'+(r[k[0]]||'')+'" aria-label="'+esc(k[1]+' for '+r.name)+'"></td>').join('')
+  +IK().map(k=>'<td><input class="hr-in" type="number" inputmode="decimal" min="0"'+(k[0]==='days'?' max="16"':'')+' step="'+k[2]+'" data-i="'+i+'" data-k="'+k[0]+'" placeholder="0" value="'+(r[k[0]]||'')+'" aria-label="'+esc(k[1]+' for '+r.name)+'"></td>').join('')
   +'<td class="number g">'+n2(c.gross)+'</td><td class="number nt'+(c.net<0?' neg':'')+'">'+n2(c.net)+'</td></tr>';
  }).join('');
  refreshFoot();
@@ -5304,9 +5309,9 @@ function refreshRow(i){
  tr.querySelector('.g').textContent=n2(c.gross);const nt=tr.querySelector('.nt');nt.textContent=n2(c.net);nt.classList.toggle('neg',c.net<0);
 }
 function refreshFoot(){
- const T={};INK.forEach(k=>T[k[0]]=0);let gross=0,net=0;
- draft.forEach(r=>{INK.forEach(k=>T[k[0]]+=k[0]==='days'?(Math.max(0,parseFloat(r.days)||0)*100):c100(r[k[0]]));const c=calc(r);gross+=c.gross;net+=c.net});
- $('hrRFoot').innerHTML='<tr><td colspan="4">TOTAL</td>'+INK.map(k=>'<td class="number">'+(k[0]==='days'?(Math.round(T.days)/100):n2(T[k[0]]))+'</td>').join('')+'<td class="number">'+n2(gross)+'</td><td class="number'+(net<0?' neg':'')+'">'+n2(net)+'</td></tr>';
+ const T={};IK().forEach(k=>T[k[0]]=0);let gross=0,net=0;
+ draft.forEach(r=>{IK().forEach(k=>T[k[0]]+=k[0]==='days'?(Math.max(0,parseFloat(r.days)||0)*100):c100(r[k[0]]));const c=calc(r);gross+=c.gross;net+=c.net});
+ $('hrRFoot').innerHTML='<tr><td colspan="4">TOTAL</td>'+IK().map(k=>'<td class="number">'+(k[0]==='days'?(Math.round(T.days)/100):n2(T[k[0]]))+'</td>').join('')+'<td class="number">'+n2(gross)+'</td><td class="number'+(net<0?' neg':'')+'">'+n2(net)+'</td></tr>';
 }
 function saveRun(){
  if(!draft.length||!runF)return;
@@ -5328,14 +5333,14 @@ function saveRun(){
  const r2=n=>Math.round(n)/100;
  RUNS().push({id:'run_'+uid(),savedAt:new Date().toISOString(),business:runF.biz,status:runF.stat,month:runF.month,year:runF.year,quincena:runF.q,
   rows:rows.map(r=>{const c=calc(r),o={empId:r.empId,name:r.name,business:r.business,position:r.position,status:r.status,rate:+r.rate||0,allowance:+r.allowance||0};
-   INK.forEach(k=>o[k[0]]=Math.round((+r[k[0]]||0)*100)/100);['erSss','erEc','erPh','erPg'].forEach(k=>{if(+r[k])o[k]=Math.round(+r[k]*100)/100});if(r._man&&Object.keys(r._man).length)o.man=Object.assign({},r._man);o.gross=r2(c.gross);o.deductions=r2(c.ded);o.net=r2(c.net);return o})});
+   INK.forEach(k=>o[k[0]]=Math.round((+r[k[0]]||0)*100)/100);Object.keys(r).forEach(k=>{if(/^x_/.test(k)&&+r[k])o[k]=Math.round(+r[k]*100)/100});['erSss','erEc','erPh','erPg'].forEach(k=>{if(+r[k])o[k]=Math.round(+r[k]*100)/100});if(r._man&&Object.keys(r._man).length)o.man=Object.assign({},r._man);o.gross=r2(c.gross);o.deductions=r2(c.ded);o.net=r2(c.net);return o})});
  save();
  const p={month:runF.month,year:runF.year,q:runF.q};preset.slips=Object.assign({},p);preset.print=Object.assign({},p);
  const skipped=draft.length-rows.length;
  loadRun();
  toast('Payroll saved to history for '+rows.length+' employee'+(rows.length===1?'':'s')+(skipped?' ('+skipped+' with no entries skipped)':'')+'.','success');
 }
-const NUMK_IN=INK.map(k=>k[0]);
+const NUMK_IN={some:f=>IK().map(k=>k[0]).some(f)};
 
 // ---------- Payslips / Printable payroll ----------
 function gather(f){
@@ -5409,10 +5414,10 @@ function delRun(id){
 }
 function exportCsv(){
  const y=$('hrHYr').value,mo=$('hrHMon').value,b=$('hrHBiz').value,out=[];
- const head=['Year','Month','Quincena','Period','Run business filter','Employee','Business','Position','Employment status','Daily rate','Daily allowance','Days worked','Basic pay','Meal allowance','Holiday pay','Overtime pay','Gross pay','Tax','SSS','PhilHealth','Pag-IBIG','Cash advance','Credit','Credit balance','Total deductions','Net pay','Saved'];
+ const head=['Year','Month','Quincena','Period','Run business filter','Employee','Business','Position','Employment status','Daily rate','Daily allowance','Days worked','Basic pay','Meal allowance','Holiday pay','Overtime pay','Other pay','Gross pay','Tax','SSS','PhilHealth','Pag-IBIG','Cash advance','Credit','Credit balance','Other deductions','Total deductions','Net pay','Other pay / deduction details','Saved'];
  RUNS().filter(r=>(y==='ALL'||r.year===+y)&&(mo==='ALL'||r.month===+mo)).forEach(run=>run.rows.forEach(r=>{
   if(b!=='ALL'&&r.business!==b)return;const c=calc(r),f=x=>(x/100).toFixed(2);
-  out.push([run.year,mName(run.month),run.quincena===1?'1ST':'2ND',periodLabel(run.year,run.month,run.quincena),run.business,r.name,r.business,r.position,r.status,f(c.rate),f(c.al),c.d,f(c.basic),f(c.allow),f(c.hol),f(c.ot),f(c.gross),f(c.tax),f(c.sss),f(c.ph),f(c.pg),f(c.ca),f(c.cr),f(c.cb),f(c.ded),f(c.net),run.savedAt]);
+  out.push([run.year,mName(run.month),run.quincena===1?'1ST':'2ND',periodLabel(run.year,run.month,run.quincena),run.business,r.name,r.business,r.position,r.status,f(c.rate),f(c.al),c.d,f(c.basic),f(c.allow),f(c.hol),f(c.ot),f(c.xe),f(c.gross),f(c.tax),f(c.sss),f(c.ph),f(c.pg),f(c.ca),f(c.cr),f(c.cb),f(c.xd),f(c.ded),f(c.net),c.items.map(x=>(x.kind==='D'?'-':'+')+x.name+' '+f(x.v)).join('; '),run.savedAt]);
  }));
  if(!out.length)return toast('There is no saved payroll to export for these filters.');
  download('payroll-history-'+localDateStr(new Date())+'.csv',[head].concat(out).map(r=>r.map(csvCell).join(',')).join('\r\n'));
@@ -5424,15 +5429,18 @@ function exportCsv(){
 const TPL={wages:[5100,'Salaries and Wages Expense','Expense'],meal:[5110,'Meal Allowance Expense','Expense'],wtax:[2110,'Withholding Tax Payable','Liability'],sss:[2120,'SSS Contributions Payable','Liability'],ph:[2130,'PhilHealth Contributions Payable','Liability'],pg:[2140,'Pag-IBIG Contributions Payable','Liability'],adv:[1130,'Advances to Employees','Asset'],rec:[1140,'Receivable from Employees','Asset'],ergov:[5120,'SSS, PhilHealth and Pag-IBIG Contributions Expense','Expense']};
 const WAGE=/salar|wage/i,EREC=/receivable.*employee|employee.*receivable|due from employee/i;
 const COMPS=[['basic','Basic pay','D','wages',WAGE],['allow','Meal allowance','D','meal',/meal|allowance/i],['hol','Holiday pay','D','wages',/holiday/i,WAGE],['ot','Overtime pay','D','wages',/overtime/i,WAGE],['tax','Tax withheld','C','wtax',/withholding|tax payable/i],['sss','SSS','C','sss',/\bsss\b/i],['ph','PhilHealth','C','ph',/philhealth/i],['pg','Pag-IBIG','C','pg',/pag-?ibig|hdmf/i],['ca','Cash advance','C','adv',/advance/i],['cr','Credit','C','rec',EREC],['cb','Credit balance','C','rec',EREC],['erx','Employer share of SSS/EC, PhilHealth, Pag-IBIG','D','ergov',/contributions? expense|employer.*(share|contribution)/i],['ersss','Employer share – SSS + EC (payable)','C','sss',/\bsss\b/i],['erph','Employer share – PhilHealth (payable)','C','ph',/philhealth/i],['erpg','Employer share – Pag-IBIG (payable)','C','pg',/pag-?ibig|hdmf/i]];
+const reEsc=t=>String(t).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const tplOf=k=>{if(TPL[k])return TPL[k];const it=ITEMS().find(x=>'x_'+x.id===k)||{name:'Other pay item',kind:'E'};return it.kind==='D'?[2190,it.name+' Payable','Liability']:it.tax==='DM'?[5140,'De Minimis Benefits Expense','Expense']:[5150,it.name+' Expense','Expense']};
+const CX=()=>COMPS.concat(ITEMS().map(it=>['x_'+it.id,it.name+(it.kind==='D'?' (deduction)':it.tax==='DM'?' (de minimis)':''),it.kind==='D'?'C':'D','x_'+it.id,it.kind!=='D'&&it.tax==='DM'?/de ?minimis/i:new RegExp(reEsc(it.name),'i')]));
 const jeOfRun=run=>run.paid&&C().journalEntries.find(e=>e.id===run.paid.jeId);
 function syncPaid(){let ch=false;RUNS().forEach(r=>{if(r.paid&&!jeOfRun(r)){delete r.paid;ch=true}});if(ch)save()}
-function runSums(run){const T={basic:0,allow:0,hol:0,ot:0,tax:0,sss:0,ph:0,pg:0,ca:0,cr:0,cb:0,gross:0,net:0,erx:0,ersss:0,erph:0,erpg:0};run.rows.forEach(r=>{const c=calc(r);Object.keys(T).forEach(k=>{if(k in c)T[k]+=c[k]});const e=x=>c100(r[x]);T.ersss+=e('erSss')+e('erEc');T.erph+=e('erPh');T.erpg+=e('erPg')});T.erx=T.ersss+T.erph+T.erpg;return T}
+function runSums(run){const T={};ITEMS().forEach(it=>T['x_'+it.id]=0);Object.assign(T,{basic:0,allow:0,hol:0,ot:0,tax:0,sss:0,ph:0,pg:0,ca:0,cr:0,cb:0,gross:0,net:0,erx:0,ersss:0,erph:0,erpg:0});run.rows.forEach(r=>{const c=calc(r);Object.keys(T).forEach(k=>{if(k in c)T[k]+=c[k]});c.items.forEach(x=>T['x_'+x.id]=(T['x_'+x.id]||0)+x.v);const e=x=>c100(r[x]);T.ersss+=e('erSss')+e('erEc');T.erph+=e('erPh');T.erpg+=e('erPg')});T.erx=T.ersss+T.erph+T.erpg;return T}
 const okCat=(a,side)=>!!a&&!a.isContra&&a.roleTag!=='cash'&&(side==='D'?a.category==='Expense':(a.category==='Liability'||a.category==='Asset'));
 function defAcct(cp){
  const ch=C().chartOfAccounts,mem=(H().acct||{})[cp[0]];
  if(mem&&okCat(ch.find(a=>a.code===mem),cp[2]))return String(mem);
  for(const rx of [cp[4],cp[5]].filter(Boolean)){const a=ch.find(x=>okCat(x,cp[2])&&rx.test(x.title));if(a)return String(a.code)}
- const t=TPL[cp[3]],same=ch.find(a=>okCat(a,cp[2])&&a.title.toLowerCase()===t[1].toLowerCase());
+ const t=tplOf(cp[3]),same=ch.find(a=>okCat(a,cp[2])&&a.title.toLowerCase()===t[1].toLowerCase());
  return same?String(same.code):'new:'+cp[3];
 }
 function refreshBooks(){try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}}
@@ -5444,8 +5452,8 @@ function openPaid(run){
  const cash=c.chartOfAccounts.filter(a=>a.roleTag==='cash'&&!a.isContra);
  if(!cash.length)return toast('No cash account found. In Settings > Chart of Accounts, tag your cash or bank account as Cash, then try again.');
  const per=periodLabel(run.year,run.month,run.quincena),who=(run.business==='ALL'?'All businesses':run.business)+' • '+run.rows.length+' employee'+(run.rows.length===1?'':'s');
- const used=COMPS.filter(cp=>S[cp[0]]);
- const opts=cp=>{const d=defAcct(cp),t=TPL[cp[3]];
+ const used=CX().filter(cp=>S[cp[0]]);
+ const opts=cp=>{const d=defAcct(cp),t=tplOf(cp[3]);
   return c.chartOfAccounts.filter(a=>okCat(a,cp[2])).sort((a,b)=>a.code-b.code).map(a=>'<option value="'+a.code+'"'+(String(a.code)===d?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')
    +'<option value="new:'+cp[3]+'"'+(d==='new:'+cp[3]?' selected':'')+'>+ New account: '+esc(t[1])+'</option>'};
  const lastCash=(H().acct||{}).cash;
@@ -5464,12 +5472,12 @@ function openPaid(run){
   const date=m.querySelector('#hrPdDate').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return toast('Choose the payment date.');
   if(RUNS().indexOf(run)<0||run.paid){m.remove();return renderHist()}
   const ch=c.chartOfAccounts,made={},added=[];
-  const code=v=>{if(!String(v).startsWith('new:'))return +v;const k=v.slice(4);if(made[k])return made[k];const t=TPL[k];
+  const code=v=>{if(!String(v).startsWith('new:'))return +v;const k=v.slice(4);if(made[k])return made[k];const t=tplOf(k);
    let a=ch.find(x=>x.category===t[2]&&x.title.toLowerCase()===t[1].toLowerCase());
    if(!a){let n=t[0];while(ch.some(x=>x.code===n))n++;a=acct(n,t[1],t[2],SUBCLASS_DEFAULT[t[2]],t[2]==='Liability'?'Credit':'Debit');ch.push(a);ch.sort((x,y)=>x.code-y.code);added.push(n+' '+t[1])}
    return made[k]=a.code};
   const map={},agg=new Map(),addL=(cd,dr,cr)=>{const x=agg.get(cd)||{d:0,c:0};x.d+=dr;x.c+=cr;agg.set(cd,x)};
-  m.querySelectorAll('select[data-k]').forEach(s=>{const cp=COMPS.find(x=>x[0]===s.dataset.k),cd=code(s.value);map[cp[0]]=cd;addL(cd,cp[2]==='D'?S[cp[0]]:0,cp[2]==='C'?S[cp[0]]:0)});
+  m.querySelectorAll('select[data-k]').forEach(s=>{const cp=CX().find(x=>x[0]===s.dataset.k),cd=code(s.value);map[cp[0]]=cd;addL(cd,cp[2]==='D'?S[cp[0]]:0,cp[2]==='C'?S[cp[0]]:0)});
   const cashCode=+cs.value;addL(cashCode,0,S.net);
   const lines=[];let dr=0,cr=0;
   agg.forEach((v,cd)=>{const n=v.d-v.c;if(n>0){lines.push({accountCode:cd,debit:n/100,credit:0});dr+=n}else if(n<0){lines.push({accountCode:cd,debit:0,credit:-n/100});cr-=n}});
@@ -5560,10 +5568,11 @@ const cleanHr=h=>{
  const runs=(Array.isArray(h.runs)?h.runs:[]).filter(r=>r&&typeof r==='object'&&Array.isArray(r.rows)&&+r.month>=1&&+r.month<=12&&+r.year>=2000&&+r.year<=2100).map(r=>({
   id:safeId(r.id)||'run_'+uid(),savedAt:S(r.savedAt,40),paid:r.paid&&typeof r.paid==='object'&&D.test(r.paid.date||'')?{date:r.paid.date,jeId:safeId(r.paid.jeId),cash:parseInt(r.paid.cash,10)||0,at:S(r.paid.at,40)}:undefined,business:S(r.business)||'ALL',status:S(r.status,30)||'ALL',month:Math.floor(+r.month),year:Math.floor(+r.year),quincena:+r.quincena===2?2:1,
   rows:r.rows.filter(w=>w&&typeof w==='object').map(w=>{const o={empId:safeId(w.empId),name:S(w.name),business:S(w.business),position:S(w.position),status:S(w.status,30),rate:N(w.rate),allowance:N(w.allowance)};
-   INK.forEach(k=>o[k[0]]=N(w[k[0]]));['erSss','erEc','erPh','erPg'].forEach(k=>{if(N(w[k]))o[k]=N(w[k])});if(w.man&&typeof w.man==='object'){o.man={};['tax','sss','philhealth','pagibig'].forEach(k=>{if(w.man[k])o.man[k]=true})}o.gross=Z(w.gross);o.deductions=Z(w.deductions);o.net=Z(w.net);return o})
+   INK.forEach(k=>o[k[0]]=N(w[k[0]]));Object.keys(w).forEach(k=>{if(/^x_\w{1,30}$/.test(k)&&N(w[k]))o[k]=N(w[k])});['erSss','erEc','erPh','erPg'].forEach(k=>{if(N(w[k]))o[k]=N(w[k])});if(w.man&&typeof w.man==='object'){o.man={};['tax','sss','philhealth','pagibig'].forEach(k=>{if(w.man[k])o.man[k]=true})}o.gross=Z(w.gross);o.deductions=Z(w.deductions);o.net=Z(w.net);return o})
  }));
  const ac={};if(h.acct&&typeof h.acct==='object')Object.keys(h.acct).forEach(k=>{const v=parseInt(h.acct[k],10);if(/^\w{1,12}$/.test(k)&&Number.isInteger(v))ac[k]=v});
- return{employees:emps,runs,acct:ac};
+ const items=(Array.isArray(h.items)?h.items:[]).filter(x=>x&&x.id&&x.name).slice(0,60).map(x=>({id:String(x.id).replace(/\W/g,'').slice(0,30),name:S(x.name,40),kind:x.kind==='D'?'D':'E',tax:['T','DM','N'].includes(x.tax)?x.tax:'T',dm:S(x.dm,12),limit:Math.max(0,parseInt(x.limit,10)||0),per:['M','S','Y','D','N'].includes(x.per)?x.per:'N',sss:!!x.sss,active:x.active!==false}));
+ return{employees:emps,runs,acct:ac,items};
 };
 const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.hr&&typeof d.hr==='object')o.hr=cleanHr(d.hr);o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='hr'){e.src='hr';e.hrRunId=safeId(x.hrRunId)}});return o};
 
@@ -7088,11 +7097,21 @@ function sssOf(mo){const R=T().rates.sss;if(mo<=0)return{ee:0,er:0,ec:0,msc:0};c
  return{msc,ee:Math.round(msc*R.ee),er:Math.round(msc*R.er),ec:Math.round((msc<R.ecAt?R.ecLow:R.ecHigh)*100)}}
 function phOf(mo){const R=T().rates.ph;if(mo<=0)return{ee:0,er:0};const base=Math.min(R.ceil,Math.max(R.floor,mo/100)),tot=Math.round(base*R.rate);const ee=Math.round(tot/2);return{ee,er:tot-ee}}
 function hdmfOf(mo){const R=T().rates.hdmf;if(mo<=0)return{ee:0,er:0};const m=mo/100,b=Math.min(m,R.cap);return{ee:Math.round(b*(m<=R.low?R.eeLow:R.ee)),er:Math.round(b*R.er)}}
-function earn(r){const d=Math.max(0,parseFloat(r.days)||0),basic=Math.round(d*c100(r.rate)),allow=Math.round(d*c100(r.allowance));return{basic,allow,hol:pos(c100(r.holiday)),ot:pos(c100(r.ot))}}
+function earn(r){const d=Math.max(0,parseFloat(r.days)||0),basic=Math.round(d*c100(r.rate)),allow=Math.round(d*c100(r.allowance)),x=window.HRAPI?HRAPI.calc(r):{xe:0,xs:0,xn:0,xdm:0,items:[]};return{basic,allow,hol:pos(c100(r.holiday)),ot:pos(c100(r.ot)),xe:x.xe||0,xs:x.xs||0,xn:x.xn||0,xdm:x.xdm||0,items:x.items||[],d}}
+// De minimis: the part of each benefit within its ceiling is tax-free; anything above the ceiling for the period is taxed.
+const runKey=(y,m,q)=>y*100+m*2+q;
+function dmSplit(r,y,m,q){let inn=0,ex=0;const items=(HR().items||[]),e=earn(r);
+ e.items.filter(x=>x.tax==='DM'&&x.kind!=='D').forEach(x=>{const it=items.find(i=>i.id===x.id)||{};const per=it.per||'N',lim=per==='D'?(+it.limit||0):c100(it.limit);
+  if(per==='N'||!lim){inn+=x.v;return}
+  if(per==='D'){const cap=Math.round(c100(r.rate)*e.d*lim/100);const over=pos(x.v-cap);ex+=over;inn+=x.v-over;return}
+  const same=(yy,mm)=>yy===y&&(per==='Y'||(per==='M'&&mm===m)||(per==='S'&&(mm<=6)===(m<=6)));
+  let prior=0;(HR().runs||[]).forEach(run=>{if(!same(run.year,run.month)||runKey(run.year,run.month,run.quincena)>=runKey(y,m,q))return;run.rows.forEach(o=>{if(o.empId===r.empId)prior+=c100(o['x_'+x.id])})});
+  const over=pos(prior+x.v-lim)-pos(prior-lim);ex+=over;inn+=x.v-over});
+ return{inn,ex}}
 const isMwe=r=>{const t=T(),x=t.emp[r.empId]||{};return !!x.mwe||(t.pay.mwe>0&&(+r.rate||0)<=t.pay.mwe)};
 function savedRow(y,m,q,empId){let hit=null;(HR().runs||[]).forEach(run=>{if(run.year===y&&run.month===m&&run.quincena===q)run.rows.forEach(r=>{if(r.empId===empId)hit=r})});return hit}
 function monthlyParts(r,y,m,q){
- const cfg=T().pay,e=earn(r),sb=x=>x.basic+x.hol+x.ot+(cfg.mealNT?0:x.allow);
+ const cfg=T().pay,e=earn(r),sb=x=>x.basic+x.hol+x.ot+(x.xs||0)+(cfg.mealNT?0:x.allow);
  const o=savedRow(y,m,3-q,r.empId),oe=o?earn(o):null;
  const D={sss:0,ph:0,pg:0,erSss:0,erEc:0,erPh:0,erPg:0};
  if(q===1&&cfg.sched==='second')return D;
@@ -7107,10 +7126,11 @@ const sss2=mo=>sssOf(mo);
 function fillRow(r,f){
  const man=r._man||{},e=earn(r),cfg=T().pay;
  const set=(k,c)=>{if(!man[k])r[k]=Math.round(c)/100};
- if(!(e.basic+e.allow+e.hol+e.ot)){['sss','philhealth','pagibig','tax'].forEach(k=>set(k,0));['erSss','erEc','erPh','erPg'].forEach(k=>r[k]=0);return}
+ if(!(e.basic+e.allow+e.hol+e.ot+e.xe)){['sss','philhealth','pagibig','tax'].forEach(k=>set(k,0));['erSss','erEc','erPh','erPg'].forEach(k=>r[k]=0);return}
  const D=monthlyParts(r,f.year,f.month,f.q);
  set('sss',D.sss);set('philhealth',D.ph);set('pagibig',D.pg);['erSss','erEc','erPh','erPg'].forEach(k=>r[k]=D[k]/100);
- const taxable=isMwe(r)?0:pos(e.basic+e.hol+e.ot+(cfg.mealNT?0:e.allow)-c100(r.sss)-c100(r.philhealth)-c100(r.pagibig));
+ const dm=dmSplit(r,f.year,f.month,f.q),xTax=pos(e.xe-e.xdm-e.xn)+dm.ex;
+ const taxable=isMwe(r)?xTax:pos(e.basic+e.hol+e.ot+(cfg.mealNT?0:e.allow)+xTax-c100(r.sss)-c100(r.philhealth)-c100(r.pagibig));
  set('tax',wtaxSemi(taxable));
 }
 window.hrAutoFill=function(draft,f,force){const cfg=T().pay;if(!cfg.auto&&!force)return;draft.forEach(r=>{if(force)r._man={};if(r.saved&&!force)return;fillRow(r,f)})};
@@ -7137,11 +7157,11 @@ document.addEventListener('click',e=>{const a=e.target.closest('[data-txgo]');if
 
 // ---------- payroll aggregates ----------
 function payRows(y,m){const out=[];(HR().runs||[]).forEach(run=>{if(run.year===y&&(m==null||run.month===m))run.rows.forEach(r=>out.push({run,r}))});return out}
-function rowFig(r){const e=earn(r),cfg=T().pay,mwe=isMwe(r);
- const gross=e.basic+e.allow+e.hol+e.ot,ee=c100(r.sss)+c100(r.philhealth)+c100(r.pagibig);
- const nontax=(mwe?e.basic+e.hol+e.ot:0)+(cfg.mealNT?e.allow:0)+Math.min(ee,mwe?0:ee);
+function rowFig(r,run){const e=earn(r),cfg=T().pay,mwe=isMwe(r),dm=run?dmSplit(r,run.year,run.month,run.quincena):{inn:e.xdm,ex:0};
+ const gross=e.basic+e.allow+e.hol+e.ot+e.xe,ee=c100(r.sss)+c100(r.philhealth)+c100(r.pagibig);
+ const nontax=(mwe?e.basic+e.hol+e.ot:0)+(cfg.mealNT?e.allow:0)+Math.min(ee,mwe?0:ee)+dm.inn+e.xn;
  return{gross,nontax:Math.min(gross,nontax),taxable:pos(gross-nontax),tax:c100(r.tax),sss:c100(r.sss),ph:c100(r.philhealth),pg:c100(r.pagibig),erSss:c100(r.erSss),erEc:c100(r.erEc),erPh:c100(r.erPh),erPg:c100(r.erPg),mwe}}
-function payByEmp(y,m){const map=new Map();payRows(y,m).forEach(({r})=>{const f=rowFig(r),k=r.empId||r.name;const x=map.get(k)||{empId:r.empId,name:r.name,business:r.business,mwe:false,gross:0,nontax:0,taxable:0,tax:0,sss:0,ph:0,pg:0,erSss:0,erEc:0,erPh:0,erPg:0};
+function payByEmp(y,m){const map=new Map();payRows(y,m).forEach(({run,r})=>{const f=rowFig(r,run),k=r.empId||r.name;const x=map.get(k)||{empId:r.empId,name:r.name,business:r.business,mwe:false,gross:0,nontax:0,taxable:0,tax:0,sss:0,ph:0,pg:0,erSss:0,erEc:0,erPh:0,erPg:0};
  Object.keys(f).forEach(z=>{if(z==='mwe')x.mwe=x.mwe||f.mwe;else x[z]+=f[z]});map.set(k,x)});return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name))}
 const sumBy=(list,k)=>list.reduce((s,x)=>s+(x[k]||0),0);
 const missingEr=(y,m)=>payRows(y,m).some(({r})=>(c100(r.sss)||c100(r.philhealth)||c100(r.pagibig))&&!(c100(r.erSss)+c100(r.erPh)+c100(r.erPg)));
@@ -7563,10 +7583,65 @@ const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d)
   if(x.emp&&typeof x.emp==='object')Object.keys(x.emp).forEach(k=>{const e=x.emp[k];if(e&&typeof e==='object')t.emp[safeId(k)]={tin:S(e.tin,20),sss:S(e.sss,20),ph:S(e.ph,20),hdmf:S(e.hdmf,20),mwe:!!e.mwe}});
   o.tax=t}catch(err){}}
  if(Array.isArray(d.journalEntries))o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='tax'){e.src='tax';e.taxKey=String(x.taxKey||'').slice(0,60)}});return o};
-window.TAXMOD={T,sssOf,phOf,hdmfOf,wtaxSemi,taxYear,items,itemsBetween,bizFig,itrFig,payByEmp,fillRow,overdue};
+window.TAXMOD={dmSplit,T,sssOf,phOf,hdmfOf,wtaxSemi,taxYear,items,itemsBetween,bizFig,itrFig,payByEmp,fillRow,overdue};
 setTimeout(()=>{badge();renderDash()},0);
 })();
 
+// ===== Payroll: additional pay, de minimis benefits and other deductions (pay items) =====
+(function(){
+const A=()=>window.HRAPI;if(!document.getElementById('hrRLoad'))return;
+const e=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const fmt=v=>(+v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+// RR 29-2025 ceilings (effective 2026)
+const DM=[['rice','Rice subsidy',2500,'M'],['uniform','Uniform and clothing allowance',8000,'Y'],['medcash','Medical cash allowance to dependents',2000,'S'],['medical','Actual medical assistance',12000,'Y'],['laundry','Laundry allowance',400,'M'],['award','Employee achievement award',12000,'Y'],['gift','Christmas / anniversary gift',6000,'Y'],['meal','Overtime / night-shift meal allowance',30,'D'],['cba','CBA / productivity incentive',12000,'Y'],['other','Other de minimis (set your own ceiling)',0,'N']];
+const PER={M:'per month',S:'per semester',Y:'per year',D:'% of daily rate × days',N:'no ceiling'};
+const TYPES=[['ET','Additional pay (taxable)'],['DM','De minimis benefit'],['EN','Other non-taxable pay'],['D','Deduction']];
+const typeOf=it=>it.kind==='D'?'D':it.tax==='DM'?'DM':it.tax==='N'?'EN':'ET';
+const items=()=>{const h=A().H();if(!Array.isArray(h.items))h.items=[];return h.items};
+const used=id=>A().RUNS().some(r=>r.rows.some(o=>+o['x_'+id]));
+const desc=it=>{const t=typeOf(it);if(t==='D')return 'Deduction';if(t==='EN')return 'Non-taxable pay';if(t==='ET')return 'Taxable pay'+(it.sss?' · counts for SSS':'');return 'De minimis · '+(it.per==='N'||!+it.limit?'no ceiling':(it.per==='D'?it.limit+'% of daily rate × days':'₱'+fmt(it.limit)+' '+PER[it.per]))};
+function rerun(){try{const a=A();if(a.draft().length){if(window.hrAutoFill)window.hrAutoFill(a.draft(),a.runF());a.renderRun()}}catch(x){console.error(x)}}
+function open(){
+ const m=document.createElement('div');m.className='modal-overlay erp-modal';m.id='hrPIModal';
+ m.innerHTML='<div class="modal" style="max-width:760px"><h2 style="margin-top:0">Additional pay &amp; deductions</h2>'
+ +'<p class="hr-note">Items you add here become extra columns on the payroll run. They show on payslips, the payroll register and history, and post to their own accounts when payroll is marked paid. De minimis benefits are tax-free up to the BIR ceiling (RR 29-2025); any amount above the ceiling is added to taxable pay automatically.</p>'
+ +'<div id="hrPIList"></div><h3 id="hrPIFormT" style="margin:1.1rem 0 .5rem;font:700 1.05rem Figtree,\'Segoe UI\',sans-serif">Add an item</h3><form id="hrPIForm" class="grid-2" autocomplete="off">'
+ +'<div class="form-group"><label for="hrPIType">Type</label><select id="hrPIType">'+TYPES.map(t=>'<option value="'+t[0]+'">'+t[1]+'</option>').join('')+'</select></div>'
+ +'<div class="form-group" id="hrPIPreG" hidden><label for="hrPIPre">De minimis category</label><select id="hrPIPre">'+DM.map(d=>'<option value="'+d[0]+'">'+e(d[1])+'</option>').join('')+'</select></div>'
+ +'<div class="form-group"><label for="hrPIName">Name on payslip *</label><input id="hrPIName" maxlength="40" required placeholder="e.g. Transportation allowance"></div>'
+ +'<div class="form-group" id="hrPILimG" hidden><label for="hrPILim">Tax-free ceiling</label><div style="display:flex;gap:6px"><input id="hrPILim" type="number" min="0" step="0.01" style="flex:1 1 45%;min-width:90px;width:auto"><select id="hrPIPer" style="flex:1 1 55%;width:auto">'+Object.keys(PER).map(k=>'<option value="'+k+'">'+PER[k]+'</option>').join('')+'</select></div></div>'
+ +'<div class="form-group" id="hrPISssG"><label class="hr-chk" style="margin-top:1.6rem"><input type="checkbox" id="hrPISss"> Include in SSS / PhilHealth / Pag-IBIG salary base</label></div>'
+ +'<div class="form-group" style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn btn-outline" data-x>Close</button><button type="button" class="btn btn-outline" id="hrPICancel" hidden>Cancel edit</button><button class="btn" id="hrPISave">Add item</button></div></form></div>';
+ document.body.appendChild(m);m.addEventListener('mousedown',x=>{if(x.target===m)m.remove()});m.querySelectorAll('[data-x]').forEach(x=>x.onclick=()=>m.remove());
+ const $=id=>m.querySelector('#'+id);let edit=null;
+ const sync=(pre)=>{const t=$('hrPIType').value;$('hrPIPreG').hidden=t!=='DM';$('hrPILimG').hidden=t!=='DM';$('hrPISssG').hidden=t!=='ET';
+  if(t==='DM'&&pre){const d=DM.find(x=>x[0]===$('hrPIPre').value);if(d){if(d[0]!=='other'||!$('hrPIName').value)$('hrPIName').value=d[0]==='other'?'':d[1];$('hrPILim').value=d[2]||'';$('hrPIPer').value=d[3]}}};
+ $('hrPIType').onchange=()=>sync(true);$('hrPIPre').onchange=()=>sync(true);
+ const reset=()=>{edit=null;$('hrPIForm').reset();$('hrPIFormT').textContent='Add an item';$('hrPISave').textContent='Add item';$('hrPICancel').hidden=true;$('hrPIType').disabled=false;sync(false)};
+ $('hrPICancel').onclick=reset;
+ function list(){const L=items();$('hrPIList').innerHTML=L.length?'<table class="hr-tbl" style="width:100%"><thead><tr><th>Item</th><th>Treatment</th><th>Status</th><th></th></tr></thead><tbody>'+L.map(it=>'<tr><td>'+e(it.name)+'</td><td>'+e(desc(it))+'</td><td>'+(it.active===false?'<span class="badge">Hidden</span>':'<span class="badge badge-vat">Active</span>')+'</td><td style="white-space:nowrap;text-align:right"><button type="button" class="btn btn-outline btn-sm" data-ed="'+it.id+'">Edit</button> <button type="button" class="btn btn-outline btn-sm" data-tg="'+it.id+'">'+(it.active===false?'Show':'Hide')+'</button> <button type="button" class="btn btn-outline btn-sm" data-rm="'+it.id+'">Delete</button></td></tr>').join('')+'</tbody></table>':'<p class="hr-note">No items yet. Add allowances, bonuses, de minimis benefits, loans, or any other deduction below.</p>';
+  m.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{const it=items().find(x=>x.id===b.dataset.ed);if(!it)return;edit=it.id;$('hrPIType').value=typeOf(it);$('hrPIType').disabled=used(it.id);$('hrPIPre').value=it.dm||'other';sync(false);$('hrPIName').value=it.name;$('hrPILim').value=it.limit||'';$('hrPIPer').value=it.per||'N';$('hrPISss').checked=!!it.sss;$('hrPIFormT').textContent='Edit '+it.name;$('hrPISave').textContent='Save changes';$('hrPICancel').hidden=false;$('hrPIName').focus()});
+  m.querySelectorAll('[data-tg]').forEach(b=>b.onclick=()=>{const it=items().find(x=>x.id===b.dataset.tg);if(!it)return;it.active=it.active===false;saveToLocalStorage();list();rerun()});
+  m.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{const it=items().find(x=>x.id===b.dataset.rm);if(!it)return;
+   if(used(it.id))return toast('"'+it.name+'" is already used in saved payroll, so it cannot be deleted. Hide it instead.');
+   if(!confirm('Delete "'+it.name+'"?'))return;const h=A().H();h.items=items().filter(x=>x.id!==it.id);A().draft().forEach(r=>delete r['x_'+it.id]);saveToLocalStorage();if(edit===it.id)reset();list();rerun()})}
+ $('hrPIForm').onsubmit=ev=>{ev.preventDefault();const name=$('hrPIName').value.trim();if(!name)return;
+  if(items().some(x=>x.id!==edit&&x.name.toLowerCase()===name.toLowerCase()))return toast('There is already an item named "'+name+'".');
+  const t=$('hrPIType').value,o={name,kind:t==='D'?'D':'E',tax:t==='DM'?'DM':t==='EN'?'N':'T',dm:t==='DM'?$('hrPIPre').value:'',limit:t==='DM'?Math.max(0,+$('hrPILim').value||0):0,per:t==='DM'?$('hrPIPer').value:'N',sss:t==='ET'&&$('hrPISss').checked};
+  if(t==='DM'&&o.per!=='N'&&!o.limit)o.per='N';
+  if(edit){const it=items().find(x=>x.id===edit);if(it)Object.assign(it,used(it.id)?Object.assign(o,{kind:it.kind,tax:it.tax}):o)}else items().push(Object.assign({id:'it'+uid(),active:true},o));
+  saveToLocalStorage();toast(edit?'Item updated.':'Item added. It now shows as a column on the payroll run.','success');reset();list();rerun()};
+ sync(false);list();setTimeout(()=>$('hrPIType').focus(),30);
+}
+const rs=document.getElementById('hrRAuto')||document.getElementById('hrRReset');
+rs.insertAdjacentHTML('beforebegin','<button class="btn btn-outline" id="hrRItems" type="button" title="Add allowances, bonuses, de minimis benefits or other deductions">Additional pay &amp; deductions</button>');
+document.getElementById('hrRItems').onclick=open;
+// the formula note under the run
+const nt=[...document.querySelectorAll('#tab-hr-run .hr-note')].pop();if(nt)nt.textContent='Gross = Days Worked × (Daily Rate + Allowance) + Holiday Pay + Overtime Pay + additional pay items. Net = Gross − Tax, SSS, PhilHealth, Pag-IBIG, Cash Advance, Credit, Credit Balance and other deductions. Leave a box empty for zero. Press Enter to move down a column.';
+document.head.insertAdjacentHTML('beforeend','<style>#hrPIModal [hidden]{display:none!important}.hr-tbl th.hr-xE{background:color-mix(in srgb,var(--aj-6,#3ef7cc) 14%,transparent)}.hr-tbl th.hr-xD{background:color-mix(in srgb,#e05252 12%,transparent)}</style>');
+window.PAYITEMS={open,DM};
+})();
 // ===== ERP core helpers shared by Fixed Assets, Receivables, Payables and the accounting extras =====
 (function(){
 const $=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml;
