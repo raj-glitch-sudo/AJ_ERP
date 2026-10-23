@@ -1012,10 +1012,10 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 <div class="welcome-banner">
                     <div>
                         <h2 style="margin:0; font-size:1.5rem;" id="welcomeHeading">Welcome Back!</h2>
-                        <p style="margin:4px 0 0 0; opacity: 0.85; font-size: 0.9rem;">Here is your financial overview for today.</p>
+                        <p id="dashSubtitle" style="margin:4px 0 0 0; opacity: 0.85; font-size: 0.9rem;">Here is your financial overview for today.</p>
                     </div>
                     <div>
-                        <button class="btn btn-outline" style="color: white; border-color: rgba(255,255,255,0.4);" onclick="openWidgetConfigModal()"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg> Customize Widgets</button>
+                        <select id="dashBasisSel" class="hidden" onchange="setDashBasis(this.value)" aria-label="Dashboard accounting basis" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:9px;padding:9px 12px;font-weight:600;"><option value="accrual" style="color:#000">Accrual basis</option><option value="cash" style="color:#000">Cash basis</option></select><button class="btn btn-outline" style="color: white; border-color: rgba(255,255,255,0.4);" onclick="openWidgetConfigModal()"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg> Customize Widgets</button>
                         <button class="btn" style="background: var(--fiery-red-bright);" onclick="openJournalModal()">+ New Entry</button>
                     </div>
                 </div>
@@ -1173,7 +1173,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap:10px; margin-bottom: 1rem;">
                             <h2 style="margin:0;">Books of Accounts: General Ledger</h2>
                             <div>
-                                <label style="font-size: 0.88rem; font-weight:600; margin-right: 6px;">Filter Account:</label>
+                                <span id="ledgerBasisWrap" class="hidden"><label style="font-size: 0.88rem; font-weight:600; margin-right: 6px;">Basis:</label><select id="ledgerBasisSelect" onchange="renderGeneralLedger(document.getElementById('ledgerFilterSelect').value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); margin-right: 10px;"><option value="accrual">Accrual</option><option value="cash">Cash</option></select></span><label style="font-size: 0.88rem; font-weight:600; margin-right: 6px;">Filter Account:</label>
                                 <select id="ledgerFilterSelect" onchange="renderGeneralLedger(this.value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
                                     <option value="ALL">All General Ledger Accounts</option>
                                 </select>
@@ -1348,7 +1348,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                                     <select id="setCompFyStart" onchange="updateFyHint()">
                                         <option value="1">January (calendar year)</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option>
                                     </select>
-                                    <small id="setCompFyHint" style="color: var(--text-muted);"></small>
+                                    <small id="setCompFyHint" style="color: var(--text-muted);"></small></div><div class="form-group"><label>Accounting Basis</label><select id="setCompBasis"><option value="accrual">Accrual basis</option><option value="cash">Cash basis</option><option value="both">Both (accrual and cash)</option></select><small style="color: var(--text-muted);">Entries are recorded once in the journal. Cash-basis figures are derived from it using the accounts tagged Cash, Accounts Receivable and Accounts Payable.</small>
                                 </div>
                             </div>
 
@@ -1538,7 +1538,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 <div class="grid-2">
                     <div class="form-group">
                         <label>Accounting Basis *</label>
-                        <select id="rptBasis" required>
+                        <select id="rptBasis" required onchange="updateBasisHint()">
                             <option value="Accrual Basis">Accrual Basis Accounting</option>
                             <option value="Cash Basis">Cash Basis Accounting</option>
                         </select>
@@ -1613,7 +1613,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 </div>
                 <div class="form-group">
                     <label>Service Line * <small style="font-weight:normal; color:var(--text-muted);">(choose one or more)</small></label>
-                    <div id="newCompLineBox"></div>
+                    <div id="newCompLineBox"></div></div><div class="form-group"><label>Accounting Basis *</label><select id="newCompBasis" required><option value="accrual">Accrual basis</option><option value="cash">Cash basis</option><option value="both">Both (choose when viewing reports)</option></select><small style="color:var(--text-muted);">You can change this later in Settings.</small>
                 </div>
 
                 <div class="form-group card" style="background: rgba(0,0,0,0.02); border: 1px dashed var(--border-color); padding: 1rem;">
@@ -2196,15 +2196,16 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             const now = new Date();
             updateBackupReminder();
             const curMonthStr = localDateStr(now).slice(0, 7); 
-            const balancesAllTime = computeAccountBalances(comp.journalEntries);
+            const dashKey = dashBasisKey(comp), dashEnts = reportEntries(comp, dashKey);
+            const balancesAllTime = computeAccountBalances(dashEnts);
 
             let monthlySalesCents = 0;
             let cashCents = 0, arCents = 0, apCents = 0;
             let currentAssetCents = 0, currentLiabCents = 0;
-            let totalLiabCents = 0, totalEquityCents = 0;
+            let totalLiabCents = 0, totalEquityCents = 0, totalAssetCents = 0;
             let periodNetIncomeCents = 0, monthlyNICents = 0;
 
-            comp.journalEntries.forEach(e => {
+            dashEnts.forEach(e => {
                 if (e.date.startsWith(curMonthStr)) {
                     e.lines.forEach(l => {
                         const acc = comp.chartOfAccounts.find(a => a.code === l.accountCode);
@@ -2228,6 +2229,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 if (acc.subCategoryClass === 'Current Asset') currentAssetCents += (acc.isContra ? -netCents : netCents);
                 if (acc.subCategoryClass === 'Current Liability') currentLiabCents += (acc.isContra ? -netCents : netCents);
 
+                if (acc.category === 'Asset') totalAssetCents += (acc.isContra ? -netCents : netCents);
                 if (acc.category === 'Liability') totalLiabCents += (acc.isContra ? -netCents : netCents);
                 if (acc.category === 'Equity') totalEquityCents += (acc.isContra ? -netCents : netCents);
 
@@ -2243,7 +2245,16 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             document.getElementById('ratioCurrent').innerText = currentLiabCents > 0 ? (currentAssetCents / currentLiabCents).toFixed(2) : "n/a";
             document.getElementById('ratioQuick').innerText = currentLiabCents > 0 ? ((cashCents + arCents) / currentLiabCents).toFixed(2) : "n/a";
             document.getElementById('ratioMargin').innerText = monthlySalesCents > 0 ? ((monthlyNICents / monthlySalesCents) * 100).toFixed(1) + "%" : "n/a";
-            document.getElementById('ratioDebtEquity').innerText = (totalEquityCents + periodNetIncomeCents) > 0 ? (totalLiabCents / (totalEquityCents + periodNetIncomeCents)).toFixed(2) : "n/a";
+            const effEquityCents = dashKey === 'cash' ? (totalAssetCents - totalLiabCents) : (totalEquityCents + periodNetIncomeCents);
+            document.getElementById('ratioDebtEquity').innerText = effEquityCents > 0 ? (totalLiabCents / effEquityCents).toFixed(2) : "n/a";
+            if (dashKey === 'cash') {
+                document.getElementById('kpiReceivables').innerText = 'n/a';
+                document.getElementById('kpiPayables').innerText = 'n/a';
+            }
+            const dSel = document.getElementById('dashBasisSel');
+            if (dSel) { dSel.classList.toggle('hidden', companyBasis(comp) !== 'both'); dSel.value = dashKey; }
+            const dSub = document.getElementById('dashSubtitle');
+            if (dSub) dSub.textContent = 'Here is your financial overview for today' + (companyBasis(comp) === 'accrual' ? '' : ' (' + (dashKey === 'cash' ? 'cash basis' : 'accrual basis') + ')') + '.';
         }
 
         function renderDashboardJournalLog() {
@@ -2637,6 +2648,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             if (!canCmp) document.getElementById('rptCompare').value = 'none';
             const _fc = activeCompany(); if (_fc) document.getElementById('rptFiscalYear').value = defaultFyYear(_fc);
             handleRptPeriodTypeChange();
+            fillBasisOptions();
             document.getElementById('reportPromptModal').classList.remove('hidden');
         }
 
@@ -2690,6 +2702,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 standard: document.getElementById('rptStandard').value,
                 preparedBy: document.getElementById('rptPreparedBy').value || 'Prepared Signature',
                 approvedBy: document.getElementById('rptApprovedBy').value || 'Management',
+                basisKey: basisKeyFromLabel(document.getElementById('rptBasis').value),
                 startDateStr, endDateStr, compare, prevStartDateStr, prevEndDateStr,
                 curCol: endDateStr.slice(0, 4), prevCol: prevEndDateStr.slice(0, 4)
             };
@@ -2710,11 +2723,12 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
 
         function renderReportHTMLString(comp, params) {
             let bodyHTML = "";
-            const balancesAllTime = computeAccountBalances(comp.journalEntries, params.endDateStr);
-            const balancesPeriod = computeAccountBalances(comp.journalEntries, params.endDateStr, params.startDateStr);
+            const ents = reportEntries(comp, params.basisKey || 'accrual'); params.entries = ents;
+            const balancesAllTime = computeAccountBalances(ents, params.endDateStr);
+            const balancesPeriod = computeAccountBalances(ents, params.endDateStr, params.startDateStr);
             const cmp = params.compare === 'prevYear';
-            const prevAll = cmp ? computeAccountBalances(comp.journalEntries, params.prevEndDateStr) : null;
-            const prevPeriod = cmp ? computeAccountBalances(comp.journalEntries, params.prevEndDateStr, params.prevStartDateStr) : null;
+            const prevAll = cmp ? computeAccountBalances(ents, params.prevEndDateStr) : null;
+            const prevPeriod = cmp ? computeAccountBalances(ents, params.prevEndDateStr, params.prevStartDateStr) : null;
 
             if (params.type === 'tb') {
                 let rows = "", totalDr = 0, totalCr = 0;
@@ -2733,6 +2747,11 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                         rows += `<tr><td>${acc.code}</td><td>${escapeHtml(acc.title)}</td><td class="number">${netDrCents ? formatMoney(fromCents(netDrCents), comp.currency) : '-'}</td><td class="number">${netCrCents ? formatMoney(fromCents(netCrCents), comp.currency) : '-'}</td></tr>`;
                     }
                 });
+                if (params.basisKey === 'cash' && totalDr !== totalCr) {
+                    const d = totalDr - totalCr, m = x => formatMoney(fromCents(x), comp.currency);
+                    rows += `<tr><td></td><td><em>Cash-basis adjustment (receivables / payables)</em></td><td class="number">${d < 0 ? m(-d) : '-'}</td><td class="number">${d > 0 ? m(d) : '-'}</td></tr>`;
+                    if (d > 0) totalCr += d; else totalDr += -d;
+                }
                 bodyHTML = `<table><thead><tr><th>Code</th><th>Account Title</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="font-weight:bold;"><td>Totals</td><td></td><td class="number">${formatMoney(fromCents(totalDr), comp.currency)}</td><td class="number">${formatMoney(fromCents(totalCr), comp.currency)}</td></tr></tfoot></table>`;
             
             } else if (params.type === 'is') {
@@ -2796,6 +2815,13 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 if (ni !== 0 || pni !== 0) {
                     equityRows += `<tr><td>Retained Earnings / Net Income (Cumulative to Date)</td>${cmpCells(ni, pni, comp.currency, cmp)}</tr>`;
                 }
+                if (params.basisKey === 'cash') {
+                    const adj = tA - tL - tE, padj = pA - pL - pE;
+                    if (adj !== 0 || padj !== 0) {
+                        equityRows += `<tr><td>Cash-basis adjustment (unpaid receivables / payables)</td>${cmpCells(adj, padj, comp.currency, cmp)}</tr>`;
+                        tE += adj; pE += padj;
+                    }
+                }
                 const diff = tA - tL - tE, pdiff = pA - pL - pE;
                 const warn = (diff !== 0 || (cmp && pdiff !== 0))
                     ? `<p style="color:#b91c1c;font-weight:bold;"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg> Out of balance by ${formatMoney(fromCents(diff), comp.currency)}${cmp && pdiff !== 0 ? ` (prior period: ${formatMoney(fromCents(pdiff), comp.currency)})` : ''}</p>` : '';
@@ -2817,6 +2843,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 bodyHTML = buildCashFlowBody(comp, params);
             }
 
+            if (params.basisKey === 'cash' && params.type !== 'cf') bodyHTML += '<p style="font-size:0.8rem; color:#475569; margin-top:1.2rem;">Cash basis: income and expenses are recognized when cash is received or paid. Accounts Receivable and Accounts Payable accounts are not reported, and any resulting difference appears as a cash-basis adjustment. Inventory and cost of goods sold follow the accrual entries.</p>';
             // SUBTITLE: SHOW ADDRESS OR TIN / VAT IF ADDRESS IS BLANK
             const subTitleText = comp.address ? escapeHtml(comp.address) : `TIN: ${escapeHtml(comp.tin)} | ${escapeHtml(vatLabel(comp))}`;
 
@@ -2826,6 +2853,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                     <p>${subTitleText}</p>
                     <h3>${reportTitles[params.type]}</h3>
                     <p><strong>${escapeHtml(params.periodLabel)}</strong></p>
+                    ${params.type !== 'cf' && params.basis ? `<p>${escapeHtml(params.basis)}</p>` : ''}
                     ${cmp ? `<p>Compared with ${params.prevCol}</p>` : ''}
                 </div>
                 ${bodyHTML}
@@ -2874,7 +2902,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 tin: document.getElementById('newCompTin').value,
                 entity: document.getElementById('newCompEntity').value,
                 currency: document.getElementById('newCompCurrency').value,
-                vat: 'Non-VAT Registered', vatRate: 12, line: lineLabelText(sl.lines, sl.other), serviceLines: sl.lines, otherLine: sl.other,
+                basis: document.getElementById('newCompBasis').value, vat: 'Non-VAT Registered', vatRate: 12, line: lineLabelText(sl.lines, sl.other), serviceLines: sl.lines, otherLine: sl.other,
                 passwordHash: enablePass ? await hashPassword(document.getElementById('newCompPassword').value) : null,
                 chartOfAccounts: [], coaSetupDone: false,
                 journalEntries: [], reportsHistory: []
@@ -2901,6 +2929,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             toggleVatRateField();
             document.getElementById('setCompOpeningDate').value = getOpeningDate(comp);
             document.getElementById('setCompFyStart').value = String(comp.fyStart || 1);
+            document.getElementById('setCompBasis').value = companyBasis(comp);
             updateFyHint();
             document.getElementById('setCompAddress').value = comp.address || '';
             document.getElementById('setCompEnablePass').checked = !!comp.passwordHash;
@@ -2930,6 +2959,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             const od = document.getElementById('setCompOpeningDate').value;
             if (od) comp.openingDate = od;
             comp.fyStart = parseInt(document.getElementById('setCompFyStart').value) || 1;
+            comp.basis = document.getElementById('setCompBasis').value;
             comp.address = document.getElementById('setCompAddress').value;
 
             if (document.getElementById('setCompEnablePass').checked) {
@@ -3358,7 +3388,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 logo: typeof d.logo === 'string' && d.logo.startsWith('data:image/') ? d.logo : null,
                 openingDate: DATE.test(d.openingDate || '') ? d.openingDate : undefined,
                 fyStart: Number.isInteger(+d.fyStart) && +d.fyStart >= 1 && +d.fyStart <= 12 ? +d.fyStart : 1,
-                coaSetupDone: d.coaSetupDone !== false, serviceLines: lineInfo.serviceLines, otherLine: lineInfo.otherLine,
+                coaSetupDone: d.coaSetupDone !== false, basis: ['accrual', 'cash', 'both'].includes(d.basis) ? d.basis : 'accrual', dashBasis: d.dashBasis === 'cash' ? 'cash' : 'accrual', serviceLines: lineInfo.serviceLines, otherLine: lineInfo.otherLine,
                 chartOfAccounts: d.chartOfAccounts.map(normalizeAccount), journalEntries: [], reportsHistory: []
             };
             d.journalEntries.forEach((e, i) => {
@@ -3386,6 +3416,93 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             return localDateStr(new Date(y, m - 1, d - 1));
         }
         function activeCompany() { return companies.find(c => c.id === activeCompanyId); }
+
+        // ===== ACCOUNTING BASIS (accrual / cash / both) =====
+        // The journal is recorded once. Accrual figures read it as-is. Cash-basis figures are derived from it:
+        //  - revenue/expense lines that create a receivable/payable (accounts tagged AR / AP) are held back;
+        //  - they are recognized when cash settles that receivable/payable (pro rata across the held-back accounts);
+        //  - AR / AP accounts themselves are not reported.
+        function companyBasis(c) { return c && ['accrual', 'cash', 'both'].includes(c.basis) ? c.basis : 'accrual'; }
+        function basisKeyFromLabel(l) { return /cash/i.test(String(l)) ? 'cash' : 'accrual'; }
+        function dashBasisKey(c) { const b = companyBasis(c); return b === 'both' ? (c.dashBasis === 'cash' ? 'cash' : 'accrual') : b; }
+        function setDashBasis(v) {
+            const c = activeCompany(); if (!c) return;
+            c.dashBasis = v === 'cash' ? 'cash' : 'accrual';
+            saveToLocalStorage(); calculateDashboardMetrics();
+        }
+        // Split `amt` across the values of `src` (which sum to `tot`) in proportion, exact to the cent.
+        function basisAllocate(src, amt, tot) {
+            const out = new Map(); let given = 0, run = 0;
+            src.forEach((v, c) => { run += v; const target = Math.round(amt * run / tot); out.set(c, target - given); given = target; });
+            return out;
+        }
+        function basisSettle(cur, delta, pool, hasCash) {
+            const res = new Map(cur);
+            if (delta > 0) {
+                const tot = [...cur.values()].reduce((a, b) => a + b, 0);
+                if (tot > 0) basisAllocate(cur, Math.min(delta, tot), tot).forEach((v, c) => {
+                    res.set(c, res.get(c) - v); pool.set(c, (pool.get(c) || 0) + v);
+                });
+            } else if (delta < 0) {
+                const ptot = [...pool.values()].reduce((a, b) => a + b, 0);
+                if (ptot > 0) basisAllocate(pool, Math.min(-delta, ptot), ptot).forEach((v, c) => {
+                    pool.set(c, pool.get(c) - v);
+                    if (hasCash) res.set(c, (res.get(c) || 0) + v);
+                });
+            }
+            return res;
+        }
+        function cashBasisEntries(comp) {
+            const byCode = new Map(comp.chartOfAccounts.map(a => [a.code, a]));
+            const kindOf = code => {
+                const a = byCode.get(code); if (!a) return 'other';
+                if (a.roleTag === 'ar') return 'ar';
+                if (a.roleTag === 'ap') return 'ap';
+                if (a.category === 'Revenue') return 'rev';
+                if (a.category === 'Expense') return 'exp';
+                return 'other';
+            };
+            const revPool = new Map(), expPool = new Map(), out = [];
+            comp.journalEntries.map((e, i) => [e, i])
+                .sort((x, y) => x[0].date < y[0].date ? -1 : x[0].date > y[0].date ? 1 : x[1] - y[1])
+                .forEach(([e]) => {
+                    const keep = [], rev = new Map(), exp = new Map();
+                    let dAR = 0, dAP = 0, hasCash = false;
+                    e.lines.forEach(l => {
+                        const dr = toCents(l.debit), cr = toCents(l.credit), k = kindOf(l.accountCode), a = byCode.get(l.accountCode);
+                        if (a && a.roleTag === 'cash') hasCash = true;
+                        if (k === 'ar') dAR += dr - cr;
+                        else if (k === 'ap') dAP += cr - dr;
+                        else if (k === 'rev') rev.set(l.accountCode, (rev.get(l.accountCode) || 0) + cr - dr);
+                        else if (k === 'exp') exp.set(l.accountCode, (exp.get(l.accountCode) || 0) + dr - cr);
+                        else keep.push({ accountCode: l.accountCode, debit: l.debit, credit: l.credit });
+                    });
+                    const revNet = basisSettle(rev, dAR, revPool, hasCash), expNet = basisSettle(exp, dAP, expPool, hasCash);
+                    // A non-cash entry that reduces a receivable/payable (write-off, credit memo) only adjusts accrued items.
+                    if (!hasCash && (dAR < 0 || dAP < 0)) { revNet.clear(); expNet.clear(); }
+                    const lines = keep.slice();
+                    revNet.forEach((v, code) => { if (v > 0) lines.push({ accountCode: code, debit: 0, credit: fromCents(v) }); else if (v < 0) lines.push({ accountCode: code, debit: fromCents(-v), credit: 0 }); });
+                    expNet.forEach((v, code) => { if (v > 0) lines.push({ accountCode: code, debit: fromCents(v), credit: 0 }); else if (v < 0) lines.push({ accountCode: code, debit: 0, credit: fromCents(-v) }); });
+                    out.push({ id: e.id, date: e.date, ref: e.ref, desc: e.desc, lines });
+                });
+            return out;
+        }
+        function reportEntries(comp, basis) { return basis === 'cash' ? cashBasisEntries(comp) : comp.journalEntries; }
+        function fillBasisOptions() {
+            const comp = activeCompany(), sel = document.getElementById('rptBasis'); if (!comp || !sel) return;
+            const b = companyBasis(comp);
+            const all = [['Accrual Basis', 'Accrual Basis Accounting'], ['Cash Basis', 'Cash Basis Accounting']];
+            const list = b === 'both' ? all : all.filter(x => (b === 'cash') === (x[0] === 'Cash Basis'));
+            sel.innerHTML = list.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('');
+            if (!document.getElementById('rptBasisHint')) sel.insertAdjacentHTML('afterend', '<small id="rptBasisHint" style="color:var(--text-muted);display:block;margin-top:4px;"></small>');
+            updateBasisHint();
+        }
+        function updateBasisHint() {
+            const h = document.getElementById('rptBasisHint'), sel = document.getElementById('rptBasis'); if (!h || !sel) return;
+            h.textContent = basisKeyFromLabel(sel.value) === 'cash'
+                ? 'Income and expenses count when cash is received or paid. Receivable and payable accounts are left out.'
+                : 'Income and expenses count when earned or incurred.';
+        }
         function readFileAsJSON(file) {
             return new Promise((resolve, reject) => {
                 const r = new FileReader();
@@ -3550,7 +3667,10 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             fillLedgerFilter();
             document.getElementById('ledgerFilterSelect').value = filterCode;
             const [from, to] = getBooksRange();
-            const sorted = comp.journalEntries.slice().sort((a, b) => a.date.localeCompare(b.date));
+            const lb = companyBasis(comp), lw = document.getElementById('ledgerBasisWrap');
+            if (lw) lw.classList.toggle('hidden', lb !== 'both');
+            const lkey = lb === 'both' ? document.getElementById('ledgerBasisSelect').value : lb;
+            const sorted = reportEntries(comp, lkey).slice().sort((a, b) => a.date.localeCompare(b.date));
             let targets = comp.chartOfAccounts;
             if (filterCode !== 'ALL') targets = targets.filter(a => a.code === parseInt(filterCode));
             let html = '';
@@ -3574,12 +3694,12 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                     <thead><tr><th>Date</th><th>Ref</th><th>Particulars</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Ending Balance</th></tr></thead>
                     <tbody>${openRow}${rows}</tbody></table></div>`;
             });
-            container.innerHTML = html || '<p style="color: var(--text-muted);">No ledger activity in this period.</p>';
+            container.innerHTML = (lkey === 'cash' ? '<p class="inv-note">Cash basis view: revenue and expenses appear when cash settles them. Receivable and payable accounts are not shown.</p>' : '') + (html || '<p style="color: var(--text-muted);">No ledger activity in this period.</p>');
         }
 
         // ===== FINANCIAL STATEMENT BUILDERS =====
-        function periodNetIncomeCents(comp, endStr, startStr = null) {
-            const bal = computeAccountBalances(comp.journalEntries, endStr, startStr);
+        function periodNetIncomeCents(comp, endStr, startStr = null, entries = null) {
+            const bal = computeAccountBalances(entries || comp.journalEntries, endStr, startStr);
             let ni = 0;
             comp.chartOfAccounts.forEach(a => {
                 const b = bal.get(a.code) || { drCents: 0, crCents: 0 };
@@ -3589,23 +3709,37 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             return ni;
         }
         function buildOwnersEquityBody(comp, params) {
+            const ents = params.entries || comp.journalEntries;
             const start = params.startDateStr, end = params.endDateStr, before = prevDay(start);
-            const balBefore = computeAccountBalances(comp.journalEntries.filter(e => e.date <= before || (isInit(e) && e.date <= end)), end);
-            const balPeriod = computeAccountBalances(comp.journalEntries.filter(e => !isInit(e)), end, start);
+            const balBefore = computeAccountBalances(ents.filter(e => e.date <= before || (isInit(e) && e.date <= end)), end);
+            const balPeriod = computeAccountBalances(ents.filter(e => !isInit(e)), end, start);
             let beginning = 0, invest = 0, draws = 0;
             comp.chartOfAccounts.filter(a => a.category === 'Equity').forEach(a => {
                 const b0 = balBefore.get(a.code) || { drCents: 0, crCents: 0 }, b1 = balPeriod.get(a.code) || { drCents: 0, crCents: 0 };
                 beginning += b0.crCents - b0.drCents;
                 if (a.normal === 'Credit') invest += b1.crCents - b1.drCents; else draws += b1.drCents - b1.crCents;
             });
-            beginning += periodNetIncomeCents(comp, before);
-            const ni = periodNetIncomeCents(comp, end, start);
-            const ending = beginning + invest + ni - draws, c = comp.currency;
+            beginning += periodNetIncomeCents(comp, before, null, ents);
+            const ni = periodNetIncomeCents(comp, end, start, ents);
+            let ending = beginning + invest + ni - draws, adj = 0; const c = comp.currency;
+            if (params.basisKey === 'cash') {
+                // Cash basis: capital = assets less liabilities (no receivables/payables), tied to the balance sheet.
+                const netAssets = bal => { let t = 0; comp.chartOfAccounts.forEach(a => {
+                    if (a.category !== 'Asset' && a.category !== 'Liability') return;
+                    const b = bal.get(a.code) || { drCents: 0, crCents: 0 };
+                    const net = (a.normal === 'Debit' ? b.drCents - b.crCents : b.crCents - b.drCents) * (a.isContra ? -1 : 1);
+                    t += a.category === 'Asset' ? net : -net; }); return t; };
+                beginning = netAssets(balBefore);
+                const endTotal = netAssets(computeAccountBalances(ents, end));
+                adj = endTotal - (beginning + invest + ni - draws);
+                ending = endTotal;
+            }
             return `<table><tbody>
                 <tr><td>Beginning Owner's Capital</td><td class="number">${formatMoney(fromCents(beginning), c)}</td></tr>
                 <tr><td>Add: Additional Investments</td><td class="number">${formatMoney(fromCents(invest), c)}</td></tr>
                 <tr><td>Add: Net Income / (Loss) for the Period</td><td class="number">${formatMoney(fromCents(ni), c)}</td></tr>
                 <tr><td>Less: Owner's Withdrawals / Drawings</td><td class="number">${formatMoney(fromCents(-draws), c)}</td></tr>
+                ${adj ? `<tr><td>Cash-basis adjustment (receivables / payables)</td><td class="number">${formatMoney(fromCents(adj), c)}</td></tr>` : ''}
                 </tbody><tfoot><tr style="font-weight:bold; font-size:1.1rem; border-top:2px solid var(--fiery-navy-deep);"><td>Ending Owner's Capital</td><td class="number">${formatMoney(fromCents(ending), c)}</td></tr></tfoot></table>`;
         }
         function buildCashFlowBody(comp, params) {
@@ -3705,6 +3839,7 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
                 try { companies = JSON.parse(stored); } catch(e) { companies = []; }
                 companies.forEach(c => { 
                     if (c.coaSetupDone === undefined) c.coaSetupDone = true;
+                    if (!['accrual', 'cash', 'both'].includes(c.basis)) c.basis = 'accrual';
                     if (!Array.isArray(c.serviceLines)) { const m = deriveServiceLines(c); c.serviceLines = m.serviceLines; c.otherLine = m.otherLine; }
                     delete c.installedExtensions;
                     backfillContraLinks(c); 
@@ -4566,6 +4701,683 @@ w('switchCompany',()=>{cal={y:new Date().getFullYear(),m:new Date().getMonth(),s
 const D=/^\d{4}-\d{2}-\d{2}$/;
 const clean=t=>({lists:(t.lists||[]).map(l=>({id:safeId(l.id),name:String(l.name||'List')})),tasks:(t.tasks||[]).map(x=>({id:safeId(x.id),list:safeId(x.list),title:String(x.title||''),notes:String(x.notes||''),due:D.test(x.due||'')?x.due:'',done:!!x.done,star:!!x.star,sub:(x.sub||[]).map(s=>({t:String(s.t||''),done:!!s.done})),files:(x.files||[]).filter(f=>f&&typeof f.data==='string'&&f.data.startsWith('data:')).map(f=>({id:safeId(f.id)||'f_'+uid(),name:String(f.name||'file'),type:String(f.type||''),size:String(f.size||''),data:f.data}))})),events:(t.events||[]).map(e=>({id:safeId(e.id),title:String(e.title||''),date:D.test(e.date||'')?e.date:'',time:/^\d{2}:\d{2}$/.test(e.time||'')?e.time:'',notes:String(e.notes||'')})).filter(e=>e.date)});
 const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.tk&&typeof d.tk==='object'&&Array.isArray(d.tk.lists)&&d.tk.lists.length)o.tk=clean(d.tk);return o};
+})();
+
+// ===== Human Resources module: employees, payroll run, payslips, printable payroll and payroll history =====
+(function(){
+const $=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml;
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const MONTHS=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+const mName=m=>MONTHS[m-1].charAt(0)+MONTHS[m-1].slice(1).toLowerCase();
+const STATUSES=['REGULAR','CONTRACT','PROBATIONARY','CASUAL'],FREQS=['SEMI-MONTHLY','MONTHLY','WEEKLY'];
+const c100=v=>{const n=parseFloat(v);return Number.isFinite(n)&&n>0?Math.round(n*100):0};
+const n2=c=>(c/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const m2=c=>c?n2(c):'-';
+const fD=d=>{const n=Math.round((parseFloat(d)||0)*100)/100;return n?String(n):'-'};
+const sym=()=>C()&&C().currency==='USD'?'$':'₱';
+const H=()=>{const c=C();if(!c.hr||typeof c.hr!=='object')c.hr={};if(!Array.isArray(c.hr.employees))c.hr.employees=[];if(!Array.isArray(c.hr.runs))c.hr.runs=[];return c.hr};
+const EMP=()=>H().employees,RUNS=()=>H().runs,save=()=>saveToLocalStorage();
+const fullName=e=>(e.last+', '+e.first+(e.mi?' '+e.mi:'')).trim();
+const nameCmp=(a,b)=>String(a==null?'':a).localeCompare(String(b==null?'':b),undefined,{numeric:true,sensitivity:'base'});
+const empCmp=(a,b)=>nameCmp(a.business,b.business)||nameCmp(a.last,b.last)||nameCmp(a.first,b.first);
+const rowCmp=(a,b)=>nameCmp(a.business,b.business)||nameCmp(a.name,b.name);
+const lastDay=(y,m)=>new Date(y,m,0).getDate();
+const periodLabel=(y,m,q)=>mName(m)+' '+(q===1?'1–15':'16–'+lastDay(y,m))+', '+y;
+const fd=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+const miFmt=s=>{const l=(String(s).match(/[A-Za-zÀ-ɏ]/)||[''])[0].toUpperCase();return l?l+'.':''};
+
+// Pay computation, always in whole cents.
+// Gross = Days x (Daily Rate + Daily Allowance) + Holiday Pay + Overtime Pay.  Net = Gross - all deductions.
+function calc(r){
+ const d=Math.max(0,parseFloat(r.days)||0),rate=c100(r.rate),al=c100(r.allowance);
+ const basic=Math.round(d*rate),allow=Math.round(d*al),hol=c100(r.holiday),ot=c100(r.ot);
+ const tax=c100(r.tax),sss=c100(r.sss),ph=c100(r.philhealth),pg=c100(r.pagibig),ca=c100(r.cashAdvance),cr=c100(r.credit),cb=c100(r.creditBalance);
+ const gross=basic+allow+hol+ot,ded=tax+sss+ph+pg+ca+cr+cb;
+ return{d,rate,al,basic,allow,hol,ot,gross,tax,sss,ph,pg,ca,cr,cb,ded,net:gross-ded};
+}
+
+// ---------- shared print / preview styles (used on screen and inside the print frame) ----------
+const HRP_CSS=`
+.hrp{font-family:Arial,Helvetica,sans-serif;color:#000;font-size:8.5pt;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.hrp,.hrp *{box-sizing:border-box}
+.hrp table{width:100%;border-collapse:collapse;margin:0;display:table;white-space:normal}
+.hrp th,.hrp td{padding:0;border:0;background:none;color:#000;font-weight:400;font-size:inherit;text-align:left;vertical-align:top}
+.hrp .r{text-align:right}
+.hrp small{font-size:6.3pt;color:#555}
+.hrp-sheet{width:210mm;height:296mm;padding:7mm;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:4mm;background:#fff;break-after:page;page-break-after:always;overflow:hidden}
+.hrp-sheet:last-child{break-after:auto;page-break-after:auto}
+.hrp-slip{border:1px dashed #777;border-radius:2mm;padding:4mm 4.5mm;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.hrp-biz{font-weight:700;font-size:9.5pt;text-align:center;text-transform:uppercase;line-height:1.2}
+.hrp-ttl{text-align:center;font-weight:700;letter-spacing:.14em;font-size:8pt;margin-top:1mm}
+.hrp-per{text-align:center;font-size:8pt;margin-bottom:2.5mm;padding-bottom:2mm;border-bottom:1px solid #000}
+.hrp-info td{padding:.4mm 0}
+.hrp-info td:first-child{width:19mm;color:#444}
+.hrp-two{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:2.5mm}
+.hrp-box h4{margin:0 0 1mm;padding:0 0 .6mm;font-family:inherit;font-size:7.5pt;font-weight:700;letter-spacing:.08em;border-bottom:1px solid #000}
+.hrp-box td{padding:.55mm 0}
+.hrp-box tr.tot td{border-top:1px solid #000;font-weight:700;padding-top:1mm}
+.hrp-net{margin-top:3mm;border:1.2px solid #000;padding:2mm 3mm;display:flex;justify-content:space-between;align-items:baseline;font-weight:700}
+.hrp-net b{font-size:12pt}
+.hrp-sig{margin-top:auto;padding-top:8mm;display:grid;grid-template-columns:1.5fr 1fr;gap:5mm;font-size:7pt;color:#333}
+.hrp-sig span{display:block;border-top:1px solid #000;padding-top:.8mm;text-align:center}
+.hrp-rh{text-align:center;margin-bottom:3mm}
+.hrp-rh .co{font-size:12pt;font-weight:700;text-transform:uppercase}
+.hrp-rh .tt{font-size:10pt;font-weight:700;letter-spacing:.16em;margin-top:.6mm}
+.hrp-rh .sb{font-size:8.5pt;margin-top:.6mm}
+.hrp-rg{table-layout:fixed}
+.hrp-rg th,.hrp-rg td{border:.4pt solid #333;padding:.9mm .8mm;font-size:6.6pt;vertical-align:middle;word-break:break-word}
+.hrp-rg th{background:#e8edf3;font-weight:700;text-align:center}
+.hrp-rg thead{display:table-header-group}
+.hrp-rg tr{break-inside:avoid;page-break-inside:avoid}
+.hrp-rg td.r{text-align:right;white-space:nowrap}
+.hrp-rg td.c{text-align:center}
+.hrp-rg tr.g td{background:#f1f3f6;font-weight:700;font-size:7pt;text-transform:uppercase}
+.hrp-rg tr.st td{font-weight:700;background:#fafafa}
+.hrp-rg tr.gt td{font-weight:700;background:#e8edf3;border-top:1.2pt solid #000}
+.hrp-rg td.sg{height:7.5mm}
+.hrp-sigs{display:grid;grid-template-columns:repeat(3,1fr);gap:14mm;margin-top:12mm;font-size:8pt;break-inside:avoid;page-break-inside:avoid}
+.hrp-sigs span{display:block;border-top:1px solid #000;padding-top:1mm;text-align:center}
+.hrp-empty{padding:2rem;text-align:center;color:#555}
+`;
+const HR_UI_CSS=`
+.hr-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:1rem}
+.hr-acts{display:flex;gap:8px;flex-wrap:wrap}
+.hr-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:1rem}
+.hr-bar .form-group{margin:0;min-width:130px}
+.hr-bar .form-group.grow{flex:1;min-width:200px}
+.hr-note{color:var(--text-muted);font-size:.85rem;margin:.2rem 0 .8rem}
+.hr-scroll{overflow:auto;max-height:68vh;border:1px solid var(--border-color);border-radius:10px}
+.hr-tbl{margin-top:0;white-space:nowrap}
+.hr-tbl thead th{position:sticky;top:0;z-index:2;background:var(--bg-card);box-shadow:inset 0 -1px 0 var(--border-color)}
+.hr-tbl th:first-child,.hr-tbl td:first-child{position:sticky;left:0;background:var(--bg-card);z-index:1}
+.hr-tbl thead th:first-child{z-index:3}
+.hr-tbl tfoot td{position:sticky;bottom:0;background:var(--bg-card);font-weight:700;box-shadow:inset 0 1px 0 var(--border-color)}
+.hr-tbl td.hr-bz{white-space:normal;min-width:250px;font-size:.82rem}
+.hr-in{width:96px;text-align:right;padding:5px 7px!important}
+.hr-in.bad{border-color:var(--ember)!important}
+.hr-tbl .neg{color:var(--ember)}
+.hr-off td{opacity:.55}
+.hr-chk{display:flex;gap:8px;align-items:center;font-weight:600;margin:.4rem 0 1rem}
+.hr-frame{display:block;width:100%;height:72vh;border:1px solid var(--border-color);border-radius:10px;background:#fff}
+nav.sidebar-nav .sub-menu li.hr-sublabel{padding:12px 12px 4px 14px;font-size:.68rem;letter-spacing:.09em;text-transform:uppercase;color:#6f82a6;cursor:default;pointer-events:none}
+nav.sidebar-nav .sub-menu li.hr-sublabel::before{display:none}
+nav.sidebar-nav .sub-menu li.hr-ind{padding-left:26px}
+#hrSubMenu li{white-space:normal;line-height:1.25;overflow:visible;text-overflow:clip}
+`;
+
+// ---------- state ----------
+let draft=[],runF=null,emp={q:'',biz:'ALL',stat:'ALL',show:'active'},last={slips:null,print:null},preset={},inited={},imp=null;
+
+// ---------- small UI helpers ----------
+function fillSel(sel,opts,keep){
+ const cur=keep!==undefined?keep:sel.value;
+ sel.innerHTML=opts.map(o=>'<option value="'+esc(o[0])+'">'+esc(o[1])+'</option>').join('');
+ sel.value=opts.some(o=>o[0]===cur)?cur:opts[0][0];
+}
+function modal(html,w){
+ document.querySelectorAll('.hr-modal.hidden').forEach(x=>x.remove());
+ const m=document.createElement('div');m.className='modal-overlay hr-modal';
+ m.innerHTML='<div class="modal" style="max-width:'+(w||720)+'px">'+html+'</div>';
+ m.addEventListener('mousedown',e=>{if(e.target===m)m.remove()});
+ document.body.appendChild(m);return m;
+}
+function download(name,text){
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+text],{type:'text/csv;charset=utf-8'}));a.download=name;
+ document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
+const csvCell=v=>{let s=String(v==null?'':v);if(/^[=+\-@\t\r]/.test(s)&&!/^-?\d+(\.\d+)?$/.test(s))s="'"+s;return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+const bizList=arr=>[...new Set(arr.map(x=>x.business).filter(Boolean))].sort(nameCmp);
+const allBiz=()=>bizList(EMP().concat(...RUNS().map(r=>r.rows)));
+const statusList=()=>[...new Set(STATUSES.concat(EMP().map(e=>e.status).filter(Boolean)))];
+const freqList=()=>[...new Set(FREQS.concat(EMP().map(e=>e.freq).filter(Boolean)))];
+function latestPeriod(){
+ let b=null;RUNS().forEach(r=>{const k=r.year*1000+r.month*10+r.quincena;if(!b||k>b.k)b={k,year:r.year,month:r.month,q:r.quincena}});return b;
+}
+function defP(){const n=new Date();return{month:n.getMonth()+1,year:n.getFullYear(),q:n.getDate()<=15?1:2}}
+
+// Print through a hidden frame so the page layout (A4, 4 payslips per page, landscape payroll) is exact and does not depend on the app's own print rules.
+const PV_CSS='body.pv{background:#c9d1dd;padding:16px}body.pv .hrp-sheet{margin:0 auto 16px;box-shadow:0 2px 12px rgba(0,0,0,.3)}body.pv .hrp-page{width:297mm;min-height:200mm;padding:8mm;margin:0 auto 16px;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.3)}body.pl{padding:8px}body.pl .hrp-rg{min-width:1500px}body.pl .hrp-rg th,body.pl .hrp-rg td{font-size:8pt}';
+function docHtml(inner,land,title,mode){
+ const pv=mode==='sheet'||mode==='plain';
+ return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title||'Payroll')+'</title><style>'+(pv?'':'@page{size:A4 '+(land?'landscape;margin:8mm':'portrait;margin:0')+'}')+'html,body{margin:0;padding:0;background:#fff}'+HRP_CSS+PV_CSS+'</style></head><body'+(mode==='sheet'?' class="pv"':mode==='plain'?' class="pl"':'')+'><div class="hrp">'+(mode==='sheet'&&land?'<div class="hrp-page">'+inner+'</div>':inner)+'</div></body></html>';
+}
+// Previews are shown in an isolated frame, so they look exactly like the printed page and the app's own table styles cannot leak in.
+function showPrev(el,inner,land,h){
+ el.hidden=false;el.innerHTML='<iframe class="hr-frame" title="Preview"'+(h?' style="height:'+h+'"':'')+'></iframe>';
+ el.firstChild.srcdoc=docHtml(inner,land,'Preview','sheet');
+}
+function printHtml(inner,land,title){
+ const f=document.createElement('iframe');f.setAttribute('aria-hidden','true');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+ document.body.appendChild(f);
+ const w=f.contentWindow,d=w.document;d.open();d.write(docHtml(inner,land,title));d.close();
+ const done=()=>setTimeout(()=>f.remove(),500);
+ w.addEventListener('afterprint',done);
+ setTimeout(()=>{try{w.focus();w.print()}catch(e){toast('Printing is blocked in this window. Open the file in your browser and try again.');done()}},350);
+ setTimeout(()=>{if(f.isConnected)f.remove()},180000);
+}
+
+// ---------- printable HTML builders ----------
+function slipHtml(r,per){
+ const c=calc(r),S=sym();
+ const L=(l,v,sub)=>'<tr><td>'+l+(sub?'<br><small>'+sub+'</small>':'')+'</td><td class="r">'+m2(v)+'</td></tr>';
+ return '<div class="hrp-slip"><div class="hrp-biz">'+esc(r.business)+'</div><div class="hrp-ttl">PAYSLIP</div><div class="hrp-per">'+esc(per)+'</div>'
+ +'<table class="hrp-info"><tr><td>Employee</td><td><b>'+esc(r.name)+'</b></td></tr><tr><td>Position</td><td>'+(esc(r.position)||'&ndash;')+'</td></tr><tr><td>Status</td><td>'+esc(r.status)+'</td></tr><tr><td>Daily rate</td><td>'+S+' '+n2(c.rate)+(c.al?' + '+n2(c.al)+' allowance':'')+'</td></tr></table>'
+ +'<div class="hrp-two"><div class="hrp-box"><h4>EARNINGS</h4><table>'
+ +L('Basic pay',c.basic,fD(c.d)+' day(s) × '+n2(c.rate))+L('Meal allowance',c.allow,c.al?fD(c.d)+' day(s) × '+n2(c.al):'')+L('Holiday pay',c.hol)+L('Overtime pay',c.ot)
+ +'<tr class="tot"><td>Gross pay</td><td class="r">'+n2(c.gross)+'</td></tr></table></div>'
+ +'<div class="hrp-box"><h4>DEDUCTIONS</h4><table>'
+ +L('Tax',c.tax)+L('SSS',c.sss)+L('PhilHealth',c.ph)+L('Pag-IBIG',c.pg)+L('Cash advance',c.ca)+L('Credit',c.cr)+L('Credit balance',c.cb)
+ +'<tr class="tot"><td>Total deductions</td><td class="r">'+n2(c.ded)+'</td></tr></table></div></div>'
+ +'<div class="hrp-net"><span>NET PAY</span><b>'+S+' '+n2(c.net)+'</b></div>'
+ +'<div class="hrp-sig"><span>Employee signature</span><span>Date received</span></div></div>';
+}
+function slipsHtml(rows,per){
+ let out='';
+ for(let i=0;i<rows.length;i+=4)out+='<div class="hrp-sheet">'+rows.slice(i,i+4).map(r=>slipHtml(r,per)).join('')+'</div>';
+ return out;
+}
+const RG_W=[2.2,14.4,4,3,5.4,4.6,4.6,4.6,6.2,4.2,4.2,5.4,4.4,4.4,4.2,4.4,5.4,6.4,9.9];
+function regHtml(rows,o){
+ o=o||{};
+ const zero=()=>({d:0,basic:0,allow:0,hol:0,ot:0,gross:0,tax:0,sss:0,ph:0,pg:0,ca:0,cr:0,cb:0,ded:0,net:0});
+ const add=(T,c)=>{Object.keys(T).forEach(k=>T[k]+=c[k])};
+ const cells=c=>[fD(c.d),m2(c.basic),m2(c.allow),m2(c.hol),m2(c.ot),m2(c.gross),m2(c.tax),m2(c.sss),m2(c.ph),m2(c.pg),m2(c.ca),m2(c.cr),m2(c.cb),m2(c.ded),n2(c.net)].map(v=>'<td class="r">'+v+'</td>').join('');
+ const g=new Map();rows.forEach(r=>{if(!g.has(r.business))g.set(r.business,[]);g.get(r.business).push(r)});
+ const multi=g.size>1;let body='',G=zero();
+ [...g.keys()].sort(nameCmp).forEach(b=>{
+  const list=g.get(b).sort(rowCmp),T=zero();
+  if(multi)body+='<tr class="g"><td colspan="19">'+esc(b)+'</td></tr>';
+  list.forEach((r,i)=>{const c=calc(r);add(T,c);body+='<tr><td class="c">'+(i+1)+'</td><td>'+esc(r.name)+'</td><td class="r">'+n2(c.rate)+'</td>'+cells(c)+'<td class="sg"></td></tr>'});
+  if(multi)body+='<tr class="st"><td colspan="3">Subtotal – '+esc(b)+'</td>'+cells(T)+'<td></td></tr>';
+  add(G,T);
+ });
+ body+='<tr class="gt"><td colspan="3">TOTAL ('+rows.length+' employee'+(rows.length===1?'':'s')+')</td>'+cells(G)+'<td></td></tr>';
+ const sum=RG_W.reduce((a,b)=>a+b,0);
+ const head=['No.','Employee','Daily rate','Days','Basic pay','Meal allow.','Holiday pay','Overtime pay','Gross pay','Tax','SSS','PhilHealth','Pag-IBIG','Cash advance','Credit','Credit balance','Total deductions','Net pay','Signature'];
+ const hd=o.noHead?'':'<div class="hrp-rh"><div class="co">'+esc(o.company||'')+'</div><div class="tt">PAYROLL</div><div class="sb">'+esc(o.sub||'')+'</div></div>';
+ const sg=o.noSig?'':'<div class="hrp-sigs"><span>Prepared by</span><span>Checked by</span><span>Approved by</span></div>';
+ return hd+'<table class="hrp-rg"><colgroup>'+RG_W.map(w=>'<col style="width:'+(w/sum*100).toFixed(2)+'%">').join('')+'</colgroup><thead><tr>'+head.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+body+'</tbody></table>'+sg;
+}
+
+// ---------- sidebar, pages ----------
+document.body.querySelector(':scope>svg').insertAdjacentHTML('beforeend','<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1.5A4.5 4.5 0 0 1 7.5 14h3A4.5 4.5 0 0 1 15 18.5V20"/><path d="M16 4.8a3.2 3.2 0 0 1 0 6.4M18 14.3a4.5 4.5 0 0 1 3 4.2V20"/></symbol>');
+document.head.insertAdjacentHTML('beforeend','<style>'+HR_UI_CSS+'</style>');
+
+const par=document.createElement('li');par.id='nav-hr-parent';par.title='Human Resources';par.tabIndex=0;par.setAttribute('role','button');
+par.innerHTML='<span class="nav-icon"><svg class="i"><use href="#i-users"/></svg></span><span class="nav-text">HR</span><span class="chevron-icon" id="hrChevron" style="font-size:0.75rem;"><svg class="i"><use href="#i-chev"/></svg></span>';
+const sub=document.createElement('ul');sub.className='sub-menu';sub.id='hrSubMenu';sub.style.display='none';
+const NAVS=[['emp','Employee Management'],null,['run','Generate Payroll Run'],['slips','Generate Payslips'],['print','Generate Printable Payroll'],['hist','Payroll History']];
+NAVS.forEach(n=>{
+ const li=document.createElement('li');
+ if(!n){li.className='hr-sublabel';li.textContent='Payroll';}
+ else{li.id='nav-sub-hr-'+n[0];li.textContent=n[1];li.tabIndex=0;li.setAttribute('role','button');if(n[0]!=='emp')li.classList.add('hr-ind');
+  li.onclick=()=>showTab('hr-'+n[0]);li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();li.click()}};}
+ sub.appendChild(li);
+});
+function toggleHr(force){
+ if(document.body.classList.contains('collapsed')&&window.innerWidth>768)document.body.classList.remove('collapsed');
+ const open=typeof force==='boolean'?force:sub.style.display==='none';
+ sub.style.display=open?'block':'none';$('hrChevron').classList.toggle('open',open);
+}
+par.onclick=()=>toggleHr();par.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();par.click()}};
+$('reportsSubMenu').insertAdjacentElement('afterend',par);par.insertAdjacentElement('afterend',sub);
+
+const FBAR=(p,btn)=>'<div class="hr-bar"><div class="form-group"><label for="'+p+'Biz">Business</label><select id="'+p+'Biz"></select></div>'
+ +'<div class="form-group"><label for="'+p+'Stat">Employment Status</label><select id="'+p+'Stat"></select></div>'
+ +'<div class="form-group"><label for="'+p+'Mon">Month</label><select id="'+p+'Mon">'+MONTHS.map((m,i)=>'<option value="'+(i+1)+'">'+m+'</option>').join('')+'</select></div>'
+ +'<div class="form-group" style="min-width:90px"><label for="'+p+'Yr">Year</label><input type="number" id="'+p+'Yr" min="2000" max="2100" style="width:100px"></div>'
+ +'<div class="form-group" style="min-width:90px"><label for="'+p+'Q">Quincena</label><select id="'+p+'Q"><option value="1">1ST</option><option value="2">2ND</option></select></div>'+btn+'</div>';
+const TH_RUN='<tr><th>Employee</th><th>Business</th><th class="number">Daily Rate</th><th class="number" title="Daily meal allowance">Allowance</th><th>Days Worked</th><th>Holiday Pay</th><th>Overtime Pay</th><th>Tax</th><th>SSS</th><th>PhilHealth</th><th>Pag-IBIG</th><th>Cash Advance</th><th>Credit</th><th>Credit Balance</th><th class="number">Gross</th><th class="number">Net</th></tr>';
+document.querySelector('main.main-content').insertAdjacentHTML('beforeend',
+ '<div id="tab-hr-emp" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Employee Management</h2><div class="hr-acts"><button class="btn btn-outline" data-act="imp">Import CSV</button><button class="btn" data-act="add">+ Add Employee</button></div></div>'
+ +'<div class="hr-bar"><div class="form-group grow"><label for="hrEQ">Search</label><input type="search" id="hrEQ" placeholder="Name, business or position"></div><div class="form-group"><label for="hrEBiz">Business</label><select id="hrEBiz"></select></div><div class="form-group"><label for="hrEStat">Employment Status</label><select id="hrEStat"></select></div><div class="form-group"><label for="hrEShow">Show</label><select id="hrEShow"><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All</option></select></div></div>'
+ +'<p class="hr-note" id="hrECount"></p><div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Last Name</th><th>First Name</th><th>Middle Initial</th><th>Business</th><th>Position</th><th>Employment Status</th><th>Date Hired</th><th>Pay Frequency</th><th class="number">Daily Rate</th><th class="number">Daily Meal Allowance</th><th></th></tr></thead><tbody id="hrEBody"></tbody></table></div></div></div>'
+ +'<div id="tab-hr-run" class="tab-section"><div class="card"><h2 style="margin-top:0">Generate Payroll Run</h2>'+FBAR('hrR','<button class="btn btn-outline" id="hrRLoad" type="button">Load Employees</button>')
+ +'<p class="hr-note" id="hrRInfo">Choose the filters, then press Load Employees.</p><div class="hr-scroll" id="hrRWrap" hidden><table class="hr-tbl"><thead>'+TH_RUN+'</thead><tbody id="hrRBody"></tbody><tfoot id="hrRFoot"></tfoot></table></div>'
+ +'<div class="hr-acts" style="margin-top:1rem;justify-content:flex-end"><button class="btn btn-outline" id="hrRReset" type="button">Reset entries</button><button class="btn" id="hrRSave" type="button">Save to Payroll History</button></div>'
+ +'<p class="hr-note">Gross = Days Worked × (Daily Rate + Allowance) + Holiday Pay + Overtime Pay. Net = Gross − Tax, SSS, PhilHealth, Pag-IBIG, Cash Advance, Credit and Credit Balance. Leave a box empty for zero. Press Enter to move down a column.</p></div></div>'
+ +'<div id="tab-hr-slips" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Generate Payslips</h2></div>'+FBAR('hrS','<button class="btn" id="hrSGen" type="button">Generate Payslips</button><button class="btn btn-outline" id="hrSPrint" type="button" disabled>Print</button>')
+ +'<p class="hr-note" id="hrSInfo">Payslips come from saved payroll runs. Four payslips are printed on each A4 page.</p><div class="hr-prev" id="hrSPrev" hidden></div></div></div>'
+ +'<div id="tab-hr-print" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Generate Printable Payroll</h2></div>'+FBAR('hrP','<button class="btn" id="hrPGen" type="button">Generate Payroll</button><button class="btn btn-outline" id="hrPPrint" type="button" disabled>Print</button>')
+ +'<p class="hr-note" id="hrPInfo">A signing sheet for the saved payroll, printed on A4 landscape with a signature column.</p><div class="hr-prev" id="hrPPrev" hidden></div></div></div>'
+ +'<div id="tab-hr-hist" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Payroll History</h2><div class="hr-acts"><button class="btn btn-outline" data-act="csv">Export CSV</button></div></div>'
+ +'<div class="hr-bar"><div class="form-group"><label for="hrHYr">Year</label><select id="hrHYr"></select></div><div class="form-group"><label for="hrHMon">Month</label><select id="hrHMon"></select></div><div class="form-group"><label for="hrHBiz">Business</label><select id="hrHBiz"></select></div></div>'
+ +'<p class="hr-note" id="hrHInfo"></p><div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Period</th><th>Business</th><th>Status</th><th class="number">Employees</th><th class="number">Gross</th><th class="number">Deductions</th><th class="number">Net</th><th>Saved</th><th></th></tr></thead><tbody id="hrHBody"></tbody><tfoot id="hrHFoot"></tfoot></table></div></div></div>');
+
+// ---------- Employee Management ----------
+function renderEmp(){
+ const all=EMP(),q=emp.q.trim().toLowerCase();
+ fillSel($('hrEBiz'),[['ALL','All']].concat(bizList(all).map(b=>[b,b])),emp.biz);emp.biz=$('hrEBiz').value;
+ fillSel($('hrEStat'),[['ALL','All']].concat(statusList().map(s=>[s,s])),emp.stat);emp.stat=$('hrEStat').value;
+ $('hrEShow').value=emp.show;
+ const list=all.filter(e=>(emp.biz==='ALL'||e.business===emp.biz)&&(emp.stat==='ALL'||e.status===emp.stat)&&(emp.show==='all'||(emp.show==='active')===(e.active!==false))&&(!q||(fullName(e)+' '+e.business+' '+e.position).toLowerCase().includes(q))).sort(empCmp);
+ $('hrECount').textContent=list.length+' of '+all.length+' employee'+(all.length===1?'':'s');
+ $('hrEBody').innerHTML=list.length?list.map(e=>'<tr class="'+(e.active===false?'hr-off':'')+'"><td>'+esc(e.last)+(e.active===false?' <span class="badge badge-credit">Inactive</span>':'')+'</td><td>'+esc(e.first)+'</td><td>'+esc(e.mi)+'</td><td>'+esc(e.business)+'</td><td>'+esc(e.position)+'</td><td>'+esc(e.status)+'</td><td>'+esc(fd(e.hired))+'</td><td>'+esc(e.freq)+'</td><td class="number">'+n2(c100(e.rate))+'</td><td class="number">'+(e.allowance?n2(c100(e.allowance)):'')+'</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-act="edit" data-id="'+esc(e.id)+'">Edit</button> <button class="btn btn-danger btn-outline btn-sm" data-act="del" data-id="'+esc(e.id)+'">Delete</button></td></tr>').join('')
+  :'<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">'+(all.length?'No employees match these filters.':'No employees yet. Press "+ Add Employee" or import a CSV.')+'</td></tr>';
+}
+function openEmp(id){
+ const e=id?EMP().find(x=>x.id===id):null,v=e||{last:'',first:'',mi:'',business:emp.biz!=='ALL'?emp.biz:'',position:'',status:'REGULAR',hired:'',freq:'SEMI-MONTHLY',rate:'',allowance:'',active:true};
+ const opt=(arr,cur)=>arr.map(x=>'<option'+(x===cur?' selected':'')+'>'+esc(x)+'</option>').join('');
+ const biz=[...new Set(bizList(EMP()).concat(C().name?[String(C().name).toUpperCase()]:[]))];
+ const m=modal('<h2 style="margin-top:0">'+(e?'Edit Employee':'Add Employee')+'</h2><form id="hrfForm" novalidate><div class="grid-2">'
+  +'<div class="form-group"><label for="hrfLast">Last Name *</label><input id="hrfLast" value="'+esc(v.last)+'" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="hrfFirst">First Name *</label><input id="hrfFirst" value="'+esc(v.first)+'" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="hrfMi">Middle Initial</label><input id="hrfMi" maxlength="3" value="'+esc(v.mi)+'" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="hrfBiz">Business *</label><input id="hrfBiz" list="hrfBizList" value="'+esc(v.business)+'" autocomplete="off"><datalist id="hrfBizList">'+biz.map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist></div>'
+  +'<div class="form-group"><label for="hrfPos">Position</label><input id="hrfPos" value="'+esc(v.position)+'" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="hrfStat">Employment Status</label><select id="hrfStat">'+opt(statusList(),v.status)+'</select></div>'
+  +'<div class="form-group"><label for="hrfHired">Date Hired</label><input type="date" id="hrfHired" value="'+esc(v.hired)+'"></div>'
+  +'<div class="form-group"><label for="hrfFreq">Pay Frequency</label><select id="hrfFreq">'+opt(freqList(),v.freq)+'</select></div>'
+  +'<div class="form-group"><label for="hrfRate">Daily Rate *</label><input type="number" id="hrfRate" min="0" step="0.01" inputmode="decimal" value="'+(v.rate||'')+'"></div>'
+  +'<div class="form-group"><label for="hrfAl">Daily Meal Allowance</label><input type="number" id="hrfAl" min="0" step="0.01" inputmode="decimal" value="'+(v.allowance||'')+'"></div></div>'
+  +'<label class="hr-chk"><input type="checkbox" id="hrfActive"'+(v.active!==false?' checked':'')+'> Active (included when loading a payroll run)</label>'
+  +'<div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">Save Employee</button></div></form>');
+ m.querySelector('[data-x]').onclick=()=>m.remove();
+ m.querySelector('form').onsubmit=ev=>{ev.preventDefault();saveEmp(m,id)};
+ m.querySelector('#hrfLast').focus();
+}
+function saveEmp(m,id){
+ const g=k=>m.querySelector('#hrf'+k).value.trim();
+ const rec={last:g('Last').toUpperCase(),first:g('First').toUpperCase(),mi:miFmt(g('Mi')),business:g('Biz').toUpperCase(),position:g('Pos').toUpperCase(),status:g('Stat')||'REGULAR',hired:g('Hired'),freq:g('Freq')||'SEMI-MONTHLY',rate:Math.round((parseFloat(g('Rate'))||0)*100)/100,allowance:Math.max(0,Math.round((parseFloat(g('Al'))||0)*100)/100),active:m.querySelector('#hrfActive').checked};
+ if(!rec.last||!rec.first)return toast('Enter the last name and first name.');
+ if(!rec.business)return toast('Enter the business this employee belongs to.');
+ if(!(rec.rate>0))return toast('Enter a daily rate greater than zero.');
+ if(EMP().some(x=>x.id!==id&&x.last===rec.last&&x.first===rec.first&&x.business===rec.business))return toast(rec.first+' '+rec.last+' is already listed under this business.');
+ if(id)Object.assign(EMP().find(x=>x.id===id),rec);else EMP().push(Object.assign({id:'emp_'+uid()},rec));
+ save();m.remove();renderEmp();toast('Employee saved.','success');
+}
+function delEmp(id){
+ const e=EMP().find(x=>x.id===id);if(!e)return;
+ if(!confirm('Delete '+fullName(e)+'?\n\nSaved payroll history for this employee is kept. To stop including them in new payroll runs without deleting, edit the employee and untick Active.'))return;
+ H().employees=EMP().filter(x=>x.id!==id);save();renderEmp();toast('Employee deleted.','success');
+}
+// CSV import (headers as in the employee sheet)
+function parseCsv(t){
+ const rows=[];let r=[],f='',q=false;t=String(t).replace(/^﻿/,'');
+ for(let i=0;i<t.length;i++){const c=t[i];
+  if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+  else if(c==='"')q=true;else if(c===','){r.push(f);f=''}
+  else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;r.push(f);f='';if(r.some(x=>x.trim()!==''))rows.push(r);r=[]}
+  else f+=c;}
+ r.push(f);if(r.some(x=>x.trim()!==''))rows.push(r);return rows;
+}
+function parseDate(s){
+ s=String(s||'').trim();if(!s)return '';
+ if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+ const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+ if(m&&+m[1]>=1&&+m[1]<=12&&+m[2]>=1&&+m[2]<=31)return m[3]+'-'+String(m[1]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0');
+ const d=new Date(s);return isNaN(d)?'':localDateStr(d);
+}
+function openImp(){
+ imp=null;
+ const m=modal('<h2 style="margin-top:0">Import Employees from CSV</h2><p class="hr-note">Use File &gt; Download &gt; CSV in your employee sheet. Headers it understands: Last Name, First Name, Middle Initial, Business, Position, Employment Status, Date Hired, Pay Frequency, Daily Rate, Daily Meal Allowances. Last name, first name, business and daily rate are required. Employees already listed (same name and business) are skipped.</p><div class="form-group"><label for="hrIF">CSV file</label><input type="file" id="hrIF" accept=".csv,text/csv"></div><div id="hrIOut"></div><div style="text-align:right;margin-top:1rem"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="hrIGo" disabled>Import</button></div>',760);
+ m.querySelector('[data-x]').onclick=()=>m.remove();
+ m.querySelector('#hrIF').onchange=ev=>{
+  const f=ev.target.files[0];if(!f)return;
+  const rd=new FileReader();rd.onload=()=>{
+   const rows=parseCsv(rd.result),out=m.querySelector('#hrIOut'),go=m.querySelector('#hrIGo');imp=null;go.disabled=true;
+   if(rows.length<2){out.innerHTML='<p style="color:var(--ember)">The file has no data rows.</p>';return}
+   const key=s=>String(s).toLowerCase().replace(/[^a-z0-9]/g,''),hd=rows[0].map(key),ix=k=>hd.indexOf(k);
+   const col={last:ix('lastname'),first:ix('firstname'),mi:ix('middleinitial'),biz:ix('business'),pos:ix('position'),stat:ix('employmentstatus'),hired:ix('datehired'),freq:ix('payfrequency'),rate:ix('dailyrate'),al:Math.max(ix('dailymealallowances'),ix('dailymealallowance'))};
+   const miss=['last','first','biz','rate'].filter(k=>col[k]<0);
+   if(miss.length){out.innerHTML='<p style="color:var(--ember)">Missing column(s): '+miss.map(k=>({last:'Last Name',first:'First Name',biz:'Business',rate:'Daily Rate'})[k]).join(', ')+'.</p>';return}
+   const val=(r,k)=>col[k]>=0?String(r[col[k]]==null?'':r[col[k]]).trim():'',num=s=>parseFloat(String(s).replace(/[^0-9.\-]/g,''))||0;
+   const have=new Set(EMP().map(e=>e.last+'|'+e.first+'|'+e.business)),ok=[],bad=[];
+   rows.slice(1).forEach((r,i)=>{
+    const e={id:'emp_'+uid()+i,last:val(r,'last').toUpperCase(),first:val(r,'first').toUpperCase(),mi:miFmt(val(r,'mi')),business:val(r,'biz').toUpperCase(),position:val(r,'pos').toUpperCase(),status:(val(r,'stat')||'REGULAR').toUpperCase(),hired:parseDate(val(r,'hired')),freq:(val(r,'freq')||'SEMI-MONTHLY').toUpperCase(),rate:Math.round(num(val(r,'rate'))*100)/100,allowance:Math.max(0,Math.round(num(val(r,'al'))*100)/100),active:true};
+    const why=!e.last||!e.first?'missing name':!e.business?'missing business':!(e.rate>0)?'missing or zero daily rate':have.has(e.last+'|'+e.first+'|'+e.business)?'already listed':'';
+    if(why)bad.push('Row '+(i+2)+': '+(e.last||'?')+' ('+why+')');else{have.add(e.last+'|'+e.first+'|'+e.business);ok.push(e)}
+   });
+   imp=ok;go.disabled=!ok.length;
+   out.innerHTML='<p><b>'+ok.length+'</b> ready to import'+(bad.length?', <b>'+bad.length+'</b> skipped':'')+'.</p>'+(bad.length?'<ul class="hr-note">'+bad.slice(0,8).map(x=>'<li>'+esc(x)+'</li>').join('')+(bad.length>8?'<li>and '+(bad.length-8)+' more</li>':'')+'</ul>':'');
+  };rd.readAsText(f);
+ };
+ m.querySelector('#hrIGo').onclick=()=>{if(!imp||!imp.length)return;const n=imp.length;EMP().push(...imp);imp=null;save();m.remove();renderEmp();toast('Imported; '+n+' employee'+(n===1?'':'s')+' added.','success')};
+}
+
+// ---------- filter bars ----------
+const readF=p=>({biz:$(p+'Biz').value,stat:$(p+'Stat').value,month:+$(p+'Mon').value,year:parseInt($(p+'Yr').value,10),q:+$(p+'Q').value});
+const validF=f=>{if(!(Number.isInteger(f.year)&&f.year>=2000&&f.year<=2100)){toast('Enter a valid year.');return false}return true};
+function fillFilters(p){
+ fillSel($(p+'Biz'),[['ALL','All']].concat(allBiz().map(b=>[b,b])));
+ fillSel($(p+'Stat'),[['ALL','All']].concat(statusList().map(s=>[s,s])));
+}
+function setF(p,d){
+ if(d.biz!==undefined)$(p+'Biz').value=d.biz;
+ if(d.stat!==undefined)$(p+'Stat').value=d.stat;
+ $(p+'Mon').value=d.month;$(p+'Yr').value=d.year;$(p+'Q').value=d.q;
+}
+const fText=f=>periodLabel(f.year,f.month,f.q)+' • '+(f.biz==='ALL'?'All businesses':f.biz)+(f.stat==='ALL'?'':' • '+f.stat);
+
+// ---------- Generate Payroll Run ----------
+const INK=[['days','Days Worked','0.5'],['holiday','Holiday Pay','0.01'],['ot','Overtime Pay','0.01'],['tax','Tax','0.01'],['sss','SSS','0.01'],['philhealth','PhilHealth','0.01'],['pagibig','Pag-IBIG','0.01'],['cashAdvance','Cash Advance','0.01'],['credit','Credit','0.01'],['creditBalance','Credit Balance','0.01']];
+function loadRun(){
+ const f=readF('hrR');if(!validF(f))return;
+ const saved=new Map();
+ RUNS().forEach(run=>{if(run.year===f.year&&run.month===f.month&&run.quincena===f.q)run.rows.forEach(r=>saved.set(r.empId,r))});
+ const list=EMP().filter(e=>e.active!==false&&(f.biz==='ALL'||e.business===f.biz)&&(f.stat==='ALL'||e.status===f.stat)).sort(empCmp);
+ draft=list.map(e=>{
+  const s=saved.get(e.id),b={empId:e.id,name:fullName(e),business:e.business,position:e.position,status:e.status,saved:!!s};
+  INK.forEach(k=>b[k[0]]=s?(+s[k[0]]||0):0);
+  b.rate=s?+s.rate||0:e.rate;b.allowance=s?+s.allowance||0:e.allowance;return b;
+ });
+ runF=f;renderRun();
+}
+function renderRun(){
+ const has=draft.length>0;
+ $('hrRWrap').hidden=!has;$('hrRSave').disabled=!has;$('hrRReset').disabled=!has;
+ if(!runF){$('hrRInfo').textContent='Choose the filters, then press Load Employees.';return}
+ if(!has){$('hrRInfo').textContent='No active employees match '+fText(runF)+'. Add employees under Employee Management first.';return}
+ const sv=draft.filter(r=>r.saved).length;
+ $('hrRInfo').textContent=draft.length+' employee'+(draft.length===1?'':'s')+' loaded for '+fText(runF)+(sv?'. '+sv+' already saved for this period; their saved figures are shown and will be replaced when you save.':'.');
+ $('hrRBody').innerHTML=draft.map((r,i)=>{
+  const c=calc(r);
+  return '<tr><td>'+esc(r.name)+(r.saved?' <span class="badge badge-vat" title="Already saved for this period">saved</span>':'')+'</td><td class="hr-bz">'+esc(r.business)+'</td><td class="number">'+n2(c.rate)+'</td><td class="number">'+n2(c.al)+'</td>'
+  +INK.map(k=>'<td><input class="hr-in" type="number" inputmode="decimal" min="0"'+(k[0]==='days'?' max="16"':'')+' step="'+k[2]+'" data-i="'+i+'" data-k="'+k[0]+'" placeholder="0" value="'+(r[k[0]]||'')+'" aria-label="'+esc(k[1]+' for '+r.name)+'"></td>').join('')
+  +'<td class="number g">'+n2(c.gross)+'</td><td class="number nt'+(c.net<0?' neg':'')+'">'+n2(c.net)+'</td></tr>';
+ }).join('');
+ refreshFoot();
+}
+function refreshRow(i){
+ const tr=$('hrRBody').rows[i];if(!tr)return;const c=calc(draft[i]);
+ tr.querySelector('.g').textContent=n2(c.gross);const nt=tr.querySelector('.nt');nt.textContent=n2(c.net);nt.classList.toggle('neg',c.net<0);
+}
+function refreshFoot(){
+ const T={};INK.forEach(k=>T[k[0]]=0);let gross=0,net=0;
+ draft.forEach(r=>{INK.forEach(k=>T[k[0]]+=k[0]==='days'?(Math.max(0,parseFloat(r.days)||0)*100):c100(r[k[0]]));const c=calc(r);gross+=c.gross;net+=c.net});
+ $('hrRFoot').innerHTML='<tr><td colspan="4">TOTAL</td>'+INK.map(k=>'<td class="number">'+(k[0]==='days'?(Math.round(T.days)/100):n2(T[k[0]]))+'</td>').join('')+'<td class="number">'+n2(gross)+'</td><td class="number'+(net<0?' neg':'')+'">'+n2(net)+'</td></tr>';
+}
+function saveRun(){
+ if(!draft.length||!runF)return;
+ const cur=readF('hrR');
+ if(cur.month!==runF.month||cur.year!==runF.year||cur.q!==runF.q)return toast('The period was changed after loading. Press Load Employees again, or set it back to '+periodLabel(runF.year,runF.month,runF.q)+', before saving.');
+ const rows=draft.filter(r=>NUMK_IN.some(k=>(+r[k]||0)>0));
+ if(!rows.length)return toast('Enter days worked or pay for at least one employee before saving.');
+ const over=rows.filter(r=>(+r.days||0)>16);
+ if(over.length)return toast('Days worked cannot be more than 16 in one quincena ('+over[0].name+').');
+ const neg=rows.filter(r=>calc(r).net<0);
+ if(neg.length&&!confirm(neg.length+' employee'+(neg.length===1?' has':'s have')+' deductions greater than gross pay (negative net pay), for example '+neg[0].name+'.\n\nSave anyway?'))return;
+ const ids=new Set(draft.map(r=>r.empId));let hits=0;
+ RUNS().forEach(run=>{if(run.year===runF.year&&run.month===runF.month&&run.quincena===runF.q)hits+=run.rows.filter(r=>ids.has(r.empId)).length});
+ if(hits&&!confirm('Payroll for '+hits+' of these employees is already saved for '+periodLabel(runF.year,runF.month,runF.q)+'.\n\nReplace the saved figures with these?'))return;
+ RUNS().forEach(run=>{if(run.year===runF.year&&run.month===runF.month&&run.quincena===runF.q)run.rows=run.rows.filter(r=>!ids.has(r.empId))});
+ H().runs=RUNS().filter(run=>run.rows.length);
+ const r2=n=>Math.round(n)/100;
+ RUNS().push({id:'run_'+uid(),savedAt:new Date().toISOString(),business:runF.biz,status:runF.stat,month:runF.month,year:runF.year,quincena:runF.q,
+  rows:rows.map(r=>{const c=calc(r),o={empId:r.empId,name:r.name,business:r.business,position:r.position,status:r.status,rate:+r.rate||0,allowance:+r.allowance||0};
+   INK.forEach(k=>o[k[0]]=Math.round((+r[k[0]]||0)*100)/100);o.gross=r2(c.gross);o.deductions=r2(c.ded);o.net=r2(c.net);return o})});
+ save();
+ const p={month:runF.month,year:runF.year,q:runF.q};preset.slips=Object.assign({},p);preset.print=Object.assign({},p);
+ const skipped=draft.length-rows.length;
+ loadRun();
+ toast('Payroll saved to history for '+rows.length+' employee'+(rows.length===1?'':'s')+(skipped?' ('+skipped+' with no entries skipped)':'')+'.','success');
+}
+const NUMK_IN=INK.map(k=>k[0]);
+
+// ---------- Payslips / Printable payroll ----------
+function gather(f){
+ const out=[];
+ RUNS().forEach(run=>{if(run.year!==f.year||run.month!==f.month||run.quincena!==f.q)return;run.rows.forEach(r=>{if((f.biz==='ALL'||r.business===f.biz)&&(f.stat==='ALL'||r.status===f.stat))out.push(r)})});
+ return out.sort(rowCmp);
+}
+function genSlips(){
+ const f=readF('hrS');if(!validF(f))return;
+ const rows=gather(f),pv=$('hrSPrev'),info=$('hrSInfo');
+ last.slips=null;$('hrSPrint').disabled=true;
+ if(!rows.length){pv.hidden=true;info.textContent='No saved payroll found for '+fText(f)+'. Save a payroll run first (Generate Payroll Run).';return}
+ const per=periodLabel(f.year,f.month,f.q);
+ last.slips={html:slipsHtml(rows,per),title:'Payslips - '+per};
+ showPrev(pv,last.slips.html,false);$('hrSPrint').disabled=false;
+ const pages=Math.ceil(rows.length/4);
+ info.textContent=rows.length+' payslip'+(rows.length===1?'':'s')+' on '+pages+' page'+(pages===1?'':'s')+' (4 per A4 page) for '+fText(f)+'.';
+}
+function genPrint(){
+ const f=readF('hrP');if(!validF(f))return;
+ const rows=gather(f),pv=$('hrPPrev'),info=$('hrPInfo');
+ last.print=null;$('hrPPrint').disabled=true;
+ if(!rows.length){pv.hidden=true;info.textContent='No saved payroll found for '+fText(f)+'. Save a payroll run first (Generate Payroll Run).';return}
+ const per=periodLabel(f.year,f.month,f.q),sub=(f.biz==='ALL'?'All businesses':f.biz)+(f.stat==='ALL'?'':' • '+f.stat)+' • '+per;
+ const inner=regHtml(rows,{company:C().name,sub});
+ last.print={html:inner,title:'Payroll - '+per};
+ showPrev(pv,inner,true);$('hrPPrint').disabled=false;
+ info.textContent=rows.length+' employee'+(rows.length===1?'':'s')+' for '+fText(f)+'. Prints on A4 landscape.';
+}
+
+// ---------- Payroll History ----------
+const rTot=run=>{const T={g:0,d:0,n:0};run.rows.forEach(r=>{const c=calc(r);T.g+=c.gross;T.d+=c.ded;T.n+=c.net});return T};
+function renderHist(){
+ const runs=RUNS(),years=[...new Set(runs.map(r=>r.year))].sort((a,b)=>b-a);
+ fillSel($('hrHYr'),[['ALL','All']].concat(years.map(y=>[String(y),String(y)])));
+ fillSel($('hrHMon'),[['ALL','All']].concat(MONTHS.map((m,i)=>[String(i+1),m])));
+ fillSel($('hrHBiz'),[['ALL','All']].concat(allBiz().map(b=>[b,b])));
+ const y=$('hrHYr').value,mo=$('hrHMon').value,b=$('hrHBiz').value;
+ const list=runs.filter(r=>(y==='ALL'||r.year===+y)&&(mo==='ALL'||r.month===+mo)&&(b==='ALL'||r.business===b||r.rows.some(x=>x.business===b)))
+  .sort((p,q)=>(q.year*1000+q.month*10+q.quincena)-(p.year*1000+p.month*10+p.quincena)||String(q.savedAt).localeCompare(String(p.savedAt)));
+ $('hrHInfo').textContent=list.length?list.length+' saved run'+(list.length===1?'':'s')+'. Each run keeps the full breakdown of every employee.':(runs.length?'No saved payroll matches these filters.':'No payroll saved yet. Use Generate Payroll Run and press Save to Payroll History.');
+ let G=0,D=0,N=0;
+ $('hrHBody').innerHTML=list.map(run=>{
+  const t=rTot(run);G+=t.g;D+=t.d;N+=t.n;
+  const when=run.savedAt?new Date(run.savedAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
+  return '<tr><td>'+esc(periodLabel(run.year,run.month,run.quincena))+'</td><td>'+esc(run.business==='ALL'?'All businesses':run.business)+'</td><td>'+esc(run.status==='ALL'?'All':run.status)+'</td><td class="number">'+run.rows.length+'</td><td class="number">'+n2(t.g)+'</td><td class="number">'+n2(t.d)+'</td><td class="number">'+n2(t.n)+'</td><td>'+esc(when)+'</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-act="view" data-id="'+esc(run.id)+'">View</button> <button class="btn btn-outline btn-sm" data-act="slips" data-id="'+esc(run.id)+'">Payslips</button> <button class="btn btn-outline btn-sm" data-act="pay" data-id="'+esc(run.id)+'">Payroll</button> <button class="btn btn-danger btn-outline btn-sm" data-act="delrun" data-id="'+esc(run.id)+'">Delete</button></td></tr>';
+ }).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">Nothing to show.</td></tr>';
+ $('hrHFoot').innerHTML=list.length?'<tr><td colspan="4">TOTAL</td><td class="number">'+n2(G)+'</td><td class="number">'+n2(D)+'</td><td class="number">'+n2(N)+'</td><td colspan="2"></td></tr>':'';
+}
+function jump(run,to){
+ const d={biz:run.business,stat:run.status,month:run.month,year:run.year,q:run.quincena};
+ preset[to]=Object.assign(d,to==='slips'||to==='print'?{gen:true}:{autoload:true});
+ showTab('hr-'+to);
+}
+function viewRun(id){
+ const run=RUNS().find(r=>r.id===id);if(!run)return;
+ const per=periodLabel(run.year,run.month,run.quincena),t=rTot(run);
+ const m=modal('<div class="hr-head"><h2 style="margin:0">'+esc(per)+'</h2><div class="hr-acts"><button class="btn btn-outline btn-sm" data-go="run">Edit in Payroll Run</button><button class="btn btn-outline btn-sm" data-go="slips">Payslips</button><button class="btn btn-outline btn-sm" data-go="print">Payroll sheet</button><button class="btn btn-sm" data-x>Close</button></div></div>'
+  +'<p class="hr-note">'+esc(run.business==='ALL'?'All businesses':run.business)+' • '+run.rows.length+' employees • Gross '+esc(sym())+' '+n2(t.g)+' • Net '+esc(sym())+' '+n2(t.n)+'</p>'
+  +'<iframe class="hr-frame" id="hrVF" title="Payroll detail" style="height:58vh"></iframe>',1240);
+ m.querySelector('#hrVF').srcdoc=docHtml(regHtml(run.rows.slice(),{noHead:true,noSig:true}),true,'Payroll','plain');
+ m.querySelector('[data-x]').onclick=()=>m.remove();
+ m.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{m.remove();jump(run,b.dataset.go)});
+}
+function delRun(id){
+ const run=RUNS().find(r=>r.id===id);if(!run)return;
+ if(!confirm('Delete the saved payroll for '+periodLabel(run.year,run.month,run.quincena)+' ('+(run.business==='ALL'?'All businesses':run.business)+', '+run.rows.length+' employees)?\n\nThis cannot be undone.'))return;
+ H().runs=RUNS().filter(r=>r.id!==id);save();renderHist();toast('Saved payroll deleted.','success');
+}
+function exportCsv(){
+ const y=$('hrHYr').value,mo=$('hrHMon').value,b=$('hrHBiz').value,out=[];
+ const head=['Year','Month','Quincena','Period','Run business filter','Employee','Business','Position','Employment status','Daily rate','Daily allowance','Days worked','Basic pay','Meal allowance','Holiday pay','Overtime pay','Gross pay','Tax','SSS','PhilHealth','Pag-IBIG','Cash advance','Credit','Credit balance','Total deductions','Net pay','Saved'];
+ RUNS().filter(r=>(y==='ALL'||r.year===+y)&&(mo==='ALL'||r.month===+mo)).forEach(run=>run.rows.forEach(r=>{
+  if(b!=='ALL'&&r.business!==b)return;const c=calc(r),f=x=>(x/100).toFixed(2);
+  out.push([run.year,mName(run.month),run.quincena===1?'1ST':'2ND',periodLabel(run.year,run.month,run.quincena),run.business,r.name,r.business,r.position,r.status,f(c.rate),f(c.al),c.d,f(c.basic),f(c.allow),f(c.hol),f(c.ot),f(c.gross),f(c.tax),f(c.sss),f(c.ph),f(c.pg),f(c.ca),f(c.cr),f(c.cb),f(c.ded),f(c.net),run.savedAt]);
+ }));
+ if(!out.length)return toast('There is no saved payroll to export for these filters.');
+ download('payroll-history-'+localDateStr(new Date())+'.csv',[head].concat(out).map(r=>r.map(csvCell).join(',')).join('\r\n'));
+}
+
+// ---------- page entry ----------
+function enter(p){
+ if(p==='emp')return renderEmp();
+ if(p==='hist')return renderHist();
+ const px={run:'hrR',slips:'hrS',print:'hrP'}[p];
+ fillFilters(px);
+ const pre=preset[p];delete preset[p];
+ const d=pre||(!inited[p]?(p==='run'?defP():(latestPeriod()||defP())):null);
+ inited[p]=true;
+ if(d)setF(px,d);
+ if(p==='run'){if(pre&&pre.autoload)loadRun();else renderRun()}
+ if(p==='slips'&&pre&&pre.gen)genSlips();
+ if(p==='print'&&pre&&pre.gen)genPrint();
+}
+function reset(){
+ draft=[];runF=null;last={slips:null,print:null};preset={};inited={};imp=null;emp={q:'',biz:'ALL',stat:'ALL',show:'active'};
+ $('hrEQ').value='';$('hrRBody').innerHTML='';$('hrRFoot').innerHTML='';
+ ['hrSPrev','hrPPrev'].forEach(i=>{$(i).innerHTML='';$(i).hidden=true});$('hrSPrint').disabled=true;$('hrPPrint').disabled=true;
+ $('hrSInfo').textContent='Payslips come from saved payroll runs. Four payslips are printed on each A4 page.';
+ $('hrPInfo').textContent='A signing sheet for the saved payroll, printed on A4 landscape with a signature column.';
+ renderRun();
+ const a=document.querySelector('.tab-section.active');if(a&&/^tab-hr-/.test(a.id))enter(a.id.slice(7));
+}
+
+// ---------- events ----------
+$('tab-hr-emp').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;if(a==='add')openEmp();else if(a==='edit')openEmp(b.dataset.id);else if(a==='del')delEmp(b.dataset.id);else if(a==='imp')openImp()});
+$('hrEQ').addEventListener('input',e=>{emp.q=e.target.value;renderEmp()});
+[['hrEBiz','biz'],['hrEStat','stat'],['hrEShow','show']].forEach(x=>$(x[0]).addEventListener('change',e=>{emp[x[1]]=e.target.value;renderEmp()}));
+$('hrRLoad').onclick=loadRun;$('hrRSave').onclick=saveRun;
+$('hrRReset').onclick=()=>{if(!draft.length)return;if(draft.some(r=>NUMK_IN.some(k=>(+r[k]||0)>0))&&!confirm('Clear all entries and reload the employees?'))return;const f=runF;if(f){setF('hrR',{biz:f.biz,stat:f.stat,month:f.month,year:f.year,q:f.q})}loadRun()};
+$('hrRBody').addEventListener('input',e=>{
+ const t=e.target;if(!t.classList.contains('hr-in'))return;
+ const i=+t.dataset.i,k=t.dataset.k,v=parseFloat(t.value);
+ draft[i][k]=Number.isFinite(v)&&v>0?v:0;t.classList.toggle('bad',k==='days'&&v>16);refreshRow(i);refreshFoot();
+});
+$('hrRBody').addEventListener('keydown',e=>{
+ if(e.key!=='Enter'||!e.target.classList.contains('hr-in'))return;e.preventDefault();
+ const nx=$('hrRBody').querySelector('input[data-i="'+(+e.target.dataset.i+1)+'"][data-k="'+e.target.dataset.k+'"]');if(nx){nx.focus();nx.select()}
+});
+$('hrSGen').onclick=genSlips;$('hrPGen').onclick=genPrint;
+$('hrSPrint').onclick=()=>{if(last.slips)printHtml(last.slips.html,false,last.slips.title)};
+$('hrPPrint').onclick=()=>{if(last.print)printHtml(last.print.html,true,last.print.title)};
+['hrHYr','hrHMon','hrHBiz'].forEach(i=>$(i).addEventListener('change',renderHist));
+$('tab-hr-hist').addEventListener('click',e=>{
+ const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
+ if(a==='csv')return exportCsv();
+ const run=RUNS().find(r=>r.id===b.dataset.id);if(!run)return;
+ if(a==='view')viewRun(run.id);else if(a==='slips')jump(run,'slips');else if(a==='pay')jump(run,'print');else if(a==='delrun')delRun(run.id);
+});
+
+// ---------- wiring into the app ----------
+const wrap=(n,f)=>{const o=window[n];window[n]=function(){const r=o.apply(this,arguments);f();return r}};
+wrap('showTab',()=>{
+ const a=document.querySelector('.tab-section.active');if(!a||!/^tab-hr-/.test(a.id))return;
+ const p=a.id.slice(7);par.classList.add('active');toggleHr(true);const it=$('nav-sub-hr-'+p);if(it)it.classList.add('active');enter(p);
+});
+wrap('switchCompany',reset);
+
+// keep Human Resources data when a company backup is imported
+const cleanHr=h=>{
+ const D=/^\d{4}-\d{2}-\d{2}$/,S=(v,n)=>String(v==null?'':v).slice(0,n||120),N=v=>{const x=parseFloat(v);return Number.isFinite(x)&&x>0?Math.round(x*100)/100:0},Z=v=>{const x=parseFloat(v);return Number.isFinite(x)?Math.round(x*100)/100:0};
+ const emps=(Array.isArray(h.employees)?h.employees:[]).filter(e=>e&&typeof e==='object').map(e=>({id:safeId(e.id)||'emp_'+uid(),last:S(e.last),first:S(e.first),mi:S(e.mi,4),business:S(e.business),position:S(e.position),status:S(e.status,30)||'REGULAR',hired:D.test(e.hired||'')?e.hired:'',freq:S(e.freq,30)||'SEMI-MONTHLY',rate:N(e.rate),allowance:N(e.allowance),active:e.active!==false}));
+ const runs=(Array.isArray(h.runs)?h.runs:[]).filter(r=>r&&typeof r==='object'&&Array.isArray(r.rows)&&+r.month>=1&&+r.month<=12&&+r.year>=2000&&+r.year<=2100).map(r=>({
+  id:safeId(r.id)||'run_'+uid(),savedAt:S(r.savedAt,40),business:S(r.business)||'ALL',status:S(r.status,30)||'ALL',month:Math.floor(+r.month),year:Math.floor(+r.year),quincena:+r.quincena===2?2:1,
+  rows:r.rows.filter(w=>w&&typeof w==='object').map(w=>{const o={empId:safeId(w.empId),name:S(w.name),business:S(w.business),position:S(w.position),status:S(w.status,30),rate:N(w.rate),allowance:N(w.allowance)};
+   INK.forEach(k=>o[k[0]]=N(w[k[0]]));o.gross=Z(w.gross);o.deductions=Z(w.deductions);o.net=Z(w.net);return o})
+ }));
+ return{employees:emps,runs};
+};
+const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.hr&&typeof d.hr==='object')o.hr=cleanHr(d.hr);return o};
+
+window.HRMOD={calc,periodLabel,regHtml,slipsHtml,docHtml,cleanHr};
+})();
+
+
+// ===== Movable sidebar menu: press and hold an item for 5 seconds, then drag it into place =====
+(function(){
+ const KEY = 'accounting_navorder', HOLD_MS = 5000;
+ const nav = document.querySelector('nav.sidebar-nav'), aside = document.getElementById('mainSidebar');
+ if (!nav || !aside) return;
+ const tops = () => [...nav.children].filter(n => n.tagName === 'LI');
+ const isSub = n => !!n && n.classList && n.classList.contains('sub-menu');
+ const unit = li => isSub(li.nextElementSibling) ? [li, li.nextElementSibling] : [li];   // a menu item plus its sub-menu travel together
+ const unitEnd = li => unit(li).pop();
+ const DEFAULT = tops().map(l => l.id);
+
+ function put(ids) {
+   const have = tops().map(l => l.id);
+   ids.filter(i => have.includes(i)).concat(have.filter(i => !ids.includes(i)))
+     .forEach(id => unit(document.getElementById(id)).forEach(n => nav.appendChild(n)));
+ }
+ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(tops().map(l => l.id))); } catch (e) {} };
+ try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (Array.isArray(saved)) put(saved.map(String)); } catch (e) {}
+
+ document.head.insertAdjacentHTML('beforeend', '<style>'
+  + 'nav.sidebar-nav > li.nav-holding::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--ember);transform-origin:left;animation:navHold ' + (HOLD_MS / 1000) + 's linear forwards}'
+  + '@keyframes navHold{from{transform:scaleX(0)}to{transform:scaleX(1)}}'
+  + '@media(prefers-reduced-motion:reduce){nav.sidebar-nav > li.nav-holding::after{display:none}}'
+  + 'body.nav-arranging nav.sidebar-nav .sub-menu{display:none!important}'
+  + 'body.nav-arranging nav.sidebar-nav > li{cursor:grab;touch-action:none;outline:1px dashed rgba(255,255,255,.35);outline-offset:-1px}'
+  + 'body.nav-arranging nav.sidebar-nav > li.hidden{display:none}'
+  + 'nav.sidebar-nav > li.nav-dragging{cursor:grabbing!important;background:rgba(255,255,255,.2)!important;color:#fff!important;box-shadow:0 6px 16px rgba(0,0,0,.35)}'
+  + '#navArrangeBar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;margin:.6rem .6rem 0;padding:8px 10px;border-radius:10px;background:rgba(229,48,63,.2);color:#fff;font-size:.78rem}'
+  + '</style>');
+
+ const bar = document.createElement('div');
+ bar.id = 'navArrangeBar'; bar.className = 'hidden'; bar.setAttribute('role', 'status');
+ bar.innerHTML = '<span>Drag items to rearrange</span><span><button type="button" class="btn btn-outline btn-sm" id="navResetBtn" style="color:#fff;border-color:rgba(255,255,255,.35)">Reset</button> <button type="button" class="btn btn-sm" id="navDoneBtn">Done</button></span>';
+ aside.insertAdjacentElement('afterbegin', bar);
+
+ let timer = null, hold = null, drag = null, arranging = false, wasCollapsed = false;
+ const cancelHold = () => { clearTimeout(timer); timer = null; if (hold) { hold.li.classList.remove('nav-holding'); hold = null; } };
+ function enter() {
+   if (arranging) return;
+   arranging = true;
+   document.body.classList.add('nav-arranging');
+   wasCollapsed = document.body.classList.contains('collapsed');
+   if (wasCollapsed) document.body.classList.remove('collapsed');
+   bar.classList.remove('hidden');
+ }
+ function exit() {
+   if (!arranging) return;
+   if (drag) endDrag();
+   arranging = false;
+   document.body.classList.remove('nav-arranging');
+   if (wasCollapsed) document.body.classList.add('collapsed');
+   bar.classList.add('hidden');
+   save();
+ }
+ function startDrag(li, pointerId) { drag = { li, id: pointerId }; li.classList.add('nav-dragging'); }
+ function endDrag() { if (!drag) return; drag.li.classList.remove('nav-dragging'); drag = null; save(); }
+
+ // Move a whole menu item (with its sub-menu) before or after another one.
+ function moveBefore(li, over) { const f = document.createDocumentFragment(); unit(li).forEach(n => f.appendChild(n)); nav.insertBefore(f, over); }
+ function moveAfter(li, over) { const f = document.createDocumentFragment(); unit(li).forEach(n => f.appendChild(n)); nav.insertBefore(f, unitEnd(over).nextSibling); }
+
+ nav.addEventListener('pointerdown', e => {
+   if (e.pointerType === 'mouse' && e.button !== 0) return;
+   const li = e.target.closest('li');
+   if (!li || li.parentElement !== nav) return;            // only top-level menu items can be moved
+   if (arranging) { startDrag(li, e.pointerId); e.preventDefault(); return; }
+   cancelHold();
+   hold = { li, id: e.pointerId, x: e.clientX, y: e.clientY };
+   li.classList.add('nav-holding');
+   timer = setTimeout(() => {
+     const h = hold; cancelHold(); if (!h) return;
+     enter(); startDrag(h.li, h.id);                         // keep dragging in the same gesture if the pointer is still down
+   }, HOLD_MS);
+ });
+ document.addEventListener('pointermove', e => {
+   if (hold && e.pointerId === hold.id && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 10) cancelHold();
+   if (!drag || e.pointerId !== drag.id) return;
+   const t = document.elementFromPoint(e.clientX, e.clientY), over = t && t.closest('li');
+   if (!over || over.parentElement !== nav || over === drag.li) return;
+   const r = over.getBoundingClientRect();
+   if (e.clientY < r.top + r.height / 2) moveBefore(drag.li, over); else moveAfter(drag.li, over);
+ });
+ ['pointerup', 'pointercancel'].forEach(type => document.addEventListener(type, e => {
+   if (hold && e.pointerId === hold.id) cancelHold();       // released early: it was an ordinary click
+   if (drag && e.pointerId === drag.id) endDrag();
+ }));
+ // While arranging, clicks must not open pages.
+ nav.addEventListener('click', e => { if (arranging) { e.stopPropagation(); e.preventDefault(); } }, true);
+ nav.addEventListener('contextmenu', e => { if (hold || arranging) e.preventDefault(); });
+ // Keyboard alternative: while arranging, Up / Down moves the focused item.
+ nav.addEventListener('keydown', e => {
+   if (!arranging || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+   const li = e.target.closest('li'); if (!li || li.parentElement !== nav) return;
+   e.preventDefault(); e.stopPropagation();
+   const visible = tops().filter(x => !x.classList.contains('hidden')), i = visible.indexOf(li);
+   if (e.key === 'ArrowUp' && i > 0) moveBefore(li, visible[i - 1]);
+   if (e.key === 'ArrowDown' && i >= 0 && i < visible.length - 1) moveAfter(li, visible[i + 1]);
+   li.focus(); save();
+ }, true);
+ document.addEventListener('keydown', e => { if (e.key === 'Escape' && arranging) exit(); });
+ document.getElementById('navDoneBtn').onclick = exit;
+ const reset = () => { put(DEFAULT); try { localStorage.removeItem(KEY); } catch (e) {} };
+ document.getElementById('navResetBtn').onclick = reset;
+
+ window.NAVARR = {
+   reset,
+   start() { if (window.innerWidth <= 768) document.body.classList.add('sidebar-open'); enter(); }
+ };
+ const grid = document.querySelector('#setTab-theme .grid-2');
+ if (grid) grid.insertAdjacentHTML('beforeend', '<div class="card"><h4>Sidebar Menu</h4><p style="font-size:0.88rem;color:var(--text-muted);margin-top:0;">Press and hold any menu item for 5 seconds, then drag it to a new position. Press Done (or Esc) when finished. The order is remembered on this device.</p><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn btn-outline" onclick="NAVARR.start()">Rearrange now</button><button type="button" class="btn btn-outline" onclick="NAVARR.reset()">Reset menu order</button></div></div>');
 })();
 </script>
 </body>
