@@ -592,7 +592,7 @@
         .ms-panel { border: 1px solid var(--border-color); border-top: 0; border-radius: 0 0 8px 8px; background: var(--bg-card); padding: 0.3rem; }
         .ms-opt { display: flex; gap: 8px; align-items: flex-start; padding: 0.5rem; border-radius: 6px; cursor: pointer; margin: 0; font-weight: normal; }
         .ms-opt:hover { background: rgba(127,127,127,0.12); }
-        .ms-opt small { color: var(--text-muted); }
+        .ms-opt small { color: var(--text-muted); font-weight: normal; }
 
         /* Tables & Mobile Scrolling */
         table {
@@ -1929,14 +1929,14 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
             acct(5040, 'Purchase Price Variance', 'Expense', 'Operating Expense', 'Debit')
         ];
         const REAL_ESTATE_ACCOUNTS = [
-            acct(1040, 'Uncollected Tenant Receivables', 'Asset', 'Current Asset', 'Debit', { roleTag: 'ar' }),
-            acct(2020, 'Tenant Security Deposits', 'Liability', 'Current Liability', 'Credit'),
-            acct(4010, 'Room Rental Revenue', 'Revenue', 'Operating Revenue', 'Credit'),
-            acct(4020, 'Utility Surcharge Income', 'Revenue', 'Operating Revenue', 'Credit')
+            acct(2030, 'Tenant Security Deposits', 'Liability', 'Current Liability', 'Credit'),
+            acct(4050, 'Rental Revenue', 'Revenue', 'Operating Revenue', 'Credit'),
+            acct(4051, 'Rent Refunds & Discounts', 'Revenue', 'Operating Revenue', 'Debit', { isContra: true, contraOf: 4050 }),
+            acct(4060, 'Utility Billing Income', 'Revenue', 'Operating Revenue', 'Credit')
         ];
         const SERVICE_LINES = [
             { id: 'retail', label: 'Retail and Merchandising', note: 'Inventory, purchasing, suppliers, sales with cost of goods sold', accounts: RETAIL_ACCOUNTS },
-            { id: 'realestate', label: 'Real Estate', note: 'Tenants and lease properties (coming soon)', accounts: REAL_ESTATE_ACCOUNTS },
+            { id: 'realestate', label: 'Real Estate', note: 'Properties, rooms, tenants, rent billing and utilities', accounts: REAL_ESTATE_ACCOUNTS },
             { id: 'service', label: 'Service / Professional Practice', note: 'Coming soon', accounts: [] },
             { id: 'other', label: 'Others', note: '', accounts: [] }
         ];
@@ -2453,10 +2453,11 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
 
             if (editingId) {
                 const idx = comp.journalEntries.findIndex(e => e.id === editingId);
-                if (idx !== -1) comp.journalEntries[idx] = entryData;
+                if (idx !== -1) comp.journalEntries[idx] = Object.assign({}, comp.journalEntries[idx], entryData); // keep module links (src, reId...)
             } else {
                 comp.journalEntries.push(entryData);
             }
+            if (typeof window.onJournalChanged === 'function') window.onJournalChanged();
 
             saveToLocalStorage();
             closeJournalModal();
@@ -3493,8 +3494,10 @@ tbody tr:hover{background:rgba(128,150,190,.07)}
         function deleteJournalEntry(id) {
             const comp = activeCompany(); if (!comp) return;
             if (isInit(comp.journalEntries.find(e => e.id === id))) return toast('The opening balance entry is automatic and cannot be deleted.');
-            if (!confirm('Delete this journal entry? This cannot be undone.')) return;
+            const note = typeof window.journalDeleteNote === 'function' ? window.journalDeleteNote(comp.journalEntries.find(e => e.id === id)) : '';
+            if (!confirm('Delete this journal entry? This cannot be undone.' + note)) return;
             comp.journalEntries = comp.journalEntries.filter(e => e.id !== id);
+            if (typeof window.onJournalChanged === 'function') window.onJournalChanged();
             saveToLocalStorage(); calculateDashboardMetrics(); renderDashboardJournalLog(); applyBooksFilter();
             if (document.getElementById('bookTab-files').classList.contains('active')) renderFilesDatabase();
         }
@@ -4105,6 +4108,337 @@ const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d)
 window.INV={supEdit,supSave,supDel,supFind,supFrom,scan:scanLookup,scanInto,scanRows,scanAct,scanNew,scanLink,setBc,go:v=>{view=v;renderInv()},open:openDoc,fill,addRow,submit,addItem,del:delItem,cancel,rep,imp:openImp,impT,impF,impGo,impTpl};
 })();
 
+// ===== Real Estate module (properties & rooms, tenants, rent billing, utilities), built in for the Real Estate service line =====
+(function(){
+const $=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml;
+const on=()=>hasLine(C(),'realestate');
+const td=()=>localDateStr(new Date()),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const R=()=>{const c=C();if(!c.re||typeof c.re!=='object')c.re={};const r=c.re;['properties','rooms','tenants','utilities','payments'].forEach(k=>{if(!Array.isArray(r[k]))r[k]=[]});
+ if(!r.accrual||typeof r.accrual!=='object')r.accrual={};if(!/^\d{4}-\d{2}$/.test(r.accrual.start||''))r.accrual.start=td().slice(0,7);if(r.accrual.enabled===undefined)r.accrual.enabled=true;if(!Array.isArray(r.accrual.done))r.accrual.done=[];if(!r.seq)r.seq={};return r};
+const fm=v=>formatMoney(Number(v)||0,C().currency),r2=n=>Math.round((Number(n)||0)*100)/100;
+const nameCmp=(a,b)=>String(a==null?'':a).localeCompare(String(b==null?'':b),undefined,{numeric:true,sensitivity:'base'});
+const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const plabel=ym=>{const p=ym.split('-').map(Number);return MS[p[1]-1]+' '+p[0]};
+const daysIn=ym=>{const p=ym.split('-').map(Number);return new Date(p[0],p[1],0).getDate()};
+const nextP=ym=>{let p=ym.split('-').map(Number),y=p[0],m=p[1]+1;if(m>12){m=1;y++}return y+'-'+String(m).padStart(2,'0')};
+const periods=(a,b)=>{const o=[];let p=a;while(p<=b&&o.length<600){o.push(p);p=nextP(p)}return o};
+const ord=n=>{const v=n%100;return v>=11&&v<=13?n+'th':n+(['th','st','nd','rd'][n%10]||'th')};
+const fd=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+const isAct=t=>(t.status||'Active')!=='Inactive',act=()=>R().tenants.filter(isAct);
+const prop=id=>R().properties.find(p=>p.id===id),room=id=>R().rooms.find(r=>r.id===id);
+const sProps=()=>[...R().properties].sort((a,b)=>nameCmp(a.name,b.name)),sRooms=a=>[...a].sort((x,y)=>nameCmp(x.name,y.name));
+const nref=p=>{const X=R();X.seq[p]=(X.seq[p]||0)+1;return p+'-'+String(X.seq[p]).padStart(4,'0')};
+let view='prop',fProp='ALL',tStat='Active',tQ='',uProp='ALL',pQ='',rProp='ALL',rYear=new Date().getFullYear(),rRange='FULL',col={},_pi=null,_cc=null;
+const save=()=>{_pi=null;_cc=null;saveToLocalStorage()};
+
+// ---- income / occupancy ----
+const occ=r=>act().filter(t=>t.roomId===r.id);
+function roomInc(r){const o=occ(r),pot=r.category==='private'?(+r.rate||0):(+r.rate||0)*(+r.capacity||0),
+ actual=r.category==='private'?o.reduce((m,t)=>Math.max(m,+t.rate||0),0):o.reduce((s,t)=>s+(+t.rate||0),0);return{pot,actual,gap:pot-actual,occ:o}}
+function propInc(p){const t={pot:0,actual:0,gap:0,beds:0,occ:0,rooms:0};R().rooms.filter(r=>r.propertyId===p.id).forEach(r=>{const i=roomInc(r);t.pot+=i.pot;t.actual+=i.actual;t.beds+=+r.capacity||0;t.occ+=i.occ.length;t.rooms++});t.gap=t.pot-t.actual;return t}
+
+// ---- rent billing units, accrual and receivables ----
+// A billing unit is whoever owes one rent bill: each bedspace tenant, or ONE bill per private room (shared by its occupants).
+const pidx=()=>{const cid=C().id;if(_pi&&_pi.cid===cid)return _pi.map;const m=new Map();R().payments.forEach(p=>{const k=p.tenantId+'|'+p.period;(m.get(k)||m.set(k,[]).get(k)).push(p)});return(_pi={cid,map:m}).map};
+function units(){const U=[],A=act(),X=R();
+ X.rooms.forEach(r=>{const o=A.filter(t=>t.roomId===r.id);if(!o.length)return;
+  if(r.category==='private'){const pr=o.reduce((a,b)=>(+b.rate||0)>(+a.rate||0)?b:a,o[0]),amt=+pr.rate||0;if(!(amt>0))return;
+   U.push({key:'r'+r.id,kind:'room',room:r,primary:pr,occupants:o,payers:X.tenants.filter(t=>t.roomId===r.id),name:o.map(t=>t.name).join(' / '),amount:amt,dueDay:pr.dueDay||1,leaseStart:pr.leaseStart,leaseEnd:pr.leaseEnd})}
+  else o.forEach(t=>{const amt=+t.rate||0;if(amt>0)U.push({key:'t'+t.id,kind:'tenant',room:r,primary:t,occupants:[t],payers:[t],name:t.name,amount:amt,dueDay:t.dueDay||1,leaseStart:t.leaseStart,leaseEnd:t.leaseEnd})})});
+ A.filter(t=>!X.rooms.some(r=>r.id===t.roomId)&&+t.rate>0).forEach(t=>U.push({key:'t'+t.id,kind:'tenant',room:null,primary:t,occupants:[t],payers:[t],name:t.name,amount:+t.rate,dueDay:t.dueDay||1,leaseStart:t.leaseStart,leaseEnd:t.leaseEnd}));
+ return U}
+const uPays=(u,p)=>{const ix=pidx(),seen=new Set(),o=[];u.payers.forEach(t=>(ix.get(t.id+'|'+p)||[]).forEach(x=>{if(!seen.has(x.id)){seen.add(x.id);o.push(x)}}));return o};
+const dueIso=(u,p)=>p+'-'+String(Math.min(u.dueDay,daysIn(p))).padStart(2,'0');
+const billable=(u,p)=>{const i=dueIso(u,p);if(u.leaseStart&&i<u.leaseStart.slice(0,7)+'-01')return false;if(u.leaseEnd&&i>u.leaseEnd)return false;return true};
+function ustat(u,p,today){const i=dueIso(u,p),paid=r2(uPays(u,p).reduce((a,x)=>a+x.amount,0)),out=Math.max(0,r2(u.amount-paid));return{iso:i,paid,out,partial:paid>0.004&&out>0.004,status:out<=0.004?'paid':(i<today?'overdue':'upcoming')}}
+function recv(today){const a=R().accrual,cur=today.slice(0,7),st=a.enabled&&a.start<cur?a.start:cur,rows=[];
+ units().forEach(u=>periods(st,cur).forEach(p=>{if(!billable(u,p))return;const s=ustat(u,p,today);if(s.iso>today||s.out<=0.004)return;
+  rows.push(Object.assign({u,period:p,due:u.amount,daysLate:Math.max(0,Math.round((new Date(today+'T00:00')-new Date(s.iso+'T00:00'))/864e5))},s))}));
+ return rows.sort((a,b)=>a.iso.localeCompare(b.iso))}
+function suggest(u,dateIso,forced){const dp=dateIso.slice(0,7),a=R().accrual;if(forced)return{period:forced,out:ustat(u,forced,dateIso).out};
+ const st=a.enabled&&a.start<dp?a.start:dp;for(const p of periods(st,dp)){if(!billable(u,p))continue;const s=ustat(u,p,dateIso);if(s.out>0.004&&s.iso<=dateIso)return{period:p,out:s.out}}
+ const cs=ustat(u,dp,dateIso);if(cs.out>0.004)return{period:dp,out:cs.out};return{period:nextP(dp),out:u.amount}}
+
+// ---- accounts and journal posting ----
+function acc(){const c=C(),ch=c.chartOfAccounts,free=code=>{while(ch.some(a=>a.code===code))code++;return code},
+ pick=(f,def)=>{let a=ch.find(f);if(!a){a=Object.assign({},def,{code:free(def.code)});ch.push(a);ch.sort((x,y)=>x.code-y.code)}return a},
+ RA=code=>REAL_ESTATE_ACCOUNTS.find(a=>a.code===code);
+ return{ar:pick(a=>a.roleTag==='ar'&&!a.isContra,acct(1040,'Tenant Receivables','Asset','Current Asset','Debit',{roleTag:'ar'})),
+  rent:pick(a=>a.category==='Revenue'&&!a.isContra&&/rent/i.test(a.title),RA(4050)),
+  util:pick(a=>a.category==='Revenue'&&!a.isContra&&/utilit/i.test(a.title),RA(4060)),
+  dep:pick(a=>a.category==='Liability'&&/deposit/i.test(a.title),RA(2030)),
+  cash:ch.filter(a=>a.roleTag==='cash')}}
+const cashAccts=()=>C().chartOfAccounts.filter(a=>a.roleTag==='cash');
+const cashOpts=l=>l.map(a=>'<option value="'+a.code+'">'+esc(a.code+' – '+a.title)+'</option>').join('');
+function je(id,date,ref,desc,lines,kind,extra){C().journalEntries.push(Object.assign({id:'entry_re_'+id,date,ref,desc,lines:lines.map(l=>({accountCode:l[0],debit:r2(l[1]),credit:r2(l[2])})),fileAttachment:null,src:'re',reKind:kind,reId:id},extra||{}))}
+const dropJe=id=>{const c=C();c.journalEntries=c.journalEntries.filter(e=>!(e.src==='re'&&e.reId===id))};
+const jeOf=id=>C().journalEntries.find(e=>e.src==='re'&&e.reId===id);
+// On each due date the unpaid rent becomes a receivable: Dr Tenant Receivables / Cr Rental Revenue.
+// Payments for accrued months later credit Tenant Receivables instead of revenue, so nothing is counted twice.
+function sync(){if(!on())return 0;const X=R(),a=X.accrual;if(!a.enabled)return 0;const today=td(),cur=today.slice(0,7),done=new Set(a.done),before=done.size;let n=0,A=null;
+ units().forEach(u=>periods(a.start,cur).forEach(p=>{const key=u.key+'|'+p;if(done.has(key)||!billable(u,p))return;const iso=dueIso(u,p);if(iso>today)return;
+  done.add(key);const already=uPays(u,p).filter(x=>x.applied!=='ar').reduce((s,x)=>s+x.amount,0),amt=r2(u.amount-already);if(amt<=0.004)return;
+  A=A||acc();const where=u.kind==='room'?'Rm '+u.room.name+' ('+u.name+')':u.name+(u.room?' · Rm '+u.room.name:'');
+  je('acr_'+uid(),iso,nref('ACR'),'Rent accrual '+plabel(p)+' – '+where,[[A.ar.code,amt,0],[A.rent.code,0,amt]],'accrual',{reKey:key});n++}));
+ a.done=[...done];if(n||done.size!==before)save();return n}
+function postPay(o){const X=R(),t=X.tenants.find(x=>x.id===o.tenantId),ca=C().chartOfAccounts.find(a=>a.code===o.cash);
+ if(!t)return toast('Choose a tenant.'),false;if(!ca)return toast('Choose the cash or bank account that receives the money.'),false;if(!(o.amount>0))return toast('Enter an amount above zero.'),false;
+ const A=acc(),isUnit=units().some(u=>u.payers.some(p=>p.id===t.id)),useAr=!!(X.accrual.enabled&&isUnit&&o.period&&o.period>=X.accrual.start),id='pay_'+uid(),ref=nref('RCPT');
+ X.payments.push({id,date:o.date,tenantId:t.id,payer:t.name,period:o.period||o.date.slice(0,7),amount:r2(o.amount),cash:ca.code,mode:ca.title,ref,note:o.note||'',applied:useAr?'ar':'rev'});_pi=null;_cc=null;
+ je(id,o.date,ref,'Rent payment – '+t.name+' (for '+plabel(o.period||o.date.slice(0,7))+')'+(o.note?' · '+o.note:''),[[ca.code,o.amount,0],[(useAr?A.ar:A.rent).code,0,o.amount]],'payment');return true}
+
+// ---- keep Real Estate records in step with edits / deletes made in the Journal ----
+const sumDr=e=>r2(e.lines.reduce((s,l)=>s+(+l.debit||0),0));
+function reconcile(){const c=C();if(!c||!c.re||!on())return;const X=R(),by=new Map();c.journalEntries.forEach(e=>{if(e.src==='re')by.set(e.reId,e)});
+ // older deposit entries were not linked to their tenant; link them by description
+ X.tenants.forEach(t=>{if(t.depositEntryId&&!by.has(t.depositEntryId)){t.depositEntryId='';t.deposit=0}if(!t.depositEntryId&&t.deposit>0){const used=new Set(X.tenants.map(x=>x.depositEntryId));const e=c.journalEntries.find(x=>x.src==='re'&&x.reKind==='deposit'&&!used.has(x.reId)&&x.desc==='Security deposit – '+t.name);if(e)t.depositEntryId=e.reId}});
+ X.payments=X.payments.filter(p=>{const e=by.get(p.id);if(!e)return false;const dr=e.lines.filter(l=>l.debit>0),cr=e.lines.filter(l=>l.credit>0),amt=sumDr(e);if(amt>0)p.amount=amt;p.date=e.date;p.ref=e.ref;
+  const ca=dr[0]&&c.chartOfAccounts.find(a=>a.code===dr[0].accountCode);if(ca){p.cash=ca.code;p.mode=ca.title}const ct=cr[0]&&c.chartOfAccounts.find(a=>a.code===cr[0].accountCode);p.applied=ct&&ct.roleTag==='ar'?'ar':'rev';return true});
+ X.utilities=X.utilities.filter(u=>{const e=by.get(u.id);if(!e)return false;const amt=sumDr(e);u.date=e.date;if(amt>0&&amt!==u.total){u.total=amt;const units=r2(u.pres-u.prev);if(units>0)u.rate=r2(amt/units)}return true});
+ X.tenants.forEach(t=>{if(!t.depositEntryId)return;const e=by.get(t.depositEntryId);if(e){const a=sumDr(e);if(a>0)t.deposit=a}else{t.depositEntryId='';t.deposit=0}});
+ _pi=null;_cc=null;if($('reBody'))render()}
+function delNote(e){if(!e||e.src!=='re')return '';const k=e.reKind;return '\n\nThis entry came from the Real Estate module. '+(k==='payment'?'The matching rent payment record is removed too.':k==='utility'?'The matching utility reading is removed too.':k==='deposit'?'The tenant will show no deposit held.':'The rent for that month stays unaccrued and will not be posted again automatically.')}
+window.onJournalChanged=reconcile;window.journalDeleteNote=delNote;
+
+// ---- UI helpers ----
+const K=(t,v,s,c)=>'<div class="metric-card"><h4>'+t+'</h4><div class="value"'+(c?' style="color:'+c+'"':'')+'>'+v+'</div><div class="sub-text">'+s+'</div></div>';
+const T=(h,r)=>'<div style="overflow-x:auto"><table><thead><tr>'+h.map(x=>x[0]==='#'?'<th class="number">'+x.slice(1)+'</th>':'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(r.length?r.map(a=>'<tr>'+a.map((x,i)=>'<td'+(h[i][0]==='#'?' class="number"':'')+'>'+x+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" style="text-align:center;color:var(--text-muted)">Nothing here yet.</td></tr>')+'</tbody></table></div>';
+const bar=(p)=>'<div style="height:6px;border-radius:4px;background:var(--border-color);overflow:hidden;margin:.5rem 0"><div style="height:100%;width:'+p+'%;background:#16a34a"></div></div>';
+const BTN=(f,l,c)=>'<button type="button" class="btn '+(c||'btn-outline')+' btn-sm" onclick="'+f+'">'+l+'</button>';
+const opts=(arr,sel,fn)=>arr.map(x=>'<option value="'+esc(x.id!=null?x.id:x)+'"'+((x.id!=null?x.id:x)===sel?' selected':'')+'>'+esc(fn?fn(x):x)+'</option>').join('');
+function modal(title,body,w){const m=document.createElement('div');m.className='modal-overlay';m.innerHTML='<div class="modal" style="max-width:'+(w||640)+'px"><h2>'+title+'</h2>'+body+'</div>';document.body.appendChild(m);return m}
+const closeM=el=>{const o=el.closest?el.closest('.modal-overlay'):el;if(o)o.remove()};
+const CANCEL='<button type="button" class="btn btn-outline" onclick="RE.close(this)">Cancel</button>';
+const roomTxt=t=>{const r=room(t.roomId),p=prop(t.propertyId);return (p?' · '+p.name:'')+(r?' · Rm '+r.name:'')};
+const catBadge=r=>'<span class="badge '+(r.category==='private'?'badge-debit':'badge-vat')+'">'+(r.category==='private'?'Private room':'Bedspace')+'</span>';
+const stBadge=s=>s.status==='paid'?'<span class="badge badge-vat">Paid</span>':s.status==='overdue'?'<span class="badge badge-contra">'+(s.partial?'Partial · overdue':'Overdue')+'</span>':'<span class="badge badge-nonvat">'+(s.partial?'Partial':'Upcoming')+'</span>';
+
+// ---- Properties & rooms ----
+function vProp(){const X=R(),ps=sProps().filter(p=>fProp==='ALL'||p.id===fProp),tot=ps.reduce((a,p)=>{const i=propInc(p);a.p+=i.pot;a.a+=i.actual;a.b+=i.beds;a.o+=i.occ;return a},{p:0,a:0,b:0,o:0});
+ let h='<div class="inv-bar" style="align-items:flex-end">'+BTN('RE.propEdit()','+ Property','btn')+BTN('RE.roomEdit()','+ Room','btn')+'<div class="form-group"><label>Property</label><select onchange="RE.set(\'fProp\',this.value)"><option value="ALL">All properties</option>'+opts(sProps(),fProp,p=>p.name)+'</select></div></div>';
+ h+='<div class="metrics-grid" style="margin-bottom:1rem">'+K('Potential income / month',fm(tot.p),'every bed filled at listed rates')+K('Actual income / month',fm(tot.a),'active tenants, custom rates included','#16a34a')+K(tot.p-tot.a>=0?'Unrealized / month':'Above listed / month',fm(Math.abs(tot.p-tot.a)),tot.p?Math.round(tot.a/tot.p*100)+'% of potential':'',tot.p-tot.a>0?'#dc2626':'#16a34a')+K('Occupancy',tot.o+'/'+tot.b+' beds',tot.b?Math.round(tot.o/tot.b*100)+'% occupied':'')+'</div>';
+ if(!ps.length)return h+'<p class="inv-note">No properties yet. Add a property first, then add its rooms.</p>';
+ ps.forEach(p=>{const rs=sRooms(X.rooms.filter(r=>r.propertyId===p.id)),i=propInc(p),pct=i.pot>0?Math.min(100,Math.round(i.actual/i.pot*100)):0;
+  h+='<details class="card" style="margin-bottom:1rem"'+(col[p.id]?'':' open')+' ontoggle="RE.col(\''+p.id+'\',this.open)"><summary style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span><strong style="font-size:1.05rem">'+esc(p.name)+'</strong> <span class="inv-note" style="display:inline">'+(p.address?esc(p.address)+' · ':'')+rs.length+' room'+(rs.length===1?'':'s')+'</span></span><span onclick="event.stopPropagation()">'+BTN('RE.occ(\'property\',\''+p.id+'\')','View occupants')+' '+BTN('RE.propEdit(\''+p.id+'\')','Edit')+' '+BTN('RE.propDel(\''+p.id+'\')','Delete','btn-danger')+'</span></summary>'
+  +'<div class="metrics-grid" style="margin-top:.8rem">'+K('Potential / month',fm(i.pot),'')+K('Actual / month',fm(i.actual),'','#16a34a')+K(i.gap>=0?'Unrealized (vacant / discounted)':'Above listed rates',fm(Math.abs(i.gap)),'',i.gap>0?'#dc2626':'#16a34a')+K('Occupancy',i.occ+'/'+i.beds+' beds','')+'</div>'+bar(pct)
+  +(rs.length?'<div class="metrics-grid">'+rs.map(r=>{const ri=roomInc(r);return '<div class="metric-card"><h4>Room '+esc(r.name)+' '+catBadge(r)+'</h4><div class="sub-text">'+ri.occ.length+'/'+r.capacity+' beds · '+fm(r.rate)+' / mo'+(r.category==='private'?'':' per bed')+(r.elecInclusive?' · elec. incl.':'')+(r.waterInclusive?' · water incl.':'')+'</div><div class="sub-text">Potential '+fm(ri.pot)+' · Actual <b style="color:'+(ri.actual<ri.pot?'#d97706':'#16a34a')+'">'+fm(ri.actual)+'</b></div><div style="margin-top:.5rem;display:flex;gap:6px;flex-wrap:wrap">'+BTN('RE.occ(\'room\',\''+r.id+'\')','View')+BTN('RE.roomEdit(\''+r.id+'\')','Edit')+BTN('RE.roomDel(\''+r.id+'\')','Delete','btn-danger')+'</div></div>'}).join('')+'</div>':'<p class="inv-note">No rooms under this property yet.</p>')+'</details>'});
+ return h}
+function propEdit(id){const p=id?prop(id):null;const m=modal(p?'Edit property':'New property','<form onsubmit="RE.propSave(event)" data-id="'+(p?p.id:'')+'"><div class="form-group"><label>Property name *</label><input id="rpName" required maxlength="100" value="'+esc(p?p.name:'')+'"></div><div class="form-group"><label>Address</label><input id="rpAddr" maxlength="200" value="'+esc(p&&p.address||'')+'"></div><div style="text-align:right">'+CANCEL+' <button class="btn">Save property</button></div></form>',480);$('rpName').focus()}
+function propSave(e){e.preventDefault();const f=e.target,X=R(),name=$('rpName').value.trim().replace(/\s+/g,' ');if(!name)return toast('Enter a property name.');
+ if(X.properties.some(p=>p.id!==f.dataset.id&&p.name.toLowerCase()===name.toLowerCase()))return toast('A property named "'+name+'" already exists.');
+ if(f.dataset.id){const p=prop(f.dataset.id);p.name=name;p.address=$('rpAddr').value.trim()}else X.properties.push({id:uid(),name,address:$('rpAddr').value.trim()});save();closeM(f);render()}
+function propDel(id){const X=R();if(X.rooms.some(r=>r.propertyId===id))return toast('This property still has rooms. Delete or move the rooms first.');if(!confirm('Delete this property?'))return;X.properties=X.properties.filter(p=>p.id!==id);save();render()}
+function roomEdit(id){const X=R(),r=id?room(id):null;if(!X.properties.length)return toast('Add a property first.');
+ const m=modal(r?'Edit room':'New room','<form onsubmit="RE.roomSave(event)" data-id="'+(r?r.id:'')+'"><div class="grid-2"><div class="form-group"><label>Property *</label><select id="rrProp" required>'+opts(sProps(),r?r.propertyId:(fProp!=='ALL'?fProp:''),p=>p.name)+'</select></div><div class="form-group"><label>Room name / number *</label><input id="rrName" required maxlength="40" value="'+esc(r?r.name:'')+'"></div>'
+ +'<div class="form-group"><label>Type</label><select id="rrCat" onchange="RE.roomLabel()"><option value="bedspacer"'+(r&&r.category!=='private'?' selected':'')+'>Bedspace (rate per bed)</option><option value="private"'+(r&&r.category==='private'?' selected':'')+'>Private room (one rate for the whole room)</option></select></div><div class="form-group"><label>Capacity (beds) *</label><input type="number" id="rrCap" min="1" step="1" required value="'+(r?r.capacity:'')+'"></div>'
+ +'<div class="form-group"><label id="rrRateL">Monthly rate per bed *</label><input type="number" id="rrRate" min="0" step="0.01" required value="'+(r?r.rate:'')+'"></div></div><label style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem"><input type="checkbox" id="rrElec"'+(r&&r.elecInclusive?' checked':'')+'> Electricity included in the rate</label><label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem"><input type="checkbox" id="rrWater"'+(r&&r.waterInclusive?' checked':'')+'> Water included in the rate</label><div style="text-align:right">'+CANCEL+' <button class="btn">Save room</button></div></form>');roomLabel();$('rrName').focus()}
+function roomLabel(){const l=$('rrRateL');if(l)l.textContent=$('rrCat').value==='private'?'Monthly rate for the entire room *':'Monthly rate per bed *'}
+function roomSave(e){e.preventDefault();const f=e.target,X=R(),name=$('rrName').value.trim(),pid=$('rrProp').value;
+ if(X.rooms.some(r=>r.id!==f.dataset.id&&r.propertyId===pid&&String(r.name).toLowerCase()===name.toLowerCase()))return toast('That room already exists in this property.');
+ const d={propertyId:pid,name,category:$('rrCat').value,capacity:Math.max(1,parseInt($('rrCap').value)||1),rate:parseFloat($('rrRate').value)||0,elecInclusive:$('rrElec').checked,waterInclusive:$('rrWater').checked};
+ if(f.dataset.id)Object.assign(room(f.dataset.id),d);else X.rooms.push(Object.assign({id:uid()},d));save();closeM(f);render()}
+function roomDel(id){const X=R();if(act().some(t=>t.roomId===id))return toast('This room still has active tenants. Move them or mark them inactive first.');if(!confirm('Delete this room?'))return;X.rooms=X.rooms.filter(r=>r.id!==id);save();render()}
+function occView(kind,id){const X=R(),rs=kind==='room'?[room(id)].filter(Boolean):sRooms(X.rooms.filter(r=>r.propertyId===id));if(!rs.length&&kind==='room')return;
+ const p=kind==='room'?prop(rs[0].propertyId):prop(id),ids=new Set(rs.map(r=>r.id)),inc=kind==='room'?roomInc(rs[0]):propInc(p),oc=kind==='room'?inc.occ.length:inc.occ,bd=kind==='room'?rs[0].capacity:inc.beds;
+ let h='<div class="metrics-grid">'+K('Potential / month',fm(kind==='room'?inc.pot:inc.pot),'')+K('Actual / month',fm(inc.actual),'','#16a34a')+K('Occupancy',oc+'/'+bd+' beds','')+'</div>';
+ rs.forEach(r=>{const ri=roomInc(r);h+='<div style="margin-top:1rem"><strong>Room '+esc(r.name)+'</strong> '+catBadge(r)+' <span class="inv-note" style="display:inline">'+ri.occ.length+'/'+r.capacity+' beds</span>'
+  +(ri.occ.length?ri.occ.map(t=>{const sh=r.category==='private'&&ri.occ.length>1,pr=sh&&ri.occ.reduce((a,b)=>(+b.rate||0)>(+a.rate||0)?b:a,ri.occ[0]).id===t.id;
+   return '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:.5rem;border:1px solid var(--border-color);border-radius:8px;margin-top:6px"><span><b>'+esc(t.name)+'</b><br><span class="inv-note" style="margin:0">'+(t.contact?esc(t.contact)+' · ':'')+'Due every '+ord(t.dueDay||1)+(t.leaseStart?' · since '+fd(t.leaseStart):'')+(t.leaseEnd?' · lease ends '+fd(t.leaseEnd):'')+'</span></span><span>'+(sh&&!pr?'<span class="inv-note">shares the room rate</span>':'<b>'+fm(sh?ri.actual:t.rate)+'/mo</b>')+(sh&&pr?' <span class="badge badge-debit">whole room</span>':'')+' '+BTN('RE.occEdit(\''+t.id+'\')','Edit')+'</span></div>'}).join(''):'<p class="inv-note">No active occupants — vacant.</p>')+'</div>'});
+ const fr=X.tenants.filter(t=>!isAct(t)&&(ids.has(t.roomId)||(kind==='property'&&t.propertyId===id)));
+ if(fr.length)h+='<h4 style="margin-top:1.2rem">Former occupants (records only)</h4>'+fr.sort((a,b)=>(b.inactiveDate||'').localeCompare(a.inactiveDate||'')).map(t=>{const r=room(t.roomId);return '<div class="inv-note" style="margin:0 0 4px">'+esc(t.name)+(kind==='property'&&r?' (Rm '+esc(r.name)+')':'')+' — left '+(t.inactiveDate?fd(t.inactiveDate):'no date')+(t.inactiveReason?' · '+esc(t.inactiveReason):'')+'</div>'}).join('');
+ modal((p?esc(p.name):'')+(kind==='room'?' — Room '+esc(rs[0].name):' — All occupants'),h+'<div style="text-align:right;margin-top:1rem">'+CANCEL.replace('Cancel','Close')+'</div>',720)}
+function occEdit(id){document.querySelectorAll('.modal-overlay').forEach(x=>x.remove());tenEdit(id)}
+
+// ---- Tenants & dues ----
+function tenTable(){const X=R(),q=tQ.toLowerCase(),today=td(),cur=today.slice(0,7),us=units();
+ const rows=X.tenants.filter(t=>(fProp==='ALL'||t.propertyId===fProp)&&(!q||t.name.toLowerCase().includes(q)||(t.contact||'').toLowerCase().includes(q))&&(tStat==='ALL'||(tStat==='Active'?isAct(t):!isAct(t)))).sort((a,b)=>nameCmp(a.name,b.name)).map(t=>{
+  const a=isAct(t),u=a?us.find(x=>x.occupants.some(o=>o.id===t.id)):null,s=u&&billable(u,cur)?ustat(u,cur,today):null;
+  return ['<b>'+esc(t.name)+'</b>'+(t.contact?'<div class="inv-note" style="margin:0">'+esc(t.contact)+'</div>':''),esc((prop(t.propertyId)||{name:'(removed)'}).name)+' · Rm '+esc((room(t.roomId)||{name:'(removed)'}).name),a?fm(t.rate)+'/mo':'—',a?'Every '+ord(t.dueDay||1):'—',
+   a?(s?stBadge(s)+(u.kind==='room'&&u.primary.id!==t.id?'<div class="inv-note" style="margin:0">room bill</div>':''):'<span class="inv-note">no bill this month</span>'):'<span class="badge badge-nonvat">Inactive</span><div class="inv-note" style="margin:0">since '+(t.inactiveDate?fd(t.inactiveDate):'no date')+(t.inactiveReason?' · '+esc(t.inactiveReason):'')+'</div>',
+   (a?BTN('RE.payOpen(\''+t.id+'\')','Receive','btn')+' ':'')+BTN('RE.tenEdit(\''+t.id+'\')','Edit')+' '+BTN('RE.tenDel(\''+t.id+'\')','Delete','btn-danger')]});
+ return T(['Tenant','Property · room','#Rate','Due','This month','']
+  .map(x=>x),rows.map(r=>[r[0],r[1],r[2],r[3],r[4],r[5]]))}
+function vTen(){const X=R(),today=td(),rows=recv(today),late=rows.filter(r=>r.daysLate>0),lateAmt=late.reduce((a,r)=>a+r.out,0),all=rows.reduce((a,r)=>a+r.out,0),dep=act().reduce((a,t)=>a+(+t.deposit||0),0);
+ const bk=[['Due today',r=>r.daysLate===0],['1–30 days',r=>r.daysLate>=1&&r.daysLate<=30],['31–60 days',r=>r.daysLate>30&&r.daysLate<=60],['61–90 days',r=>r.daysLate>60&&r.daysLate<=90],['Over 90 days',r=>r.daysLate>90]];
+ let h='<div class="inv-bar" style="align-items:flex-end">'+BTN('RE.tenEdit()','+ Register tenant','btn')+BTN('RE.payOpen()','Receive rent payment')+'<div class="form-group"><label>Property</label><select onchange="RE.set(\'fProp\',this.value)"><option value="ALL">All properties</option>'+opts(sProps(),fProp,p=>p.name)+'</select></div><div class="form-group"><label>Status</label><select onchange="RE.set(\'tStat\',this.value)">'+['Active','Inactive','ALL'].map(s=>'<option value="'+s+'"'+(s===tStat?' selected':'')+'>'+(s==='ALL'?'All':s)+'</option>').join('')+'</select></div><div class="form-group"><label>Search</label><input type="search" placeholder="Name or contact" value="'+esc(tQ)+'" oninput="RE.find(this.value)"></div></div>';
+ h+='<div class="metrics-grid" style="margin-bottom:1rem">'+K('Active tenants',act().length,X.tenants.length-act().length+' inactive')+K('Overdue rent',fm(lateAmt),late.length+' bill'+(late.length===1?'':'s')+' past due',late.length?'#dc2626':'#16a34a')+K('Open rent bills',fm(all),rows.length+' bill'+(rows.length===1?'':'s')+' (incl. due today)')+K('Deposits held',fm(dep),'active tenants only')+'</div>';
+ h+='<h3 style="margin:1rem 0 .5rem">Overdue rent &amp; payments alert</h3>'+(rows.length?T(['Tenant / room','Rent for','Due','#Late','#Unpaid',''],rows.map(r=>['<b>'+esc(r.u.name)+'</b>'+(r.u.room?'<div class="inv-note" style="margin:0">'+esc((prop(r.u.room.propertyId)||{name:''}).name)+' · Rm '+esc(r.u.room.name)+'</div>':''),plabel(r.period)+(r.partial?' <span class="badge badge-nonvat">partial</span>':''),fd(r.iso),r.daysLate?r.daysLate+' d':'today',fm(r.out),BTN('RE.payOpen(\''+r.u.primary.id+'\',\''+r.period+'\')','Receive','btn')]))
+  +'<div class="inv-note" style="margin-top:.5rem">Aging: '+bk.map(b=>{const rs=rows.filter(b[1]);return b[0]+' <b>'+fm(rs.reduce((a,r)=>a+r.out,0))+'</b> ('+rs.length+')'}).join(' · ')+'</div>':'<p class="inv-note">✓ All accounts are up to date.</p>');
+ h+='<h3 style="margin:1.2rem 0 .5rem">Tenants</h3><div id="reTen">'+tenTable()+'</div>';return h}
+const roomOpts=(pid,sel)=>{const rs=sRooms(R().rooms.filter(r=>r.propertyId===pid));return '<option value="">'+(pid?(rs.length?'Select room':'No rooms in this property'):'Select property first')+'</option>'+rs.map(r=>'<option value="'+r.id+'"'+(r.id===sel?' selected':'')+'>Room '+esc(r.name)+' ('+(r.category==='private'?'private':'bedspace')+' · '+fm(r.rate)+'/mo)</option>').join('')};
+function tenEdit(id){const X=R(),t=id?X.tenants.find(x=>x.id===id):null;if(!X.properties.length||!X.rooms.length)return toast('Add a property and at least one room first (Properties tab).');
+ const cash=cashAccts(),h=t&&t.statusHistory||[];
+ const m=modal(t?'Edit tenant':'Register tenant','<form onsubmit="RE.tenSave(event)" data-id="'+(t?t.id:'')+'"><div class="grid-2"><div class="form-group"><label>Full name *</label><input id="rtName" required maxlength="120" placeholder="LASTNAME, FIRSTNAME" value="'+esc(t?t.name:'')+'"></div><div class="form-group"><label>Contact</label><input id="rtContact" maxlength="60" value="'+esc(t&&t.contact||'')+'"></div></div><div class="form-group"><label>Address</label><input id="rtAddr" maxlength="200" value="'+esc(t&&t.address||'')+'"></div>'
+ +'<div class="grid-2"><div class="form-group"><label>Property *</label><select id="rtProp" required onchange="RE.tenProp()"><option value="">Select property</option>'+opts(sProps(),t?t.propertyId:'',p=>p.name)+'</select></div><div class="form-group"><label>Room *</label><select id="rtRoom" required onchange="RE.tenRate()">'+roomOpts(t?t.propertyId:'',t?t.roomId:'')+'</select></div>'
+ +'<div class="form-group"><label>Monthly rate *</label><input type="number" id="rtRate" min="0" step="0.01" required value="'+(t?t.rate:'')+'"></div><div class="form-group"><label>Security deposit</label><input type="number" id="rtDep" min="0" step="0.01" value="'+(t&&t.deposit||'')+'"></div>'
+ +'<div class="form-group"><label>Rent due day of month</label><input type="number" id="rtDue" min="1" max="31" value="'+(t?t.dueDay||1:1)+'"></div><div class="form-group"><label>Status</label><select id="rtStat" onchange="RE.tenStat()"><option value="Active"'+(t&&!isAct(t)?'':' selected')+'>Active</option><option value="Inactive"'+(t&&!isAct(t)?' selected':'')+'>Inactive (moved out)</option></select></div>'
+ +'<div class="form-group"><label>Lease start</label><input type="date" id="rtLs" value="'+esc(t&&t.leaseStart||'')+'"></div><div class="form-group"><label>Lease end</label><input type="date" id="rtLe" value="'+esc(t&&t.leaseEnd||'')+'"></div></div>'
+ +'<p class="inv-note" id="rtHint"></p><div id="rtInact" class="grid-2 hidden"><div class="form-group"><label>Date became inactive *</label><input type="date" id="rtId" value="'+esc(t&&t.inactiveDate||'')+'"></div><div class="form-group"><label>Reason</label><input id="rtIr" maxlength="120" value="'+esc(t&&t.inactiveReason||'')+'"></div></div>'
+ +depBox(t)
+ +(h.length?'<h4 style="margin:.8rem 0 .4rem">Status history</h4>'+h.map(x=>'<div class="inv-note" style="margin:0 0 4px"><b style="color:'+(x.status==='Inactive'?'#d97706':'#16a34a')+'">'+(x.status==='Inactive'?'Became inactive':esc(x.note||'Active'))+(x.status==='Inactive'&&x.note?' — '+esc(x.note):'')+'</b> · '+fd(x.date)+'</div>').join(''):'')
+ +'<div style="text-align:right;margin-top:1rem">'+CANCEL+' <button class="btn">Save tenant</button></div></form>',720);tenStat(true)}
+function depBox(t){const e=t&&t.depositEntryId?jeOf(t.depositEntryId):null;
+ if(e)return '<div class="inv-note" style="margin-top:.5rem">The deposit is posted in the journal ('+esc(e.ref)+'). Changing the amount updates that same entry; setting it to 0 removes it.</div>';
+ return '<div id="rtDepBox" class="form-group"><label style="display:flex;gap:.5rem;align-items:center"><input type="checkbox" id="rtPost"'+(t?'':' checked')+'> Record the deposit as received today</label><select id="rtCash">'+cashOpts(cashAccts())+'</select><div class="inv-note" style="margin-top:4px">Posts Dr cash / Cr Tenant Security Deposits. Leave unticked to keep the amount on the tenant only.</div></div>'}
+function tenProp(){$('rtRoom').innerHTML=roomOpts($('rtProp').value,'')}
+function tenRate(){const f=$('rtRoom').closest('form');if(f.dataset.id)return;const r=room($('rtRoom').value);if(!r)return;$('rtRate').value=r.rate;
+ const n=occ(r).length;$('rtHint').textContent=r.category==='private'?(n?'A private room is billed ONCE at its room rate. Roommates can keep the same rate (or 0): it is not doubled, and a payment by any occupant counts toward the room.':'The full private-room rate applies to the primary tenant.'):'Bedspace rate applies per occupant.'}
+function tenStat(silent){const i=$('rtStat').value==='Inactive';$('rtInact').classList.toggle('hidden',!i);$('rtId').required=i;if(i&&!$('rtId').value&&!silent)$('rtId').value=td()}
+function tenSave(e){e.preventDefault();const f=e.target,X=R(),id=f.dataset.id,old=id?X.tenants.find(x=>x.id===id):null,roomId=$('rtRoom').value,status=$('rtStat').value,iDate=$('rtId').value,iWhy=$('rtIr').value.trim();
+ if(!roomId)return toast('Select a room.');if(status==='Inactive'&&!iDate)return toast('Enter the date this tenant became inactive.');
+ const d={name:$('rtName').value.trim().replace(/\s+/g,' '),contact:$('rtContact').value.trim(),address:$('rtAddr').value.trim(),propertyId:$('rtProp').value,roomId,rate:parseFloat($('rtRate').value)||0,deposit:parseFloat($('rtDep').value)||0,dueDay:Math.min(31,Math.max(1,parseInt($('rtDue').value)||1)),leaseStart:$('rtLs').value,leaseEnd:$('rtLe').value,status};
+ if(!d.name)return toast('Enter the tenant name.');if(d.leaseStart&&d.leaseEnd&&d.leaseEnd<d.leaseStart)return toast('Lease end cannot be before lease start.');
+ const rm=room(roomId);if(status==='Active'&&rm&&occ(rm).filter(t=>t.id!==id).length>=rm.capacity&&!confirm('Room '+rm.name+' is already full ('+rm.capacity+' bed'+(rm.capacity===1?'':'s')+'). Add this tenant anyway?'))return;
+ if(old&&old.depositEntryId&&!jeOf(old.depositEntryId))old.depositEntryId='';
+ const depE=old&&old.depositEntryId?jeOf(old.depositEntryId):null,wantPost=d.deposit>0&&!depE&&$('rtPost')&&$('rtPost').checked,cashA=wantPost&&C().chartOfAccounts.find(a=>a.code===+$('rtCash').value);
+ if(wantPost&&!cashA)return toast('Tag a Cash account first (Settings → Chart of Accounts → Edit) or untick "Record the deposit".');
+ let t;
+ if(old){const hist=[...(old.statusHistory||[])],was=isAct(old);let ni='',nr='';
+  if(status==='Inactive'){ni=iDate;nr=iWhy;if(was)hist.push({status:'Inactive',date:iDate,note:iWhy});else{const l=[...hist].reverse().find(x=>x.status==='Inactive');if(l){l.date=iDate;l.note=iWhy}else hist.push({status:'Inactive',date:iDate,note:iWhy})}}
+  else if(!was)hist.push({status:'Active',date:td(),note:'Reactivated'});
+  Object.assign(old,d,{inactiveDate:ni,inactiveReason:nr,statusHistory:hist});t=old}
+ else{const hist=[{status:'Active',date:d.leaseStart||td(),note:'Registered'}];if(status==='Inactive')hist.push({status:'Inactive',date:iDate,note:iWhy});
+  t=Object.assign({id:uid()},d,{inactiveDate:status==='Inactive'?iDate:'',inactiveReason:status==='Inactive'?iWhy:'',statusHistory:hist,depositEntryId:''});X.tenants.push(t)}
+ // the deposit lives in ONE journal entry per tenant: editing the amount updates that entry instead of adding another
+ if(depE){if(d.deposit>0){depE.desc='Security deposit – '+t.name;depE.lines.forEach(l=>{if(l.debit)l.debit=r2(d.deposit);if(l.credit)l.credit=r2(d.deposit)})}else{dropJe(t.depositEntryId);t.depositEntryId=''}}
+ else if(wantPost){const A=acc(),did='dep_'+uid();je(did,td(),nref('DEP'),'Security deposit – '+t.name,[[cashA.code,d.deposit,0],[A.dep.code,0,d.deposit]],'deposit');t.depositEntryId=did}
+ save();closeM(f);render();calculateDashboardMetrics()}
+function tenDel(id){const X=R(),t=X.tenants.find(x=>x.id===id);if(!t)return;const n=X.payments.filter(p=>p.tenantId===id).length;
+ if(!confirm('Remove tenant '+t.name+'?'+(n?'\n\n'+n+' payment record(s) stay in the journal, but this tenant will no longer appear in the payment matrix. Marking the tenant Inactive instead keeps the history.':'')))return;X.tenants=X.tenants.filter(x=>x.id!==id);save();render()}
+
+// ---- Rent collection ----
+function vPay(){const X=R(),a=X.accrual,today=td(),rows=recv(today),open=rows.reduce((s,r)=>s+r.out,0);let ar=0;const A=C().chartOfAccounts.find(x=>x.roleTag==='ar'&&!x.isContra);
+ if(A)C().journalEntries.forEach(e=>e.lines.forEach(l=>{if(l.accountCode===A.code)ar+=(+l.debit||0)-(+l.credit||0)}));
+ const q=pQ.toLowerCase(),ps=[...X.payments].filter(p=>!q||p.payer.toLowerCase().includes(q)).sort((x,y)=>y.date.localeCompare(x.date)||y.ref.localeCompare(x.ref));
+ let h='<div class="inv-bar" style="align-items:flex-end">'+BTN('RE.payOpen()','+ Receive rent payment','btn')+'<div class="form-group"><label>Search tenant</label><input type="search" value="'+esc(pQ)+'" oninput="RE.pfind(this.value)"></div></div>';
+ h+='<div class="card" style="margin-bottom:1rem"><h3 style="margin-top:0">Monthly rent accrual</h3><p class="inv-note">On each due date the unpaid rent is recorded as a receivable (Dr Tenant Receivables / Cr Rental Revenue). Payments for those months then settle the receivable, so revenue is never counted twice.</p><div class="inv-bar" style="align-items:flex-end"><label style="display:flex;gap:.5rem;align-items:center"><input type="checkbox"'+(a.enabled?' checked':'')+' onchange="RE.accOn(this.checked)"> Accrue rent automatically</label><div class="form-group"><label>Starting month</label><input type="month" value="'+a.start+'" onchange="RE.accStart(this.value)"></div>'+BTN('RE.accRun()','Post accruals now')+'</div><div class="inv-note" style="margin:0">Outstanding rent bills: <b>'+fm(open)+'</b> ('+rows.length+') · Tenant Receivables posted in the journal: <b>'+fm(ar)+'</b> · Auto accrual entries: <b>'+C().journalEntries.filter(e=>e.src==='re'&&e.reKind==='accrual').length+'</b></div></div>';
+ h+=T(['Date','Ref','Tenant','For','Received into','Settles','#Amount',''],ps.map(p=>[fd(p.date),esc(p.ref),esc(p.payer),plabel(p.period),esc(p.mode||''),p.applied==='ar'?'<span class="badge badge-vat">receivable</span>':'<span class="badge badge-nonvat">revenue</span>',fm(p.amount),BTN('RE.payDel(\''+p.id+'\')','Delete','btn-danger')]));
+ return h}
+function payOpen(tid,period){const X=R();if(!X.tenants.length)return toast('Register a tenant first.');const cash=cashAccts();if(!cash.length)return toast('Tag at least one account as Cash first (Settings → Chart of Accounts → Edit).');
+ const all=[...X.tenants].sort((a,b)=>(isAct(b)-isAct(a))||nameCmp(a.name,b.name)),first=tid||(all.find(isAct)||all[0]).id;
+ modal('Receive rent payment','<form onsubmit="RE.paySave(event)"><div class="grid-2"><div class="form-group"><label>Date received *</label><input type="date" id="rpDate" required value="'+td()+'" onchange="RE.payTen()"></div><div class="form-group"><label>Tenant *</label><select id="rpTen" required onchange="RE.payTen()">'+all.map(t=>'<option value="'+t.id+'"'+(t.id===first?' selected':'')+'>'+esc(t.name)+(isAct(t)?'':' (inactive)')+esc(roomTxt(t))+'</option>').join('')+'</select></div><div class="form-group"><label>Rent for (month) *</label><input type="month" id="rpPer" required onchange="RE.payPer()"></div><div class="form-group"><label>Amount *</label><input type="number" id="rpAmt" min="0.01" step="0.01" required></div><div class="form-group"><label>Received into *</label><select id="rpCash">'+cashOpts(cash)+'</select></div><div class="form-group"><label>Reference / note</label><input id="rpNote" maxlength="120"></div></div><p class="inv-note" id="rpHint"></p><div style="text-align:right">'+CANCEL+' <button class="btn">Record payment</button></div></form>');payTen(period)}
+const payUnit=()=>units().find(u=>u.occupants.some(o=>o.id===$('rpTen').value));
+function payHint(){const X=R(),u=payUnit(),p=$('rpPer').value,ar=u&&X.accrual.enabled&&p&&p>=X.accrual.start;$('rpHint').textContent=u?(ar?'Settles the accrued receivable (credits Tenant Receivables). A partial payment leaves the balance receivable.':'Recorded as rental revenue (accrual is off, or this month is before the accrual start).'):'This tenant has no current rent bill, so the payment is recorded as rental revenue.'}
+function payTen(forced){const t=R().tenants.find(x=>x.id===$('rpTen').value),u=payUnit(),d=$('rpDate').value||td();if(!t)return;
+ if(u){const s=suggest(u,d,typeof forced==='string'?forced:''),per=$('rpPer');per.value=s.period;$('rpAmt').value=String(r2(s.out>0.004?s.out:u.amount))}else{$('rpPer').value=d.slice(0,7);$('rpAmt').value=t.rate||''}payHint()}
+function payPer(){const u=payUnit(),p=$('rpPer').value;if(u&&p){const o=ustat(u,p,td()).out;$('rpAmt').value=String(r2(o>0.004?o:u.amount))}payHint()}
+function paySave(e){e.preventDefault();if(postPay({date:$('rpDate').value,tenantId:$('rpTen').value,period:$('rpPer').value,amount:parseFloat($('rpAmt').value),cash:+$('rpCash').value,note:$('rpNote').value.trim()})){save();closeM(e.target);render();calculateDashboardMetrics()}}
+function payDel(id){if(!confirm('Delete this payment? Its journal entry is removed.'))return;const X=R();X.payments=X.payments.filter(p=>p.id!==id);dropJe(id);save();render();calculateDashboardMetrics()}
+function accOn(v){R().accrual.enabled=v;save();sync();render();calculateDashboardMetrics()}
+function accStart(v){if(!v)return;R().accrual.start=v;save();const n=sync();render();calculateDashboardMetrics();if(n)toast('Posted '+n+' rent accrual entr'+(n===1?'y':'ies')+' from '+plabel(v)+' onward.')}
+function accRun(){const n=sync();render();calculateDashboardMetrics();toast(n?'Posted '+n+' rent accrual entr'+(n===1?'y':'ies')+'.':'Nothing new to post: all due rent is already accrued.')}
+
+// ---- Utilities (metered readings) ----
+const metered=()=>R().rooms.filter(r=>!r.elecInclusive||!r.waterInclusive).sort((a,b)=>nameCmp((prop(a.propertyId)||{}).name,(prop(b.propertyId)||{}).name)||nameCmp(a.name,b.name));
+function vUtil(){const X=R(),rows=X.utilities.filter(u=>{if(uProp==='ALL')return true;const r=room(u.roomId);return r&&r.propertyId===uProp}).sort((a,b)=>b.date.localeCompare(a.date));
+ return '<div class="inv-bar" style="align-items:flex-end">'+BTN('RE.utilEdit()','+ Post utility reading','btn')+'<div class="form-group"><label>Property</label><select onchange="RE.set(\'uProp\',this.value)"><option value="ALL">All properties</option>'+opts(sProps(),uProp,p=>p.name)+'</select></div></div><p class="inv-note">Meter readings are billed to the room: units used × rate per unit, recorded as utility income (Dr cash / Cr utility income). Rooms with both electricity and water included in the rate are not metered.</p>'
+ +T(['Date','Room / tenant','Type','#Units','#Rate','#Total',''],rows.map(u=>{const r=room(u.roomId);return [fd(u.date),(r?esc((prop(r.propertyId)||{name:''}).name)+' · Rm '+esc(r.name):'(room removed)')+'<div class="inv-note" style="margin:0">'+esc(u.tenantName||'')+'</div>',esc(u.type),String(r2(u.pres-u.prev)),fm(u.rate),fm(u.total),BTN('RE.utilEdit(\''+u.id+'\')','Edit')+' '+BTN('RE.utilDel(\''+u.id+'\')','Delete','btn-danger')]}))}
+function utilEdit(id){const X=R(),u=id?X.utilities.find(x=>x.id===id):null,ms=metered(),cash=cashAccts();if(!ms.length)return toast('No metered rooms. Add rooms where electricity or water is not included in the rate.');if(!cash.length&&!u)return toast('Tag at least one account as Cash first (Settings → Chart of Accounts → Edit).');
+ modal(u?'Edit utility reading':'Post utility reading','<form onsubmit="RE.utilSave(event)" data-id="'+(u?u.id:'')+'"><div class="grid-2"><div class="form-group"><label>Date *</label><input type="date" id="ruDate" required value="'+(u?u.date:td())+'"></div><div class="form-group"><label>Room *</label><select id="ruRoom" required onchange="RE.utilRoom()"><option value="">Select metered room</option>'+ms.map(r=>'<option value="'+r.id+'"'+(u&&u.roomId===r.id?' selected':'')+'>'+esc((prop(r.propertyId)||{name:''}).name)+' · Room '+esc(r.name)+'</option>').join('')+'</select></div>'
+ +'<div class="form-group"><label>Tenant(s)</label><input id="ruTen" readonly value="'+esc(u?u.tenantName:'')+'"></div><div class="form-group"><label>Utility</label><select id="ruType" onchange="RE.utilPrev()"><option value="Electricity"'+(u&&u.type==='Electricity'?' selected':'')+'>Electricity (kWh)</option><option value="Water"'+(u&&u.type==='Water'?' selected':'')+'>Water (m³)</option></select></div>'
+ +'<div class="form-group"><label>Previous reading</label><input type="number" id="ruPrev" step="any" min="0" required value="'+(u?u.prev:'')+'" oninput="RE.utilCalc()"></div><div class="form-group"><label>Present reading *</label><input type="number" id="ruPres" step="any" min="0" required value="'+(u?u.pres:'')+'" oninput="RE.utilCalc()"></div><div class="form-group"><label>Rate per unit *</label><input type="number" id="ruRate" step="0.01" min="0" required value="'+(u?u.rate:'')+'" oninput="RE.utilCalc()"></div><div class="form-group"><label>Total</label><input id="ruTot" readonly value="'+(u?u.total.toFixed(2):'0.00')+'"></div>'
+ +(u?'':'<div class="form-group"><label>Received into</label><select id="ruCash">'+cashOpts(cash)+'</select></div>')+'</div><div style="text-align:right">'+CANCEL+' <button class="btn">Save reading</button></div></form>')}
+function utilRoom(){const A=act().filter(t=>t.roomId===$('ruRoom').value);$('ruTen').value=A.length?A.map(t=>t.name).join(', '):'No active tenant';utilPrev()}
+function utilPrev(){const f=$('ruRoom').closest('form');if(f.dataset.id)return;const rid=$('ruRoom').value,ty=$('ruType').value;if(!rid){$('ruPrev').value='';return}
+ const last=R().utilities.filter(u=>u.roomId===rid&&u.type===ty).sort((a,b)=>a.date.localeCompare(b.date)||(a.id<b.id?-1:1)).pop();$('ruPrev').value=last?last.pres:0;utilCalc()}
+function utilCalc(){const p=parseFloat($('ruPrev').value)||0,n=parseFloat($('ruPres').value)||0,r=parseFloat($('ruRate').value)||0;$('ruTot').value=(Math.max(0,n-p)*r).toFixed(2)}
+function utilSave(e){e.preventDefault();const f=e.target,X=R(),id=f.dataset.id,prev=parseFloat($('ruPrev').value),pres=parseFloat($('ruPres').value),rate=parseFloat($('ruRate').value);
+ if(pres<prev)return toast('Present reading cannot be less than the previous reading.');const total=r2((pres-prev)*rate);if(!(total>0))return toast('The bill total is zero. Check the readings and rate.');
+ const rm=room($('ruRoom').value),d={date:$('ruDate').value,roomId:rm.id,tenantName:$('ruTen').value,type:$('ruType').value,prev,pres,rate,total},desc=d.type+' bill – '+((prop(rm.propertyId)||{name:''}).name)+' Rm '+rm.name+(d.tenantName?' ('+d.tenantName+')':'');
+ if(id){const u=X.utilities.find(x=>x.id===id);Object.assign(u,d);const e2=jeOf(id);if(e2){e2.date=d.date;e2.desc=desc;e2.lines.forEach(l=>{if(l.debit)l.debit=total;if(l.credit)l.credit=total})}}
+ else{const ca=C().chartOfAccounts.find(a=>a.code===+$('ruCash').value);if(!ca)return toast('Choose the account that receives the money.');const A=acc(),nid='utl_'+uid();X.utilities.push(Object.assign({id:nid},d));je(nid,d.date,nref('UTL'),desc,[[ca.code,total,0],[A.util.code,0,total]],'utility')}
+ save();closeM(f);render();calculateDashboardMetrics()}
+function utilDel(id){if(!confirm('Delete this utility bill? Its journal entry is removed.'))return;const X=R();X.utilities=X.utilities.filter(u=>u.id!==id);dropJe(id);save();render();calculateDashboardMetrics()}
+
+// ---- Reports: payment matrix ----
+function vRep(){const X=R(),ps=rProp==='ALL'?sProps():X.properties.filter(p=>p.id===rProp),mo=rRange==='H1'?[1,2,3,4,5,6]:rRange==='H2'?[7,8,9,10,11,12]:[1,2,3,4,5,6,7,8,9,10,11,12];
+ let h='<div class="inv-bar" style="align-items:flex-end"><div class="form-group"><label>Property</label><select onchange="RE.set(\'rProp\',this.value)"><option value="ALL">All properties</option>'+opts(sProps(),rProp,p=>p.name)+'</select></div><div class="form-group"><label>Year</label><input type="number" min="2000" max="2100" value="'+rYear+'" style="width:90px" onchange="RE.set(\'rYear\',+this.value||'+rYear+')"></div><div class="form-group"><label>Months</label><select onchange="RE.set(\'rRange\',this.value)"><option value="FULL"'+(rRange==='FULL'?' selected':'')+'>Full year</option><option value="H1"'+(rRange==='H1'?' selected':'')+'>Jan – Jun</option><option value="H2"'+(rRange==='H2'?' selected':'')+'>Jul – Dec</option></select></div>'+BTN('window.print()','Print')+'</div>';
+ if(!ps.length)return h+'<p class="inv-note">No properties found.</p>';
+ ps.forEach(p=>{const rs=sRooms(X.rooms.filter(r=>r.propertyId===p.id));let body='';
+  rs.forEach(r=>{const ts=X.tenants.filter(t=>t.roomId===r.id&&(isAct(t)||(t.inactiveDate&&t.inactiveDate>=rYear+'-01-01')));
+   if(!ts.length)body+='<tr><td style="text-align:center"><b>'+esc(r.name)+'</b></td><td>'+(r.category==='private'?'Private':'Bedspacer')+'</td><td class="inv-note" style="font-style:italic">No occupants</td>'+mo.map(()=>'<td style="text-align:center;color:var(--text-muted)">-</td>').join('')+'</tr>';
+   else ts.forEach((t,i)=>{body+='<tr>'+(i===0?'<td rowspan="'+ts.length+'" style="text-align:center;vertical-align:top"><b>'+esc(r.name)+'</b></td><td rowspan="'+ts.length+'" style="vertical-align:top">'+(r.category==='private'?'Private':'Bedspacer')+'</td>':'')+'<td style="white-space:nowrap"><b>'+esc(t.name)+'</b>'+(isAct(t)?'':' <span class="inv-note" style="display:inline">(inactive '+(t.inactiveDate||'')+')</span>')+'</td>'
+    +mo.map(m=>{const per=rYear+'-'+String(m).padStart(2,'0'),px=X.payments.filter(x=>x.tenantId===t.id&&x.period===per);if(!px.length)return '<td style="text-align:center;color:var(--text-muted)">-</td>';const last=[...px].sort((a,b)=>b.date.localeCompare(a.date))[0];return '<td class="number"><b>'+fm(px.reduce((s,x)=>s+x.amount,0))+'</b><div class="inv-note" style="margin:0;font-size:.7rem">'+fd(last.date)+' · '+esc(last.mode||'')+'</div></td>'}).join('')+'</tr>'})});
+  h+='<h3 style="margin:1.2rem 0 .5rem">Summary of accounts — '+esc(p.name)+' ('+rYear+')</h3><div style="overflow-x:auto"><table><thead><tr><th>Room</th><th>Category</th><th>Full name</th>'+mo.map(m=>'<th class="number">'+MS[m-1].toUpperCase()+'</th>').join('')+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+(3+mo.length)+'" style="text-align:center;color:var(--text-muted)">No rooms registered for this property.</td></tr>')+'</tbody></table></div>'});
+ return h}
+
+// ---- CSV import ----
+function csvRows(text){const rows=[];let row=[],cur='',q=false;for(let i=0;i<text.length;i++){const ch=text[i];if(q){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}else if(ch==='"')q=true;else if(ch===','){row.push(cur);cur=''}else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur=''}else if(ch!=='\r')cur+=ch}
+ if(cur!==''||row.length){row.push(cur);rows.push(row)}return rows.filter(r=>r.some(x=>String(x).trim()))}
+const nh=h=>String(h||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function toIso(s){s=String(s||'').trim();let m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');m=/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(s);if(m){let y=+m[3];if(y<100)y+=2000;return y+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0')}return ''}
+const amtOf=s=>parseFloat(String(s||'').replace(/[^0-9.\-]/g,''))||0;
+const IMP={rooms:{file:'Rooms_Import_Template.csv',hint:'Columns: Site, Room Number, Category (Private / Bedspacer), Pax, Monthly Rate. Existing rooms with the same Site + Room Number are updated.',tpl:'Site,Room Number,Category,Pax,Monthly Rate\nMain Residence,101,Private,4,9000\nMain Residence,102,Bedspacer,4,3500\nMain Residence,103,Bedspacer,8,2000'},
+ boarders:{file:'Tenants_Import_Template.csv',hint:'Columns: Name, Address, Contact, Site, Room, Starting Date, Status, Security Deposit, Due Date, Custom Monthly Rate. Deposits are recorded on the tenant only; they are not posted to the journal.',tpl:'Name,Address,Contact,Site,Room,Starting Date,Status,Security Deposit,Due Date,Custom Monthly Rate\n"DELA CRUZ, JUAN",Address,09171234567,Main Residence,101,7/1/2026,Active,4500,1,4500'},
+ rent:{file:'RentPayments_Import_Template.csv',hint:'Columns: Date, Boarder, Room Number, Site, Amount Paid (or Applicable Amount), Payment Type. Each row is posted as cash received into the first Cash account and credited to rental revenue, for the month of its date.',tpl:'Date,Boarder,Room Number,Site,Type,Month,Applicable Amount,Amount Paid,Payment Type,Paid To\n7/24/2026,"DELA CRUZ, JUAN",101,Main Residence,Rental Payment,July,4500,4500,Bank transfer/E-Wallet,Manager'}};
+function openImp(){modal('Import Real Estate data','<div class="form-group"><label>What are you importing?</label><select id="riCat" onchange="RE.impHint()"><option value="rooms">Properties &amp; rooms</option><option value="boarders">Tenants</option><option value="rent">Rent payments</option></select></div><p class="inv-note" id="riHint"></p><div class="inv-bar">'+BTN('RE.impTpl()','Download template')+'</div><div class="form-group"><label>CSV file</label><input type="file" id="riFile" accept=".csv,text/csv"></div><p class="inv-note">Import rooms first, then tenants, then payments.</p><div style="text-align:right">'+CANCEL+' <button type="button" class="btn" onclick="RE.impGo()">Import</button></div>',620);impHint()}
+function impHint(){$('riHint').textContent=IMP[$('riCat').value].hint}
+function impTpl(){const c=IMP[$('riCat').value],a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c.tpl],{type:'text/csv;charset=utf-8;'}));a.download=c.file;document.body.appendChild(a);a.click();a.remove()}
+function impGo(){const cat=$('riCat').value,f=$('riFile').files[0];if(!f)return toast('Choose a CSV file first.');const rd=new FileReader();
+ rd.onload=ev=>{let txt;try{txt=new TextDecoder('utf-8',{fatal:true}).decode(ev.target.result)}catch(x){txt=new TextDecoder('windows-1252').decode(ev.target.result)}
+  const rows=csvRows(txt.replace(/^\uFEFF/,''));if(rows.length<2)return toast('The CSV file is empty or has no header row.');
+  const hd=rows[0].map(nh),cell=(r,...ks)=>{for(const k of ks){const i=hd.indexOf(k);if(i>=0&&r[i]!=null&&String(r[i]).trim()!=='')return String(r[i]).trim()}return ''};
+  const X=R();let n=0,up=0,sk=0;const why=[];
+  const findProp=name=>{let p=X.properties.find(x=>x.name.toLowerCase()===name.toLowerCase());if(!p){p={id:uid(),name,address:''};X.properties.push(p)}return p};
+  const fRoom=(pid,name,rate)=>{let r=X.rooms.find(x=>x.propertyId===pid&&String(x.name).toLowerCase()===name.toLowerCase());if(!r){r={id:uid(),propertyId:pid,name,category:'bedspacer',capacity:1,rate:rate||0,elecInclusive:false,waterInclusive:false};X.rooms.push(r)}return r};
+  const cashA=cashAccts()[0];if(cat==='rent'&&!cashA)return toast('Tag at least one account as Cash first (Settings → Chart of Accounts → Edit).');
+  for(let i=1;i<rows.length;i++){const r=rows[i];
+   if(cat==='rooms'){const site=cell(r,'site','property'),nm=cell(r,'roomnumber','room','roomname');if(!site||!nm){sk++;continue}
+    const cg=/private/i.test(cell(r,'category'))?'private':'bedspacer',cap=Math.max(1,parseInt(cell(r,'pax','capacity'))||1),rate=amtOf(cell(r,'monthlyrate','rate')),p=findProp(site),ex=X.rooms.find(x=>x.propertyId===p.id&&String(x.name).toLowerCase()===nm.toLowerCase());
+    if(ex){ex.category=cg;ex.capacity=cap;ex.rate=rate;up++}else{X.rooms.push({id:uid(),propertyId:p.id,name:nm,category:cg,capacity:cap,rate,elecInclusive:false,waterInclusive:false});n++}}
+   else if(cat==='boarders'){const name=cell(r,'name');if(!name)continue;const site=cell(r,'site')||'Main Residence',rn=cell(r,'room')||'101',rate=amtOf(cell(r,'custommonthlyrate')),p=findProp(site),rm=fRoom(p.id,rn,rate);
+    if(act().some(t=>t.name.toLowerCase()===name.toLowerCase()&&t.roomId===rm.id)){sk++;why.push('Line '+(i+1)+': '+name+' is already registered in '+site+' Rm '+rn);continue}
+    const ls=toIso(cell(r,'startingdate'))||td(),st=/inactive/i.test(cell(r,'status'))?'Inactive':'Active';
+    X.tenants.push({id:uid(),name,contact:cell(r,'contact'),address:cell(r,'address'),propertyId:p.id,roomId:rm.id,rate:rate||rm.rate,deposit:amtOf(cell(r,'securitydeposit')),dueDay:Math.min(31,Math.max(1,parseInt(cell(r,'duedate'))||1)),leaseStart:ls,leaseEnd:'',status:st,inactiveDate:st==='Inactive'?td():'',inactiveReason:'',statusHistory:[{status:'Active',date:ls,note:'Imported'}]});n++}
+   else{const nm=cell(r,'boarder','tenant','name');if(!nm)continue;const iso=toIso(cell(r,'date'))||td(),amt=amtOf(cell(r,'amountpaid'))||amtOf(cell(r,'applicableamount'));if(!(amt>0)){sk++;continue}
+    const site=cell(r,'site').toLowerCase(),rn=cell(r,'roomnumber','room').toLowerCase(),cands=X.tenants.filter(t=>t.name.toLowerCase()===nm.toLowerCase());
+    const t=cands.find(t=>(!rn||String((room(t.roomId)||{}).name).toLowerCase()===rn)&&(!site||((prop(t.propertyId)||{}).name||'').toLowerCase()===site))||cands[0];
+    if(!t){sk++;why.push('Line '+(i+1)+': no tenant named '+nm);continue}
+    if(X.payments.some(p=>p.tenantId===t.id&&p.date===iso&&p.amount===r2(amt))){sk++;continue}
+    const A=acc(),id='pay_'+uid(),ref=nref('RCPT'),per=iso.slice(0,7);X.payments.push({id,date:iso,tenantId:t.id,payer:t.name,period:per,amount:r2(amt),cash:cashA.code,mode:cell(r,'paymenttype')||cashA.title,ref,note:'Imported',applied:'rev'});
+    je(id,iso,ref,'Rent payment – '+t.name+' (for '+plabel(per)+') · imported',[[cashA.code,amt,0],[A.rent.code,0,amt]],'payment');n++}}
+  save();closeM($('riFile'));render();calculateDashboardMetrics();
+  toast('Imported '+n+' record(s)'+(up?', updated '+up+' existing room(s)':'')+(sk?', skipped '+sk+' duplicate/invalid row(s).':'.')+(why.length?'\n'+why.slice(0,8).join('\n'):''))};
+ rd.readAsArrayBuffer(f)}
+
+// ---- Dashboard card + calendar hook ----
+function reDash(){const box=$('widget-section-realestate');if(!box)return;const show=on();box.classList.toggle('hidden',!show);if(!show)return;
+ const X=R(),today=td(),cur=today.slice(0,7),us=units(),rows=recv(today),late=rows.filter(r=>r.daysLate>0),lateAmt=late.reduce((a,r)=>a+r.out,0);
+ let beds=0,ob=0,pot=0,roll=0;X.rooms.forEach(r=>{const i=roomInc(r);beds+=+r.capacity||0;ob+=i.occ.length;pot+=i.pot;roll+=i.actual});
+ let exp=0,got=0;us.forEach(u=>{if(!billable(u,cur))return;exp+=u.amount;got+=Math.min(u.amount,ustat(u,cur,today).paid)});
+ $('reKpis').innerHTML=K('Occupancy',beds?Math.round(ob/beds*100)+'%':'n/a',ob+'/'+beds+' beds')+K('Monthly rent roll',fm(roll),'of '+fm(pot)+' potential','#16a34a')+K('Unrealized income / month',fm(Math.abs(pot-roll)),pot-roll>0?'vacancy + discounts':'above listed rates',pot-roll>0?'#d97706':'#16a34a')
+  +K('Overdue rent',fm(lateAmt),late.length+' bill'+(late.length===1?'':'s')+' past due',late.length?'#dc2626':'#16a34a')+K('Open rent bills',fm(rows.reduce((a,r)=>a+r.out,0)),rows.length+' unpaid, due or past due')+K('Collected this month',fm(got),exp?Math.round(got/exp*100)+'% of '+fm(exp)+' expected':'No rent due this month')+K('Deposits held',fm(act().reduce((a,t)=>a+(+t.deposit||0),0)),'active tenants only')+K('Active tenants',act().length,X.tenants.length-act().length+' inactive')}
+function calMonth(ym){const cid=C().id;if(_cc&&_cc.ym===ym&&_cc.cid===cid)return _cc.map;const map={},X=R(),today=td(),add=(k,t,c)=>(map[k]||(map[k]=[])).push({t,c});
+ units().forEach(u=>{if(!billable(u,ym))return;const s=ustat(u,ym,today);add(s.iso,(s.out<=0.004?'✓ Rent: ':'Rent due: ')+u.name+(s.out>0.004?' ('+fm(s.out)+')':''),s.out<=0.004?'d':'t')});
+ X.tenants.forEach(t=>{if(isAct(t)&&t.leaseEnd&&t.leaseEnd.slice(0,7)===ym)add(t.leaseEnd,'Lease ends: '+t.name,'h')});
+ X.payments.forEach(p=>{if(p.date.slice(0,7)===ym)add(p.date,'Received '+fm(p.amount)+': '+p.payer,'d')});return(_cc={ym,cid,map}).map}
+window.reCalEvents=k=>on()?(calMonth(k.slice(0,7))[k]||[]):[];
+
+// ---- render / wiring ----
+function render(){if(!$('reBody')||!on())return;['prop','ten','pay','util','rep'].forEach(v=>$('reNav-'+v).classList.toggle('active',v===view));
+ const keep=document.activeElement&&document.activeElement.type==='search'?document.activeElement:null;
+ $('reBody').innerHTML=view==='prop'?vProp():view==='ten'?vTen():view==='pay'?vPay():view==='util'?vUtil():vRep();
+ if(keep){const s=$('reBody').querySelector('input[type=search]');if(s){s.focus();s.setSelectionRange(s.value.length,s.value.length)}}}
+const SET={fProp:v=>fProp=v,tStat:v=>tStat=v,uProp:v=>uProp=v,rProp:v=>rProp=v,rYear:v=>rYear=v,rRange:v=>rRange=v};
+document.body.querySelector(':scope>svg').insertAdjacentHTML('beforeend','<symbol id="i-building" viewBox="0 0 24 24"><path d="M4 21V4a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v17M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 7h3M8 11h3M8 15h3"/></symbol>');
+document.querySelector('main.main-content').insertAdjacentHTML('beforeend','<div id="tab-realestate" class="tab-section"><div class="card"><h2 style="margin-top:0">Real Estate</h2><div class="sub-nav"><button id="reNav-prop" onclick="RE.go(\'prop\')">Properties &amp; rooms</button><button id="reNav-ten" onclick="RE.go(\'ten\')">Tenants &amp; dues</button><button id="reNav-pay" onclick="RE.go(\'pay\')">Rent collection</button><button id="reNav-util" onclick="RE.go(\'util\')">Utilities</button><button id="reNav-rep" onclick="RE.go(\'rep\')">Reports</button><button onclick="RE.imp()">Import CSV</button></div><div id="reBody"></div></div></div>');
+(document.getElementById('widget-section-inventory')||$('widget-section-ratios')).insertAdjacentHTML('afterend','<div class="card hidden" id="widget-section-realestate"><h3 style="margin-top:0">Real estate</h3><div class="metrics-grid" id="reKpis"></div></div>');
+const li=document.createElement('li');li.id='nav-realestate';li.className='hidden';li.tabIndex=0;li.setAttribute('role','button');li.onclick=()=>showTab('realestate');li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();li.click()}};
+li.innerHTML='<span class="nav-icon"><svg class="i"><use href="#i-building"/></svg></span><span class="nav-text">Real Estate</span>';$('nav-settings').insertAdjacentElement('beforebegin',li);
+const navVis=()=>{_pi=null;_cc=null;li.classList.toggle('hidden',!on())};
+const w=(n,f)=>{const o=window[n];window[n]=function(){const r=o.apply(this,arguments);f();return r}};
+{const o=window.calculateDashboardMetrics;window.calculateDashboardMetrics=function(){if(on())sync();const r=o.apply(this,arguments);reDash();return r}}
+w('switchCompany',navVis);
+w('showTab',()=>{const a=document.querySelector('.tab-section.active');if(a&&a.id==='tab-realestate'){if(!on())return showTab('home');sync();li.classList.add('active');render()}});
+{const o=window.openJournalModal;window.openJournalModal=function(id){const r=o.apply(this,arguments),c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);if(e&&e.src==='re')toast('This entry came from the Real Estate module. Saving your changes here also updates its Real Estate record.');return r}}
+{const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);const re=d.re;
+ if(re&&typeof re==='object'&&Array.isArray(re.properties)&&Array.isArray(re.rooms)&&Array.isArray(re.tenants))o.re=JSON.parse(JSON.stringify(re));
+ o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='re'){e.src='re';e.reKind=String(x.reKind||'');e.reId=String(x.reId||'');if(x.reKey)e.reKey=String(x.reKey)}});return o}}
+window.RE={go:v=>{view=v;render()},set:(k,v)=>{SET[k](v);render()},find:v=>{tQ=v;const t=$('reTen');if(t)t.innerHTML=tenTable()},pfind:v=>{pQ=v;render()},col:(id,o)=>{col[id]=!o},close:closeM,
+ propEdit,propSave,propDel,roomEdit,roomLabel,roomSave,roomDel,occ:occView,occEdit,tenEdit,tenProp,tenRate,tenStat,tenSave,tenDel,
+ payOpen,payTen,payPer,paySave,payDel,accOn,accStart,accRun,utilEdit,utilRoom,utilPrev,utilCalc,utilSave,utilDel,imp:openImp,impHint,impTpl,impGo};
+})();
+
 // ===== Tasks module + Dashboard calendar (PH holidays) =====
 (function(){
 const $=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml,td=()=>localDateStr(new Date()),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -4155,24 +4489,24 @@ let pref={ws:0,h:1,e:1,t:1,view:'month'};try{Object.assign(pref,JSON.parse(local
 const sp=()=>{try{localStorage.setItem(CPK,JSON.stringify(pref))}catch(e){}};
 const selFor=(y,m)=>{const pre=y+'-'+pad(m+1),t=td();return t.slice(0,7)===pre?t:pre+'-01'};
 function renderCal(){const box=$('calBody');if(!box||!C())return;const T=tk(),y=cal.y,m=cal.m,today=td(),ws=+pref.ws||0,yv=pref.view==='year',now=new Date(),cy=now.getFullYear(),cm=now.getMonth();
- const hoOf=k=>pref.h?holOf(k):[],evOf=k=>pref.e?T.events.filter(e=>e.date===k):[],tsOf=k=>pref.t?T.tasks.filter(x=>x.due===k):[];
+ const hoOf=k=>pref.h?holOf(k):[],evOf=k=>pref.e?T.events.filter(e=>e.date===k):[],tsOf=k=>pref.t?T.tasks.filter(x=>x.due===k):[],rxOf=k=>pref.e&&window.reCalEvents?window.reCalEvents(k):[];
  const wasOpen=box.querySelector('.cal-opt')&&box.querySelector('.cal-opt').open;
  const yrs=[];for(let i=Math.min(y,cy)-10;i<=Math.max(y,cy)+15;i++)yrs.push(i);
  const bar='<div class="cal-bar"><button class="btn btn-outline btn-sm" onclick="TK.nav(-1)" aria-label="Previous">‹</button>'+(yv?'':'<select id="calM" aria-label="Month" onchange="TK.jump()">'+MON.map((n,i)=>'<option value="'+i+'"'+(i===m?' selected':'')+'>'+n+'</option>').join('')+'</select>')+'<select id="calY" aria-label="Year" onchange="TK.jump()">'+yrs.map(v=>'<option'+(v===y?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn btn-outline btn-sm" onclick="TK.nav(1)" aria-label="Next">›</button><button class="btn btn-outline btn-sm" onclick="TK.today()">Today</button></div>';
  const ck=(k,l)=>'<label><input type="checkbox"'+(pref[k]?' checked':'')+' onchange="TK.opt(\''+k+'\',this.checked?1:0)"> '+l+'</label>';
  const tools='<div class="cal-tools"><div class="cal-seg"><button class="'+(yv?'':'on')+'" onclick="TK.view(\'month\')">Month</button><button class="'+(yv?'on':'')+'" onclick="TK.view(\'year\')">Year</button></div><details class="cal-opt"'+(wasOpen?' open':'')+'><summary>Options</summary><label>Week starts on <select onchange="TK.opt(\'ws\',+this.value)"><option value="0"'+(ws===0?' selected':'')+'>Sunday</option><option value="1"'+(ws===1?' selected':'')+'>Monday</option></select></label>'+ck('h','Show holidays')+ck('e','Show events')+ck('t','Show tasks due')+'</details></div>';
- if(yv){let g='';for(let i=0;i<12;i++){const pre=y+'-'+pad(i+1)+'-',ld=new Date(y,i+1,0).getDate();let hc=0,ec=0,tc=0;for(let d=1;d<=ld;d++){const k=pre+pad(d);hc+=hoOf(k).length;ec+=evOf(k).length;tc+=tsOf(k).length}
+ if(yv){let g='';for(let i=0;i<12;i++){const pre=y+'-'+pad(i+1)+'-',ld=new Date(y,i+1,0).getDate();let hc=0,ec=0,tc=0;for(let d=1;d<=ld;d++){const k=pre+pad(d);hc+=hoOf(k).length;ec+=evOf(k).length+rxOf(k).length;tc+=tsOf(k).length}
    const bits=[hc?hc+' holiday'+(hc>1?'s':''):'',ec?ec+' event'+(ec>1?'s':''):'',tc?tc+' due':''].filter(Boolean).join(' · ');
    g+='<button class="cal-mo'+(y===cy&&i===cm?' now':'')+'" onclick="TK.goM('+i+')"><strong>'+MON[i]+'</strong><span>'+(bits||'Nothing scheduled')+'</span></button>'}
   box.innerHTML=bar+tools+'<div class="cal-yr">'+g+'</div><p class="inv-note">Click a month to open it.</p>';return}
  const start=new Date(y,m,1-((new Date(y,m,1).getDay()-ws+7)%7));let g='';
  for(let i=0;i<7;i++)g+='<div class="cal-h">'+DAY[(i+ws)%7]+'</div>';
  for(let i=0;i<42;i++){const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),k=localDateStr(d);
-  const ch=[...hoOf(k).map(x=>['h',x.name]),...evOf(k).map(e=>['e',(e.time?e.time+' ':'')+e.title]),...tsOf(k).map(x=>[x.done?'d':'t',x.title])];
+  const ch=[...hoOf(k).map(x=>['h',x.name]),...evOf(k).map(e=>['e',(e.time?e.time+' ':'')+e.title]),...tsOf(k).map(x=>[x.done?'d':'t',x.title]),...rxOf(k).map(x=>[x.c,x.t])];
   g+='<div class="cal-cell'+(d.getMonth()!==m?' off':'')+(k===today?' today':'')+(k===cal.sel?' sel':'')+'" onclick="TK.pick(\''+k+'\')"><span class="cal-n">'+d.getDate()+'</span>'+ch.slice(0,3).map(c=>'<span class="cal-chip c-'+c[0]+'">'+esc(c[1])+'</span>').join('')+(ch.length>3?'<span class="cal-more">+'+(ch.length-3)+' more</span>':'')+'</div>'}
- const k=cal.sel,hs=hoOf(k),ev=evOf(k),ts=tsOf(k);
+ const k=cal.sel,hs=hoOf(k),ev=evOf(k),ts=tsOf(k),rx=rxOf(k);
  box.innerHTML=bar+tools+'<div class="cal-grid">'+g+'</div><div class="cal-legend"><span class="c-h">Holiday</span><span class="c-e">Event</span><span class="c-t">Task due</span></div>'+
- '<div class="cal-day"><h4>'+fD(k)+'</h4>'+hs.map(x=>'<div class="cal-it c-h"><b>'+esc(x.name)+'</b> · '+x.type+'</div>').join('')+ev.map(e=>'<div class="cal-it c-e"><b>'+(e.time?e.time+' ':'')+esc(e.title)+'</b><button class="btn btn-outline btn-sm" onclick="TK.delEv(\''+e.id+'\')">Remove</button></div>').join('')+ts.map(x=>'<div class="cal-it c-'+(x.done?'d':'t')+'"><label><input type="checkbox"'+(x.done?' checked':'')+' onchange="TK.done(\''+x.id+'\')"> '+esc(x.title)+'</label></div>').join('')+(hs.length+ev.length+ts.length?'':'<p class="inv-note">Nothing scheduled.</p>')+
+ '<div class="cal-day"><h4>'+fD(k)+'</h4>'+hs.map(x=>'<div class="cal-it c-h"><b>'+esc(x.name)+'</b> · '+x.type+'</div>').join('')+ev.map(e=>'<div class="cal-it c-e"><b>'+(e.time?e.time+' ':'')+esc(e.title)+'</b><button class="btn btn-outline btn-sm" onclick="TK.delEv(\''+e.id+'\')">Remove</button></div>').join('')+ts.map(x=>'<div class="cal-it c-'+(x.done?'d':'t')+'"><label><input type="checkbox"'+(x.done?' checked':'')+' onchange="TK.done(\''+x.id+'\')"> '+esc(x.title)+'</label></div>').join('')+rx.map(x=>'<div class="cal-it c-'+x.c+'"><b>'+esc(x.t)+'</b></div>').join('')+(hs.length+ev.length+ts.length+rx.length?'':'<p class="inv-note">Nothing scheduled.</p>')+
  '<form class="tk-add" onsubmit="TK.addEv(event)"><input id="evT" placeholder="Add event" required><input id="evTm" type="time"><button class="btn btn-sm">Add event</button></form><form class="tk-add" onsubmit="TK.addDayTask(event)"><input id="dtT" placeholder="Add task due this day" required><button class="btn btn-outline btn-sm">Add task</button></form></div>'+
  '<p class="inv-note">Holidays follow the standard annual list. Eid&#8217;l Fitr, Eid&#8217;l Adha and Chinese New Year are proclaimed each year, so add them as events.</p>'}
 document.head.insertAdjacentHTML('beforeend','<style>.cal-bar{flex-wrap:wrap}.cal-bar select{width:auto;flex:0 1 auto;padding:6px 10px;border-radius:8px}.cal-bar select#calM{min-width:130px}.cal-tools{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:.8rem}.cal-seg{display:inline-flex;border:1px solid var(--border-color);border-radius:9px;overflow:hidden}.cal-seg button{border:0;background:none;padding:6px 14px;cursor:pointer;color:var(--text-main);font:600 .85rem Figtree,sans-serif}.cal-seg button.on{background:var(--accent-primary);color:#fff}.cal-opt{font-size:.85rem}.cal-opt summary{cursor:pointer;font-weight:600;padding:6px 12px;border:1px solid var(--border-color);border-radius:9px;list-style:none;display:inline-block}.cal-opt[open]{padding-bottom:6px}.cal-opt>label{display:flex;align-items:center;gap:8px;margin-top:8px}.cal-opt select{width:auto;padding:4px 8px}.cal-yr{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.cal-mo{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:12px;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card);cursor:pointer;text-align:left;color:var(--text-main);font:inherit}.cal-mo:hover{background:rgba(128,150,190,.1)}.cal-mo.now{outline:2px solid var(--ember)}.cal-mo span{font-size:.78rem;color:var(--text-muted)}</style>');
