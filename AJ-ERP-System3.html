@@ -7153,7 +7153,7 @@ window.hrAutoRow=function(draft,i,k,f,cleared){
 function autoNote(){const n=$('hrRAutoNote');if(!n||!C())return;const p=T().pay;
  n.innerHTML=p.auto?'Tax, SSS, PhilHealth and Pag-IBIG fill in automatically from the '+esc(T().rates.asOf||'')+' tables ('+(p.sched==='split'?'half each cutoff':'whole month on the 2nd cutoff')+'). Type over any amount to keep your own figure; clear it to go back to automatic. Settings: <a href="#" data-txgo="tx-set">Taxes &amp; Filings &gt; Tax Profile</a>.':'Automatic deductions are off. Turn them on in <a href="#" data-txgo="tx-set">Taxes &amp; Filings &gt; Tax Profile</a>.';
  const rb=$('hrRAuto');if(rb)rb.disabled=!(window.HRAPI&&window.HRAPI.draft().length)}
-document.addEventListener('click',e=>{const a=e.target.closest('[data-txgo]');if(a){e.preventDefault();showTab(a.dataset.txgo)}});
+document.addEventListener('click',e=>{const g=e.target.closest('[data-bfgo]');if(g&&window.BIRF){e.preventDefault();BIRF.open(g.dataset.bfgo,bizY,bizQ);return}const a=e.target.closest('[data-txgo]');if(a){e.preventDefault();showTab(a.dataset.txgo)}});
 
 // ---------- payroll aggregates ----------
 function payRows(y,m){const out=[];(HR().runs||[]).forEach(run=>{if(run.year===y&&(m==null||run.month===m))run.rows.forEach(r=>out.push({run,r}))});return out}
@@ -7298,7 +7298,7 @@ document.querySelector('main.main-content').insertAdjacentHTML('beforeend',
  +'<p class="hr-note">When you pay a supplier, landlord or professional, you withhold part of the payment and remit it to BIR. Record each one here; the app totals 0619-E and 1601-EQ, prepares the QAP and the 2307 details for each supplier.</p>'
  +'<div class="hr-bar">'+yq('txE')+qSel('txE')+'</div><div class="bk-kpis" id="txEKpis"></div><div class="hr-scroll"><table class="hr-tbl bk-tbl"><thead><tr><th>Date</th><th>Payee</th><th>TIN</th><th>ATC</th><th>Particulars</th><th class="number">Income payment</th><th class="number">Rate</th><th class="number">Tax withheld</th><th>Books</th><th></th></tr></thead><tbody id="txEBody"></tbody></table></div>'
  +'<h3 style="margin:1.4rem 0 .4rem;font-size:1.02rem">Quarter summary by ATC (1601-EQ)</h3><div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>ATC</th><th>Nature of payment</th><th class="number" id="txEM1"></th><th class="number" id="txEM2"></th><th class="number" id="txEM3"></th><th class="number">Total income payment</th><th class="number">Tax withheld</th></tr></thead><tbody id="txESum"></tbody></table></div>'
- +'<div class="hr-acts" style="margin-top:1rem"><button class="btn btn-outline" data-a="2307">Print 2307 details</button><button class="btn btn-outline" data-a="qap">QAP (CSV)</button><button class="btn btn-outline" data-a="csv">Export records (CSV)</button></div>'+DISC+'</div></div>'
+ +'<div class="hr-acts" style="margin-top:1rem"><button class="btn btn-outline" data-a="2307">Print BIR 2307</button><button class="btn btn-outline" data-a="qap">QAP (CSV)</button><button class="btn btn-outline" data-a="csv">Export records (CSV)</button></div>'+DISC+'</div></div>'
  +'<div id="tab-tx-pay" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Payroll Remittances</h2><div class="hr-acts"><select id="txPView" aria-label="View"><option value="m">Monthly remittances</option><option value="y">Annual (2316 / alphalist)</option><option value="ids">Employee government numbers</option></select></div></div>'
  +'<div class="hr-bar">'+yq('txP')+'<span id="txPMWrap">'+mSel('txP')+'</span></div><div id="txPOut"></div>'+DISC+'</div></div>'
  +'<div id="tab-tx-set" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Tax Profile &amp; Rates</h2></div><div id="txSOut"></div></div></div>');
@@ -7308,7 +7308,7 @@ let calY,calM;
 function stOf(i){const f=T().filed[i.key],t=today();if(f)return '<span class="tx-st ok">✓ '+(i.kind==='pay'?'Paid':i.kind==='issue'?'Done':'Filed')+' '+esc(fdl(f.date))+'</span>'+(f.ref?'<br><small class="bk-mut">Ref '+esc(f.ref)+'</small>':'');
  const d=Math.round((new Date(i.due+'T00:00')-new Date(t+'T00:00'))/864e5);
  return d<0?'<span class="tx-st od">Overdue '+(-d)+' day'+(d===-1?'':'s')+'</span>':d===0?'<span class="tx-st soon">Due today</span>':d<=7?'<span class="tx-st soon">Due in '+d+' day'+(d===1?'':'s')+'</span>':'<span class="tx-st later">In '+d+' days</span>'}
-function amtOf(i){if(!i.amt)return null;try{return i.amt()}catch(e){return null}}
+function amtOf(i){if(window.BIRF&&BIRF.calAmt){const o=BIRF.calAmt(i);if(o!=null)return o}if(!i.amt)return null;try{return i.amt()}catch(e){return null}}
 function rowHtml(i){const a=amtOf(i),f=T().filed[i.key],d=new Date(i.due+'T00:00');
  return '<tr><td class="tx-due"><b>'+esc(fdl(i.due))+'</b><small>'+WD[d.getDay()]+(i.moved?' • moved from '+i.moved:'')+'</small></td><td><span class="tx-form">'+esc(i.form)+'</span></td><td class="wrap"><b>'+esc(i.title)+'</b><br><small class="bk-mut">'+esc(i.per)+'</small></td>'
  +'<td class="number">'+(f&&f.amt!=null&&i.kind==='pay'?fm(f.amt):a==null?'<span class="bk-mut">–</span>':fm(a)+(i.est?'<br><small class="bk-mut">estimate</small>':''))+'</td><td>'+stOf(i)+'</td>'
@@ -7361,7 +7361,8 @@ function renderBiz(){
  const c=C();if(!c)return;if(!bizY)[bizY,bizQ]=curQ();$('txBY').value=bizY;$('txBQ').value=bizQ;
  const p=T().profile,F=bizFig(bizY,bizQ),y=bizY,q=bizQ,ms=qMonths(q);
  const TR=[['T','Taxable'],['Z','Zero-rated'],['E','Exempt'],['X','Not business income']];
- let h='<p class="hr-note">Profile: <b>'+({VAT:'VAT-registered',PT:'Non-VAT (percentage tax)',EIGHT:'8% income tax option',EXEMPT:'Exempt from business tax'})[p.biz]+'</b>. Revenue below is from your books (accrual). Choose how each revenue account is treated; the choice is remembered.</p>'
+ const ovF=window.BIRF?['2551Q','2550Q'].filter(f=>BIRF.OVS()[BIRF.okey(f,y,q,'')]):[];
+ let h=(ovF.length?'<div class="rq-note">You entered manual figures for the '+ovF.join(' and ')+' of Q'+q+' '+y+' in BIR Forms, so the amount due there ('+n2(BIRF.total(ovF[0],y,q))+') can differ from the books below. <a href="#" data-bfgo="'+ovF[0]+'">Review them</a></div>':'')+'<p class="hr-note">Profile: <b>'+({VAT:'VAT-registered',PT:'Non-VAT (percentage tax)',EIGHT:'8% income tax option',EXEMPT:'Exempt from business tax'})[p.biz]+'</b>. Revenue below is from your books (accrual). Choose how each revenue account is treated; the choice is remembered.</p>'
   +'<div class="hr-scroll"><table class="hr-tbl tx-tbl"><thead><tr><th>Revenue account</th>'+ms.map(m=>'<th class="number">'+MN[m-1].slice(0,3)+'</th>').join('')+'<th class="number">Quarter</th><th>Treatment</th></tr></thead><tbody>'
   +(F.rows.length?F.rows.map(x=>'<tr><td>'+esc(x.a.code+' – '+x.a.title)+'</td>'+x.ms.map(v=>'<td class="number">'+n2(v)+'</td>').join('')+'<td class="number"><b>'+n2(x.tot)+'</b></td><td><select data-tr="'+x.a.code+'">'+TR.filter(o=>p.biz==='VAT'||o[0]!=='Z').map(o=>'<option value="'+o[0]+'"'+(x.tr===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></td></tr>').join(''):'<tr><td colspan="6" class="bk-mut" style="text-align:center;padding:1.2rem">No revenue recorded in Q'+q+' '+y+'.</td></tr>')+'</tbody></table></div>';
  const L=(a,b,cls)=>'<span'+(cls?' class="'+cls+'"':'')+'>'+a+'</span><b'+(cls?' class="'+cls+'"':'')+'>'+b+'</b>';
@@ -7399,7 +7400,7 @@ function renderEwt(){
 ['txEY','txEQ'].forEach(id=>$(id).addEventListener('change',()=>{ewtY=+$('txEY').value||ewtY;ewtQ_=+$('txEQ').value;renderEwt()}));
 $('tab-tx-ewt').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
  if(d.a==='new')ewtForm();else if(d.ed)ewtForm(T().ewt.find(x=>x.id===d.ed));else if(d.del)ewtDel(d.del);else if(d.a==='payees')payeesDlg();
- else if(d.a==='2307')print2307();else if(d.a==='qap')qap();else if(d.a==='csv')ewtCsv()});
+ else if(d.a==='2307'){if(window.BIRF)BIRF.open('2307',ewtY,ewtQ_);else print2307()}else if(d.a==='qap')qap();else if(d.a==='csv')ewtCsv()});
 function payeeFields(pr){return '<div class="grid-2"><div class="form-group"><label for="'+pr+'Nm">Registered name</label><input id="'+pr+'Nm" maxlength="120"></div><div class="form-group"><label for="'+pr+'Tin">TIN (000-000-000-00000)</label><input id="'+pr+'Tin" maxlength="20" placeholder="000-000-000-00000"></div><div class="form-group"><label for="'+pr+'Ad">Registered address</label><input id="'+pr+'Ad" maxlength="200"></div><div class="form-group"><label for="'+pr+'Kd">Type</label><select id="'+pr+'Kd"><option value="I">Individual</option><option value="C">Corporation / partnership</option></select></div></div>'}
 const fmtTin=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,14);return d?[d.slice(0,3),d.slice(3,6),d.slice(6,9),d.slice(9)].filter(Boolean).join('-'):''};
 function ewtForm(x){
@@ -7486,7 +7487,7 @@ function renderPay(){
  out.innerHTML='<p class="hr-note">Year '+payY+' from saved payroll. Tax due uses the annual graduated table; a negative difference is a refund to the employee, a positive one is still to be withheld (usually from the December payroll). 13th month pay and other benefits up to ₱90,000 are not taxed; add them to the payroll if you pay them.</p>'
   +'<div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Employee</th><th>TIN</th>'+H+'Gross compensation</th>'+H+'Non-taxable</th>'+H+'Taxable</th>'+H+'Tax due (annual)</th>'+H+'Tax withheld</th>'+H+'Difference</th></tr></thead><tbody>'
   +(rows.length?rows.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+esc((E[x.empId]||{}).tin||'–')+'</td>'+['gross','nontax','taxable','due','tax'].map(k=>'<td class="number">'+n2(x[k])+'</td>').join('')+'<td class="number"'+(x.diff>0?' style="color:var(--danger)"':'')+'>'+n2(x.diff)+'</td></tr>').join(''):'<tr><td colspan="8" class="bk-mut" style="text-align:center">No saved payroll for '+payY+'.</td></tr>')
-  +'</tbody></table></div><div class="hr-acts" style="margin-top:1rem"><button class="btn btn-outline" data-y="2316">Print 2316 details</button><button class="btn btn-outline" data-y="alpha">Alphalist for 1604-C (CSV)</button></div>';
+  +'</tbody></table></div><div class="hr-acts" style="margin-top:1rem"><button class="btn btn-outline" data-y="2316">Print BIR 2316</button><button class="btn btn-outline" data-y="alpha">Alphalist for 1604-C (CSV)</button></div>';
 }
 ['txPY','txPM'].forEach(id=>$(id).addEventListener('change',()=>{payY=+$('txPY').value||payY;payM=+$('txPM').value;renderPay()}));
 $('txPView').onchange=()=>{payView=$('txPView').value;renderPay()};
@@ -7501,6 +7502,7 @@ $('txPOut').addEventListener('click',e=>{const b=e.target.closest('button');if(!
   return dl(slug(c.name)+'_'+k+'_'+payY+'-'+p2(payM)+'.csv',csv([['Period',per]].concat(rows)))}
  if(b.dataset.y){const L=payByEmp(payY,null);if(!L.length)return toast('No saved payroll for '+payY+'.');
   if(b.dataset.y==='alpha')return dl(slug(c.name)+'_alphalist_1604C_'+payY+'.csv',csv([['Seq','TIN','Employee','MWE','Gross compensation','Non-taxable compensation','Taxable compensation','Tax due','Tax withheld','Over/(under) withheld']].concat(L.map((x,i)=>{const d=taxYear(x.taxable);return[i+1,(E[x.empId]||{}).tin||'',x.name,x.mwe?'Y':'N',(x.gross/100).toFixed(2),(x.nontax/100).toFixed(2),(x.taxable/100).toFixed(2),(d/100).toFixed(2),(x.tax/100).toFixed(2),((x.tax-d)/100).toFixed(2)]}))));
+  if(window.BIRF)return BIRF.open('2316',payY);
   printDoc('2316 details '+payY,L.map(x=>{const d=taxYear(x.taxable),id=E[x.empId]||{};return '<div class="pg"><h1>BIR Form 2316 details – Certificate of Compensation Payment / Tax Withheld</h1><div>For the year '+payY+'</div><h2>Employee</h2><table class="kv"><tr><td>Name</td><td>'+esc(x.name)+'</td></tr><tr><td>TIN</td><td>'+esc(id.tin||'')+'</td></tr><tr><td>Minimum wage earner</td><td>'+(x.mwe?'Yes':'No')+'</td></tr></table><h2>Employer</h2><table class="kv"><tr><td>Name</td><td>'+esc(c.name)+'</td></tr><tr><td>TIN</td><td>'+esc(c.tin||'')+'</td></tr><tr><td>Address</td><td>'+esc(c.address||'')+'</td></tr></table><h2>Compensation</h2><table class="kv"><tr><td>Gross compensation</td><td class="r">'+n2(x.gross)+'</td></tr><tr><td>Non-taxable (MWE pay, de minimis, SSS/PhilHealth/Pag-IBIG employee share)</td><td class="r">'+n2(x.nontax)+'</td></tr><tr><td>Taxable compensation</td><td class="r">'+n2(x.taxable)+'</td></tr><tr><td>Tax due</td><td class="r">'+n2(d)+'</td></tr><tr><td>Tax withheld</td><td class="r">'+n2(x.tax)+'</td></tr><tr><td>Over / (under) withheld</td><td class="r">'+n2(x.tax-d)+'</td></tr></table><p class="note">Transfer these figures to the official BIR Form 2316, sign with the employee, and give a copy by January 31.</p></div>'}).join(''))}});
 
 // ---------- tax profile & rates page ----------
@@ -7583,7 +7585,7 @@ const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d)
   if(x.emp&&typeof x.emp==='object')Object.keys(x.emp).forEach(k=>{const e=x.emp[k];if(e&&typeof e==='object')t.emp[safeId(k)]={tin:S(e.tin,20),sss:S(e.sss,20),ph:S(e.ph,20),hdmf:S(e.hdmf,20),mwe:!!e.mwe}});
   o.tax=t}catch(err){}}
  if(Array.isArray(d.journalEntries))o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='tax'){e.src='tax';e.taxKey=String(x.taxKey||'').slice(0,60)}});return o};
-window.TAXMOD={dmSplit,T,sssOf,phOf,hdmfOf,wtaxSemi,taxYear,items,itemsBetween,bizFig,itrFig,payByEmp,fillRow,overdue};
+window.TAXMOD={isMwe,dmSplit,T,sssOf,phOf,hdmfOf,wtaxSemi,taxYear,items,itemsBetween,bizFig,itrFig,payByEmp,fillRow,overdue};
 setTimeout(()=>{badge();renderDash()},0);
 })();
 
@@ -8956,7 +8958,7 @@ $('sbCo').onclick=()=>{if(pop&&pop.dataset.k==='co')return closePop();const c=C(
  const p=openPop($('sbCo'),'<div class="h"><b>'+esc(c.name)+'</b>'+esc(c.tin?'TIN '+c.tin:'')+'</div>'+(!$('nav-settings').classList.contains('role-hide')?'<button type="button" data-a="set">'+ICON(I.gear)+'Company settings</button>':'')+'<button type="button" data-a="sw">'+ICON(I.swap)+'Switch company (sign out)</button>');
  p.dataset.k='co';p.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{closePop();if(b.dataset.a==='set')showTab('settings');else logOff()})};
 // ---------- Jump to (Ctrl K) ----------
-const KW={'nav-sub-tx-biz':'2551Q 2550Q 1701Q 1702Q percentage tax VAT income tax','nav-sub-tx-ewt':'2307 0619-E 1601-EQ QAP EWT expanded withholding suppliers 1604-E','nav-sub-tx-pay':'1601-C 2316 alphalist 1604-C SSS PhilHealth Pag-IBIG HDMF remittance','nav-sub-tx-cal':'BIR deadlines calendar due','nav-sub-close':'archive closing year end lock','nav-sub-rpt-pctb':'post closing','nav-sub-journal':'journal entries JE','nav-home':'home dashboard','nav-sub-rx-group':'consolidated group umbrella combined all companies holding','nav-sub-ar-inv':'billing invoice SI sales','nav-sub-ar-age':'aging receivable statement SOA collectibles','nav-sub-ar-pay':'collection OR receipt payment received','nav-sub-ap-bill':'bill supplier invoice payable','nav-sub-ap-pay':'pay supplier voucher PV check','nav-sub-ap-age':'aging payable','nav-sub-fa-reg':'fixed asset property equipment PPE','nav-sub-fa-dep':'depreciation','nav-sub-fa-lap':'lapsing schedule','nav-sub-bk-rec':'bank reconciliation bank rec','nav-sub-bx-recur':'recurring accrual amortization','nav-sub-rx-budget':'budget variance','nav-sub-rx-books':'BIR books journal ledger cash receipts disbursements','nav-sub-bx-audit':'audit log history changes','nav-sub-hx-13th':'13th month bonus','nav-settings':'company chart of accounts COA users backup theme colors'};
+const KW={'nav-sub-tx-biz':'2551Q 2550Q 1701Q 1702Q percentage tax VAT income tax','nav-sub-tx-ewt':'2307 0619-E 1601-EQ QAP EWT expanded withholding suppliers 1604-E','nav-sub-tx-pay':'1601-C 2316 alphalist 1604-C SSS PhilHealth Pag-IBIG HDMF remittance','nav-sub-tx-forms':'BIR forms print 2307 2316 1601-C 0619-E 1601-EQ QAP 2551Q 2550Q 1701Q 1702Q certificate return','nav-sub-tx-cal':'BIR deadlines calendar due','nav-sub-close':'archive closing year end lock','nav-sub-rpt-pctb':'post closing','nav-sub-journal':'journal entries JE','nav-home':'home dashboard','nav-sub-rx-group':'consolidated group umbrella combined all companies holding','nav-sub-ar-inv':'billing invoice SI sales','nav-sub-ar-age':'aging receivable statement SOA collectibles','nav-sub-ar-pay':'collection OR receipt payment received','nav-sub-ap-bill':'bill supplier invoice payable','nav-sub-ap-pay':'pay supplier voucher PV check','nav-sub-ap-age':'aging payable','nav-sub-fa-reg':'fixed asset property equipment PPE','nav-sub-fa-dep':'depreciation','nav-sub-fa-lap':'lapsing schedule','nav-sub-bk-rec':'bank reconciliation bank rec','nav-sub-bx-recur':'recurring accrual amortization','nav-sub-rx-budget':'budget variance','nav-sub-rx-books':'BIR books journal ledger cash receipts disbursements','nav-sub-bx-audit':'audit log history changes','nav-sub-hx-13th':'13th month bonus','nav-settings':'company chart of accounts COA users backup theme colors'};
 document.body.insertAdjacentHTML('beforeend','<div id="cmdk" class="hidden" role="dialog" aria-label="Jump to"><div class="box"><div class="in">'+ICON(I.search)+'<input id="cmdkIn" placeholder="Jump to a page, report or form (e.g. payslips, 2551Q)" autocomplete="off"></div><ul id="cmdkList"></ul><div class="ft"><span>↑↓ to move</span><span>Enter to open</span><span>Esc to close</span></div></div></div>');
 let list=[],sel=0;
 const vis=li=>li&&!li.classList.contains('role-hide')&&!li.classList.contains('hidden')&&!li.classList.contains('nav-sec');
@@ -9099,6 +9101,413 @@ window.CALMUI={sync,openK,alerts};
  };
  const grid = document.querySelector('#setTab-theme .grid-2');
  if (grid) grid.insertAdjacentHTML('beforeend', '<div class="card"><h4>Sidebar Menu</h4><p style="font-size:0.88rem;color:var(--text-muted);margin-top:0;">Press and hold any menu item for 5 seconds, then drag it to a new position. Press Done (or Esc) when finished. The order is remembered on this device.</p><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn btn-outline" onclick="NAVARR.start()">Rearrange now</button><button type="button" class="btn btn-outline" onclick="NAVARR.reset()">Reset menu order</button></div></div>');
+})();
+// ===== BIR Forms: print-ready copies of 2307, 2316, 1601-C, 0619-E, 1601-EQ (+QAP), 2551Q and worksheets for 2550Q / 1701Q / 1702Q =====
+(function(){
+const X=window.ERPX,TM=window.TAXMOD;if(!X||!TM)return;
+const $=id=>document.getElementById(id);
+const C=()=>activeCompany(),T=()=>TM.T(),e=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const c100=v=>Math.round((parseFloat(v)||0)*100),pos=v=>v>0?v:0,p2=n=>String(n).padStart(2,'0'),ld=(y,m)=>new Date(y,m,0).getDate();
+const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const qM=q=>[q*3-2,q*3-1,q*3];
+const F=()=>{const t=T();if(!t.forms||typeof t.forms!=='object')t.forms={};const f=t.forms;if(!f.biz||typeof f.biz!=='object')f.biz={};return f};
+const EM=id=>{const t=T();t.emp=t.emp||{};return t.emp[id]||{}};
+const HR=()=>(C().hr&&typeof C().hr==='object')?C().hr:{employees:[],runs:[]};
+const zipOf=a=>{const m=String(a||'').match(/\b(\d{4})\s*$/);return m?m[1]:''};
+const am=v=>v==null||v===''?'':(v<0?'(':'')+(Math.abs(v)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+(v<0?')':'');
+const mdY=s=>s?s.slice(5,7)+'/'+s.slice(8,10)+'/'+s.slice(0,4):'';
+// ---------- who files: company, or a business with its own registration ----------
+function agent(biz){const c=C(),f=F(),o=biz&&f.biz[biz]||{},has=o.tin&&String(o.tin).replace(/\D/g,'').length>=9;
+ const name=has&&o.name?o.name:c.name,addr=has&&o.addr?o.addr:(c.address||'');
+ return{name,tin:has?o.tin:(c.tin||''),addr,zip:(has&&o.zip)||(!has&&f.zip)||zipOf(addr),rdo:(has&&o.rdo)||f.rdo||'',email:f.email||'',phone:f.phone||c.contact||'',cat:f.cat==='G'?'G':'P'}}
+const signer=()=>{const f=F();return{name:f.sName||'',title:f.sTitle||'',tin:f.sTin||''}};
+// ---------- form building blocks ----------
+const tinBox=t=>{const d=String(t||'').replace(/\D/g,''),g=[d.slice(0,3),d.slice(3,6),d.slice(6,9),(d.slice(9,14)||(d.length>=9?'00000':''))],w=[3,3,3,5];
+ return '<span class="tin">'+g.map((s,i)=>'<span class="tg">'+Array.from({length:w[i]},(_,k)=>'<i>'+e(s[k]||'')+'</i>').join('')+'</span>').join('<span class="dash">-</span>')+'</span>'};
+const fld=(no,lab,val,o)=>'<div class="fld'+(o&&o.cls?' '+o.cls:'')+'"'+(o&&o.w?' style="flex:0 0 '+o.w+'"':'')+'><div class="l">'+(no?'<b>'+no+'</b>':'')+e(lab)+'</div><div class="v">'+(o&&o.raw?val:e(val))+'</div></div>';
+const row=(...f)=>'<div class="row">'+f.join('')+'</div>';
+const sec=t=>'<div class="sec">'+t+'</div>';
+const yn=(v,a,b)=>'<span class="ck">'+(v?'☒':'☐')+' '+(a||'Yes')+'</span> <span class="ck">'+(v?'☐':'☒')+' '+(b||'No')+'</span>';
+const ck=(on,l)=>'<span class="ck">'+(on?'☒':'☐')+' '+l+'</span>';
+const L=(no,lab,v,o)=>'<tr'+(o&&o.b?' class="b"':'')+'><td class="n">'+(no||'')+'</td><td class="t">'+lab+'</td>'+(o&&o.cols?o.cols.map(x=>'<td class="a">'+am(x)+'</td>').join(''):'<td class="a'+(HL.has(String(o&&o.k||no))?' ov':'')+'">'+(o&&o.raw?(v==null?'':v):am(v))+'</td>')+'</tr>';
+const head=(no,ver,title,sub)=>'<div class="hd"><div class="bu"><small>For BIR Use Only</small><div>BCS/<br>Item:</div></div><div class="rp">Republic of the Philippines<br>Department of Finance<br><b>Bureau of Internal Revenue</b></div><div class="fn"><small>BIR Form No.</small><b>'+no+'</b><small>'+ver+'</small></div></div><div class="ttl"><b>'+title+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
+const foot=(no,ver)=>'<div class="ft"><span>BIR Form '+no+' – '+ver+'</span><span>Prepared with AJ ERP System from your records. Review before signing and filing.</span></div>';
+const sig=(cap,who,extra)=>'<div class="sg"><div class="ln">'+e(who.name||'')+(who.title?', '+e(who.title):'')+(who.tin?' &nbsp; TIN '+e(who.tin):'')+'</div><small>'+cap+'</small>'+(extra||'')+'</div>';
+const decl=t=>'<div class="dc">'+t+'</div>';
+const DECL='I/We declare under the penalties of perjury that this return/form, and all its attachments, have been made in good faith, verified by me/us, and to the best of my/our knowledge and belief, is true and correct, pursuant to the provisions of the National Internal Revenue Code, as amended, and the regulations issued under authority thereof. Further, I/we give my/our consent to the processing of my/our information as contemplated under the Data Privacy Act of 2012 (R.A. No. 10173) for legitimate and lawful purposes.';
+const partI=(a,from)=>row(fld(from[0],'Taxpayer Identification Number (TIN)',tinBox(a.tin),{raw:1,w:'58%'}),fld(from[1],'RDO Code',a.rdo))
+ +row(fld(from[2],(from[5]||'Withholding Agent')+"'s Name (Last Name, First Name, Middle Name for Individual OR Registered Name for Non-Individual)",a.name))
+ +row(fld(from[3],'Registered Address (Indicate complete address. If branch, indicate the branch address.)',a.addr,{w:'78%'}),fld(from[3]+'A','ZIP Code',a.zip))
+ +(from[4]?row(fld(from[4][0],'Contact Number',a.phone),fld(from[4][1],'Category of Withholding Agent',ck(a.cat==='P','Private')+' '+ck(a.cat==='G','Government'),{raw:1}),from[4][2]?fld(from[4][2],'Email Address',a.email):''):'');
+// ---------- payroll figures per employee (for 2316 / 1601-C) ----------
+const MAX13=9000000;
+// ---------- manual figures: your own amounts with a note, kept per form, period and payee/employee ----------
+const OVS=()=>{const f=F();if(!f.ov||typeof f.ov!=='object')f.ov={};return f.ov};
+const okey=(form,y,p,who)=>form+'|'+y+'|'+(p||0)+'|'+(who||'');
+let HL=new Set(),LAST=[];
+function apply(form,y,p,who,it,derive){derive(it,new Set());const rec=Object.assign({},it),o=OVS()[okey(form,y,p,who)]||{},set=new Set(Object.keys(o));
+ set.forEach(k=>it[k]=o[k].v);derive(it,set);Object.defineProperty(it,'_rec',{value:rec});Object.defineProperty(it,'_ov',{value:set});HL=set;LAST.push({form,y,p,who,it});return it}
+const dv=(it,s)=>(k,v)=>{if(!s.has(String(k)))it[k]=v};
+const KEYS=['basic','hol','ot','allow','ee','dmIn','dmEx','xn','tax','gross','t13','rep','trn','cola','hou','com','prof','fee','haz','bon','oth'];
+function payRows(y,m,biz){const out=[];(HR().runs||[]).forEach(run=>{if(run.year!==y||(m!=null&&run.month!==m))return;run.rows.forEach(r=>{if(!biz||r.business===biz)out.push({run,r})})});return out}
+function slot(name){const n=String(name||'').toLowerCase();return /represent/.test(n)?'rep':/transpo|transport|fare|gas/.test(n)?'trn':/cola|cost of living/.test(n)?'cola':/housing|lodging|rent/.test(n)?'hou':/commission/.test(n)?'com':/profit/.test(n)?'prof':/fee|honorari/.test(n)?'fee':/hazard/.test(n)?'haz':/bonus|incentive|award|prize|13th/.test(n)?'bon':'oth'}
+function empFig(rows){const by=new Map(),mealNT=T().pay.mealNT!==false;
+ rows.forEach(({run,r})=>{const k=r.empId||r.name;const x=by.get(k)||Object.assign({empId:r.empId,name:r.name,business:r.business,mwe:false,rate:0,first:null,last:null},Object.fromEntries(KEYS.map(z=>[z,0])));
+  const c=window.HRAPI.calc(r),mwe=TM.isMwe(r),dm=TM.dmSplit(r,run.year,run.month,run.quincena);
+  x.mwe=x.mwe||mwe;if(mwe)x.rate=Math.max(x.rate,c.rate);
+  x.basic+=c.basic;x.hol+=c.hol;x.ot+=c.ot;x.gross+=c.gross;x.tax+=c.tax;x.ee+=c.sss+c.ph+c.pg;x._mwe=(x._mwe||0)+(mwe?c.basic+c.hol+c.ot:0);
+  if(mealNT)x.allow+=c.allow;else x.oth+=c.allow;
+  x.dmIn+=dm.inn;x.dmEx+=dm.ex;
+  (c.items||[]).forEach(it=>{if(it.kind==='D'||it.tax==='DM')return;if(it.tax==='N')x.xn+=it.v;else x[slot(it.name)]+=it.v});
+  const a=run.year*100+run.month*2+run.quincena;if(x.first==null||a<x.first)x.first=a;if(x.last==null||a>x.last)x.last=a;
+  by.set(k,x)});
+ return [...by.values()].sort((a,b)=>a.name.localeCompare(b.name))}
+const h13=y=>{const r=C().hr13&&C().hr13[y];return r||null};
+function f2316(x,y){
+ const t13=(h13(y)&&h13(y).amounts&&h13(y).amounts[x.empId])||0,mw=x.mwe;
+ const it={};it[29]=mw?x.basic:0;it[30]=mw?x.hol:0;it[31]=mw?x.ot:0;it[32]=0;it[33]=0;it[34]=Math.min(t13,MAX13);it[35]=x.dmIn;it[36]=x.ee;it[37]=x.allow+x.xn;
+ it[38]=[29,30,31,32,33,34,35,36,37].reduce((s,k)=>s+it[k],0);
+ it[39]=mw?0:pos(x.basic-x.ee);if(mw)it[29]=pos(it[29]-x.ee);it[40]=x.rep;it[41]=x.trn;it[42]=x.cola;it[43]=x.hou;it['44A']=mw?0:x.hol;it['44B']=x.oth;
+ it[45]=mw?0:x.ot;it[46]=x.com;it[47]=x.prof;it[48]=x.fee;it[49]=pos(t13-MAX13);it[50]=x.haz;it['51A']=x.dmEx;it['51B']=x.bon;
+ it[22]=0;it['25A']=x.tax;it['25B']=0;it[27]=0;
+ return apply('2316',y,0,x.empId,it,D2316)}
+function D2316(it,s){const d=dv(it,s);d(38,[29,30,31,32,33,34,35,36,37].reduce((t,k)=>t+(+it[k]||0),0));d(52,[39,40,41,42,43,'44A','44B',45,46,47,48,49,50,'51A','51B'].reduce((t,k)=>t+(+it[k]||0),0));
+ d(19,it[38]+it[52]);d(20,it[38]);d(21,it[52]);d(23,it[21]+(+it[22]||0));d(24,TM.taxYear(it[23]));d(26,(+it['25A']||0)+(+it['25B']||0));d(28,it[26]+(+it[27]||0))}
+function spanOf(x){const dec=a=>{const y=Math.floor(a/100),r=a-y*100;let m=Math.floor(r/2),q=r-m*2;if(q===0){m-=1;q=2}return[y,m,q]};
+ const[,m1,q1]=dec(x.first),[y2,m2,q2]=dec(x.last);return[p2(m1)+'/'+(q1===1?'01':'16'),p2(m2)+'/'+(q2===1?'15':p2(ld(y2,m2)))]}
+// ---------- 2316 ----------
+function form2316(x,y){const it=f2316(x,y);HL=it._ov;const E=EM(x.empId),emp=(HR().employees||[]).find(z=>z.id===x.empId)||{},a=agent(x.business),[fr,to]=spanOf(x),s=signer();
+ const nm=emp.last?(emp.last+', '+emp.first+(emp.mi?' '+emp.mi:'')):x.name;
+ const tw=(n,l,v)=>L(n,l,v);
+ return '<div class="f">'+head('2316','September 2021 (ENCS)','Certificate of Compensation Payment/Tax Withheld','For Compensation Payment With or Without Tax Withheld')
+ +'<div class="ins">Fill in all applicable spaces. Mark all appropriate boxes with an "X".</div>'
+ +row(fld(1,'For the Year (YYYY)',String(y),{w:'30%'}),fld(2,'For the Period From (MM/DD) – To (MM/DD)',fr+'  –  '+to))
+ +'<div class="cols"><div class="cl">'
+ +sec('Part I – Employee Information')
+ +row(fld(3,'TIN',tinBox(E.tin),{raw:1,w:'68%'}),fld(5,'RDO Code',E.rdo||''))
+ +row(fld(4,"Employee's Name (Last Name, First Name, Middle Name)",nm))
+ +row(fld(6,'Registered Address',E.addr||'',{w:'75%'}),fld('6A','ZIP Code',E.zip||zipOf(E.addr)))
+ +row(fld('6B','Local Home Address','',{w:'75%'}),fld('6C','ZIP Code',''))
+ +row(fld('6D','Foreign Address',''))
+ +row(fld(7,'Date of Birth (MM/DD/YYYY)',mdY(E.dob)),fld(8,'Contact Number',E.phone||''))
+ +row(fld(9,'Statutory Minimum Wage rate per day',x.mwe?am(x.rate):''),fld(10,'Statutory Minimum Wage rate per month',''))
+ +row(fld(11,'Minimum Wage Earner (MWE) whose compensation is exempt from withholding tax and not subject to income tax',ck(x.mwe,''),{raw:1}))
+ +sec('Part II – Employer Information (Present)')
+ +row(fld(12,'TIN',tinBox(a.tin),{raw:1}))
+ +row(fld(13,"Employer's Name",a.name))
+ +row(fld(14,'Registered Address',a.addr,{w:'75%'}),fld('14A','ZIP Code',a.zip))
+ +row(fld(15,'Type of Employer',ck(true,'Main Employer')+' '+ck(false,'Secondary Employer'),{raw:1}))
+ +sec('Part III – Employer Information (Previous)')
+ +row(fld(16,'TIN',tinBox(''),{raw:1}))+row(fld(17,"Employer's Name",''))+row(fld(18,'Registered Address','',{w:'75%'}),fld('18A','ZIP Code',''))
+ +sec('Part IV-A – Summary')
+ +'<table class="c">'+L(19,'Gross Compensation Income from Present Employer (Sum of Items 38 and 52)',it[19])+L(20,'Less: Total Non-Taxable/Exempt Compensation Income from Present Employer (From Item 38)',it[20])+L(21,'Taxable Compensation Income from Present Employer (Item 19 Less Item 20) (From Item 52)',it[21])+L(22,'Add: Taxable Compensation Income from Previous Employer, if applicable',it[22])+L(23,'Gross Taxable Compensation Income (Sum of Items 21 and 22)',it[23])+L(24,'Tax Due',it[24])+L(25,'Amount of Taxes Withheld',null,{raw:1})+L('25A','Present Employer',it['25A'])+L('25B','Previous Employer, if applicable',it['25B'])+L(26,'Total Amount of Taxes Withheld as adjusted (Sum of Items 25A and 25B)',it[26])+L(27,'5% Tax Credit (PERA Act of 2008)',it[27])+L(28,'Total Taxes Withheld (Sum of Items 26 and 27)',it[28],{b:1})+'</table>'
+ +'</div><div class="cl">'
+ +sec('Part IV-B – Details of Compensation Income and Tax Withheld from Present Employer')
+ +'<table class="c"><tr class="g"><td colspan="3">A. NON-TAXABLE/EXEMPT COMPENSATION INCOME</td></tr>'
+ +tw(29,'Basic Salary (including the exempt ₱250,000 &amp; below) or the Statutory Minimum Wage of the MWE',it[29])+tw(30,'Holiday Pay (MWE)',it[30])+tw(31,'Overtime Pay (MWE)',it[31])+tw(32,'Night Shift Differential (MWE)',it[32])+tw(33,'Hazard Pay (MWE)',it[33])+tw(34,'13th Month Pay and Other Benefits (maximum of ₱90,000)',it[34])+tw(35,'De Minimis Benefits',it[35])+tw(36,'SSS, GSIS, PHIC &amp; PAG-IBIG Contributions and Union Dues (Employee share only)',it[36])+tw(37,'Salaries and Other Forms of Compensation',it[37])+L(38,'Total Non-Taxable/Exempt Compensation Income (Sum of Items 29 to 37)',it[38],{b:1})
+ +'<tr class="g"><td colspan="3">B. TAXABLE COMPENSATION INCOME REGULAR</td></tr>'
+ +tw(39,'Basic Salary',it[39])+tw(40,'Representation',it[40])+tw(41,'Transportation',it[41])+tw(42,'Cost of Living Allowance (COLA)',it[42])+tw(43,'Fixed Housing Allowance',it[43])+tw('44','Others (specify)',null)+tw('44A','Holiday pay',it['44A'])+tw('44B','Other taxable allowances',it['44B'])
+ +'<tr class="g"><td colspan="3">SUPPLEMENTARY</td></tr>'
+ +tw(45,'Overtime Pay',it[45])+tw(46,'Commission',it[46])+tw(47,'Profit Sharing',it[47])+tw(48,"Fees Including Director's Fees",it[48])+tw(49,'Taxable 13th Month Benefits',it[49])+tw(50,'Hazard Pay',it[50])+tw(51,'Others (specify)',null)+tw('51A','De minimis in excess of ceilings',it['51A'])+tw('51B','Bonuses and incentives',it['51B'])
+ +L(52,'Total Taxable Compensation Income (Sum of Items 39 to 51B)',it[52],{b:1})+'</table>'
+ +'</div></div>'
+ +decl('I/We declare, under the penalties of perjury that this certificate has been made in good faith, verified by me/us, and to the best of my/our knowledge and belief, is true and correct, pursuant to the provisions of the National Internal Revenue Code, as amended, and the regulations issued under authority thereof. Further, I/we give my/our consent to the processing of my/our information as contemplated under the Data Privacy Act of 2012 (R.A. No. 10173) for legitimate and lawful purposes.')
+ +'<div class="sgs">'+sig('Present Employer/Authorized Agent Signature over Printed Name',s,'<small>Date Signed</small>')+sig('Employee Signature over Printed Name (CONFORME)',{name:nm},'<small>Date Signed</small>')+'</div>'
+ +'<div class="sgs">'+sig('CTC/Valid ID No. of Employee &nbsp;·&nbsp; Place of Issue &nbsp;·&nbsp; Date Issued &nbsp;·&nbsp; Amount Paid, if CTC',{})+'</div>'
+ +decl('<b>To be accomplished under substituted filing.</b> Employer: I declare, under the penalties of perjury, that the information herein stated are reported under BIR Form No. 1604-C which has been filed with the Bureau of Internal Revenue. Employee: I declare, under the penalties of perjury, that I am qualified under substituted filing of Income Tax Return (BIR Form No. 1700), since I received purely compensation income from only one employer in the Philippines for the calendar year; that taxes have been correctly withheld by my employer (tax due equals tax withheld); that the BIR Form No. 1604-C filed by my employer to the BIR shall constitute as my income tax return; and that BIR Form No. 2316 shall serve the same purpose as if BIR Form No. 1700 had been filed pursuant to the provisions of RR No. 3-2002, as amended.')
+ +'<div class="sgs">'+sig('Present Employer/Authorized Agent Signature over Printed Name',s)+sig('Employee Signature over Printed Name',{name:nm})+'</div>'
+ +foot('2316','September 2021 (ENCS)')+'</div>'}
+// ---------- 1601-C ----------
+function form1601c(y,m,biz){const a=agent(biz),L0=empFig(payRows(y,m,biz)),s=signer();
+ const h=h13(y),in13=h&&h.date&&+h.date.slice(0,4)===y&&+h.date.slice(5,7)===m?h:null;
+ const sum=k=>L0.reduce((t,x)=>t+(x[k]||0),0);
+ let t13=0,t13x=0;if(in13)Object.keys(in13.amounts||{}).forEach(id=>{if(biz){const em=(HR().employees||[]).find(z=>z.id===id);if(!em||em.business!==biz)return}const v=in13.amounts[id];t13+=Math.min(v,MAX13);t13x+=pos(v-MAX13)});
+ const it={};it[14]=sum('gross')+t13+t13x;it[15]=L0.reduce((t,x)=>t+(x.mwe?x.basic:0),0);it[16]=L0.reduce((t,x)=>t+(x.mwe?x.hol+x.ot:0),0);it[17]=t13;it[18]=sum('dmIn');it[19]=sum('ee');it[20]=sum('allow')+sum('xn');
+ it[23]=L0.reduce((t,x)=>{if(x.tax>0)return t;const nt=(x.mwe?x.basic+x.hol+x.ot:0)+x.dmIn+x.ee+x.allow+x.xn;return t+pos(x.gross-nt)},0);
+ it[5]='WW010';it[25]=sum('tax');it[26]=0;it[28]=0;it[29]=0;it[32]=0;it[33]=0;it[34]=0;
+ apply('1601-C',y,m,biz||'',it,(it,S)=>{const d=dv(it,S);d(21,[15,16,17,18,19,20].reduce((t,k)=>t+(+it[k]||0),0));d(22,pos(it[14]-it[21]));d(24,pos(it[22]-it[23]));d(27,it[25]+it[26]);d(30,it[28]+it[29]);d(31,it[27]-it[30]);d(35,it[32]+it[33]+it[34]);d(36,it[31]+it[35])});
+ return{n:L0.length,html:'<div class="f">'+head('1601-C','January 2018 (ENCS)','Monthly Remittance Return<br>of Income Taxes Withheld on Compensation')
+ +'<div class="ins">Enter all required information in CAPITAL LETTERS using BLACK ink. Mark all applicable boxes with an "X". Two copies MUST be filed with the BIR and one held by the Tax Filer.</div>'
+ +row(fld(1,'For the Month (MM/YYYY)',p2(m)+'/'+y),fld(2,'Amended Return?',yn(false),{raw:1}),fld(3,'Any Taxes Withheld?',yn(it[25]>0),{raw:1}),fld(4,'Number of Sheet/s Attached','0'),fld(5,'ATC',it[5]))
+ +sec('Part I – Background Information')+partI(a,[6,7,8,9,[10,11,12]])
+ +row(fld(13,'Are there payees availing of tax relief under Special Law or International Tax Treaty?',yn(false),{raw:1,w:'70%'}),fld('13A','If yes, specify',''))
+ +sec('Part II – Computation of Tax')
+ +'<table class="c">'+L(14,'Total Amount of Compensation',it[14])+'<tr class="g"><td colspan="3">Less: Non-Taxable/Exempt Compensation</td></tr>'
+ +L(15,'Statutory Minimum Wage (MWEs)',it[15])+L(16,'Holiday Pay, Overtime Pay, Night Shift Differential Pay, Hazard Pay (for MWEs only)',it[16])+L(17,'13th Month Pay and Other Benefits',it[17])+L(18,'De Minimis Benefits',it[18])+L(19,"SSS, GSIS, PHIC, HDMF Mandatory Contributions &amp; Union Dues (employee's share only)",it[19])+L(20,'Other Non-Taxable Compensation (specify): meal allowance and other non-taxable pay',it[20])
+ +L(21,'Total Non-Taxable Compensation (Sum of Items 15 to 20)',it[21],{b:1})+L(22,'Total Taxable Compensation (Item 14 Less Item 21)',it[22])+L(23,'Less: Taxable compensation not subject to withholding tax (for employees, other than MWEs, receiving ₱250,000 &amp; below for the year)',it[23])+L(24,'Net Taxable Compensation (Item 22 Less Item 23)',it[24])
+ +L(25,'Total Taxes Withheld',it[25],{b:1})+L(26,'Add/(Less): Adjustment of Taxes Withheld from Previous Month/s (From Part IV-Schedule 1, Item 4)',it[26])+L(27,'Taxes Withheld for Remittance (Sum of Items 25 and 26)',it[27])+L(28,'Less: Tax Remitted in Return Previously Filed, if this is an amended return',it[28])+L(29,'Other Remittances Made (specify)',it[29])+L(30,'Total Tax Remittances Made (Sum of Items 28 and 29)',it[30])+L(31,'Tax Still Due/(Over-remittance) (Item 27 Less Item 30)',it[31],{b:1})
+ +'<tr class="g"><td colspan="3">Add: Penalties</td></tr>'+L(32,'Surcharge',it[32])+L(33,'Interest',it[33])+L(34,'Compromise',it[34])+L(35,'Total Penalties (Sum of Items 32 to 34)',it[35])+L(36,'TOTAL AMOUNT STILL DUE/(Over-remittance) (Sum of Items 31 and 35)',it[36],{b:1})+'</table>'
+ +'<div class="note">'+L0.length+' employee'+(L0.length===1?'':'s')+' from saved payroll for '+MN[m-1]+' '+y+(biz?' ('+e(biz)+')':'')+'. Item 23 counts employees with taxable pay but no tax withheld this month.</div>'
+ +sec('Part III – Details of Payment')+'<table class="pay"><tr><th></th><th>Drawee Bank/Agency</th><th>Number</th><th>Date (MM/DD/YYYY)</th><th>Amount</th></tr>'+['Cash/Bank Debit Memo','Check','Tax Debit Memo','Others (specify)'].map((l,i)=>'<tr><td>'+(37+i)+' '+l+'</td><td></td><td></td><td></td><td></td></tr>').join('')+'</table>'
+ +decl(DECL)+'<div class="sgs">'+sig('Signature over Printed Name of President/Vice President/Authorized Officer or Representative/Tax Agent (Indicate Title/Designation and TIN)',s)+'</div>'
+ +foot('1601-C','January 2018 (ENCS)')+'</div>'}}
+// ---------- EWT data ----------
+const atcOf=c=>T().atc.find(a=>a.atc===c)||{atc:c,desc:c,rate:0};
+const payee=id=>T().payees.find(p=>p.id===id)||{name:'(deleted payee)',tin:'',addr:''};
+const ewtIn=(s,t)=>(T().ewt||[]).filter(x=>x.date>=s&&x.date<=t);
+const qr=(y,q)=>[y+'-'+p2(q*3-2)+'-01',y+'-'+p2(q*3)+'-'+p2(ld(y,q*3))];
+const mr=(y,m)=>[y+'-'+p2(m)+'-01',y+'-'+p2(m)+'-'+p2(ld(y,m))];
+const tot=(l,k)=>l.reduce((s,x)=>s+(x[k]||0),0);
+// ---------- 2307 ----------
+function form2307(pid,list,y,q){const p=payee(pid),a=agent(''),ms=qM(q),s=signer(),[st,en]=qr(y,q);const g=new Map();
+ list.forEach(x=>{const o=g.get(x.atc)||{m:[0,0,0],tax:0};o.m[ms.indexOf(+x.date.slice(5,7))]+=x.base;o.tax+=x.tax;g.set(x.atc,o)});
+ const it={};[...g.entries()].slice(0,8).forEach(([k,o],i)=>{it['r'+i+'atc']=k;it['r'+i+'desc']=atcOf(k).desc;it['r'+i+'m1']=o.m[0];it['r'+i+'m2']=o.m[1];it['r'+i+'m3']=o.m[2];it['r'+i+'tax']=o.tax});
+ apply('2307',y,q,pid,it,()=>{});const H=k=>HL.has(k)?' ov':'';
+ const rows=[];for(let i=0;i<8;i++){const P='r'+i;if(it[P+'atc']||it[P+'m1']||it[P+'m2']||it[P+'m3']||it[P+'tax'])rows.push(P);}
+ const tm=[0,0,0],tt=[0];rows.forEach(P=>{tm[0]+=+it[P+'m1']||0;tm[1]+=+it[P+'m2']||0;tm[2]+=+it[P+'m3']||0;tt[0]+=+it[P+'tax']||0});
+ while(rows.length<8)rows.push(null);
+ const tr=P=>P?'<tr><td class="t'+H(P+'desc')+'">'+e(it[P+'desc']||atcOf(it[P+'atc']).desc)+'</td><td class="'+H(P+'atc')+'">'+e(it[P+'atc']||'')+'</td>'+['m1','m2','m3'].map(k=>'<td class="a'+H(P+k)+'">'+am(it[P+k]||null)+'</td>').join('')+'<td class="a">'+am((+it[P+'m1']||0)+(+it[P+'m2']||0)+(+it[P+'m3']||0))+'</td><td class="a'+H(P+'tax')+'">'+am(+it[P+'tax']||0)+'</td></tr>':'<tr class="e"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+ return '<div class="f">'+head('2307','January 2018 (ENCS)','Certificate of Creditable Tax<br>Withheld At Source')
+ +'<div class="ins">Fill in all applicable spaces. Mark all appropriate boxes with an "X".</div>'
+ +row(fld(1,'For the Period From (MM/DD/YYYY)',mdY(st)),fld('','To (MM/DD/YYYY)',mdY(en)))
+ +sec('Part I – Payee Information')
+ +row(fld(2,'Taxpayer Identification Number (TIN)',tinBox(p.tin),{raw:1}))
+ +row(fld(3,"Payee's Name (Last Name, First Name, Middle Name for Individual OR Registered Name for Non-Individual)",p.name))
+ +row(fld(4,'Registered Address',p.addr||'',{w:'78%'}),fld('4A','ZIP Code',zipOf(p.addr)))
+ +row(fld(5,'Foreign Address, if applicable',''))
+ +sec('Part II – Payor Information')
+ +row(fld(6,'Taxpayer Identification Number (TIN)',tinBox(a.tin),{raw:1}))
+ +row(fld(7,"Payor's Name (Last Name, First Name, Middle Name for Individual OR Registered Name for Non-Individual)",a.name))
+ +row(fld(8,'Registered Address',a.addr,{w:'78%'}),fld('8A','ZIP Code',a.zip))
+ +sec('Part III – Details of Monthly Income Payments and Taxes Withheld')
+ +'<table class="g7"><tr><th rowspan="2">Income Payments Subject to Expanded Withholding Tax</th><th rowspan="2">ATC</th><th colspan="4">AMOUNT OF INCOME PAYMENTS</th><th rowspan="2">Tax Withheld for the Quarter</th></tr><tr><th>1st Month of the Quarter</th><th>2nd Month of the Quarter</th><th>3rd Month of the Quarter</th><th>Total</th></tr>'
+ +rows.map(tr).join('')+'<tr class="b"><td class="t">Total</td><td></td>'+tm.map(v=>'<td class="a">'+am(v)+'</td>').join('')+'<td class="a">'+am(tm[0]+tm[1]+tm[2])+'</td><td class="a">'+am(tt[0])+'</td></tr>'
+ +'<tr><th colspan="7" style="text-align:left">Money Payments Subject to Withholding of Business Tax (Government &amp; Private)</th></tr>'+'<tr class="e"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'.repeat(3)+'<tr class="b"><td class="t">Total</td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>'
+ +decl('We declare under the penalties of perjury that this certificate has been made in good faith, verified by us, and to the best of our knowledge and belief, is true and correct, pursuant to the provisions of the National Internal Revenue Code, as amended, and the regulations issued under authority thereof. Further, we give our consent to the processing of our information as contemplated under the *Data Privacy Act of 2012 (R.A. No. 10173) for legitimate and lawful purposes.')
+ +'<div class="sgs">'+sig('Signature over Printed Name of Payor/Payor\'s Authorized Representative/Tax Agent (Indicate Title/Designation and TIN)',s,'<small>Tax Agent Accreditation No./Attorney\'s Roll No. (if applicable) · Date of Issue · Date of Expiry</small>')+'</div>'
+ +'<div class="sgs"><div class="sg"><div class="ln"><b>CONFORME:</b> '+e(p.name)+'</div><small>Signature over Printed Name of Payee/Payee\'s Authorized Representative/Tax Agent (Indicate Title/Designation and TIN)</small><small>Tax Agent Accreditation No./Attorney\'s Roll No. (if applicable) · Date of Issue · Date of Expiry</small></div></div>'
+ +foot('2307','January 2018 (ENCS)')+'</div>'}
+// ---------- 0619-E ----------
+function form0619e(y,m){const a=agent(''),[s0,e0]=mr(y,m),L0=ewtIn(s0,e0),amt=tot(L0,'tax'),s=signer(),[ny,nm]=m===12?[y+1,1]:[y,m+1],due=ny+'-'+p2(nm)+'-10';
+ const it={5:'',14:amt,15:0,'17A':0,'17B':0,'17C':0};apply('0619-E',y,m,'',it,(it,S)=>{const d=dv(it,S);d(16,it[14]-it[15]);d('17D',it['17A']+it['17B']+it['17C']);d(18,it[16]+it['17D'])});
+ return{n:L0.length,html:'<div class="f">'+head('0619-E','January 2018 (ENCS)','Monthly Remittance Form<br>of Creditable Income Taxes Withheld (Expanded)')
+ +'<div class="ins">Enter all required information in CAPITAL LETTERS using BLACK ink. Mark all applicable boxes with an "X".</div>'
+ +row(fld(1,'For the Month (MM/YYYY)',p2(m)+'/'+y),fld(2,'Due Date (MM/DD/YYYY)',mdY(due)),fld(3,'Amended Form?',yn(false),{raw:1}),fld(4,'Any Taxes Withheld?',yn(it[16]>0),{raw:1}),fld(5,'ATC',it[5]),fld(6,'Tax Type Code','WE'))
+ +sec('Part I – Background Information')+partI(a,[7,8,9,10,[11,12,13]])
+ +sec('Part II – Tax Remittance')
+ +'<table class="c">'+L(14,'Amount of Remittance',it[14])+L(15,'Less: Amount Remitted from Previously Filed Form, if this is an amended form',it[15])+L(16,'Net Amount of Remittance (Item 14 Less Item 15)',it[16],{b:1})+'<tr class="g"><td colspan="3">17 Add: Penalties</td></tr>'+L('17A','Surcharge',it['17A'])+L('17B','Interest',it['17B'])+L('17C','Compromise',it['17C'])+L('17D','Total Penalties (Sum of Items 17A to 17C)',it['17D'])+L(18,'TOTAL AMOUNT OF REMITTANCE (Sum of Items 16 and 17D)',it[18],{b:1})+'</table>'
+ +'<div class="note">'+L0.length+' withholding record'+(L0.length===1?'':'s')+' dated '+MN[m-1]+' '+y+'.'+(m%3===0?' The third month of a quarter is normally covered by BIR Form 1601-EQ instead of 0619-E.':'')+'</div>'
+ +sec('Part III – Details of Payment')+'<table class="pay"><tr><th></th><th>Drawee Bank/Agency</th><th>Number</th><th>Date (MM/DD/YYYY)</th><th>Amount</th></tr>'+['Cash/Bank Debit Memo','Check','Tax Debit Memo','Others (specify)'].map((l,i)=>'<tr><td>'+(19+i)+' '+l+'</td><td></td><td></td><td></td><td></td></tr>').join('')+'</table>'
+ +decl(DECL)+'<div class="sgs">'+sig('Signature over Printed Name of Taxpayer/Authorized Representative/Tax Agent (Indicate Title/Designation and TIN)',s)+'</div>'
+ +foot('0619-E','January 2018 (ENCS)')+'</div>'}}
+// ---------- 1601-EQ + QAP ----------
+function form1601eq(y,q){const a=agent(''),[s0,e0]=qr(y,q),L0=ewtIn(s0,e0),s=signer(),g=new Map();
+ L0.forEach(x=>{const o=g.get(x.atc)||{atc:x.atc,base:0,tax:0,rate:x.rate};o.base+=x.base;o.tax+=x.tax;g.set(x.atc,o)});
+ const rows=[...g.values()],total=tot(L0,'tax');const rem=qM(q).slice(0,2).map(m=>{const f=T().filed['0619E-'+y+'-'+p2(m)];return f&&f.amt!=null?f.amt:(f?tot(ewtIn(...mr(y,m)),'tax'):0)});
+ const it={19:total,20:rem[0],21:rem[1],22:0,23:0,24:0,27:0,28:0,29:0};apply('1601-EQ',y,q,'',it,(it,S)=>{const d=dv(it,S);d(25,it[20]+it[21]+it[22]+it[23]+it[24]);d(26,it[19]-it[25]);d(30,it[27]+it[28]+it[29]);d(31,it[26]+it[30])});const show=rows.slice(0,6);while(show.length<6)show.push(null);
+ const qap=new Map();L0.forEach(x=>{const k=x.payee+'|'+x.atc;const o=qap.get(k)||{p:payee(x.payee),atc:x.atc,rate:x.rate,base:0,tax:0};o.base+=x.base;o.tax+=x.tax;qap.set(k,o)});
+ const QL=[...qap.values()].sort((a,b)=>a.p.name.localeCompare(b.p.name));
+ return{n:L0.length,html:'<div class="f">'+head('1601-EQ','January 2019 (ENCS)','Quarterly Remittance Return<br>of Creditable Income Taxes Withheld (Expanded)')
+ +'<div class="ins">Enter all required information in CAPITAL LETTERS using BLACK ink. Mark all applicable boxes with an "X".</div>'
+ +row(fld(1,'For the Year',String(y)),fld(2,'Quarter',[1,2,3,4].map(k=>ck(k===q,k+(k===1?'st':k===2?'nd':k===3?'rd':'th'))).join(' '),{raw:1}),fld(3,'Amended Return?',yn(false),{raw:1}),fld(4,'Any Taxes Withheld?',yn(it[19]>0),{raw:1}),fld(5,'Number of Sheet/s Attached',QL.length?'1':'0'))
+ +sec('Part I – Background Information')+partI(a,[6,7,8,9,[10,11,12]])
+ +sec('Part II – Computation of Tax')
+ +'<table class="g7"><tr><th></th><th>ATC</th><th>Tax Base (Consolidated for the Quarter)</th><th>Tax Rate</th><th>Tax Withheld</th></tr>'
+ +show.map((r,i)=>'<tr'+(r?'':' class="e"')+'><td class="n">'+(13+i)+'</td><td>'+(r?e(r.atc):'')+'</td><td class="a">'+(r?am(r.base):'')+'</td><td class="a">'+(r?e(r.rate)+'%':'')+'</td><td class="a">'+(r?am(r.tax):'')+'</td></tr>').join('')+'</table>'
+ +(rows.length>6?'<div class="note">'+(rows.length-6)+' more ATC line(s) are included in the total; list them on an attached sheet.</div>':'')
+ +'<table class="c">'+L(19,'Total Taxes Withheld for the Quarter (Sum of Items 13 to 18)',it[19],{b:1})+'<tr class="g"><td colspan="3">Less: Remittances Made</td></tr>'+L(20,'1st Month of the Quarter',it[20])+L(21,'2nd Month of the Quarter',it[21])+L(22,'Tax Remitted in Return Previously Filed, if this is an amended return',it[22])+L(23,'Over-remittance from Previous Quarter of the same taxable year',it[23])+L(24,'Other Payments Made (please attach proof of payment – BIR Form No. 0605)',it[24])+L(25,'Total Remittances Made (Sum of Items 20 to 24)',it[25])+L(26,'Tax Still Due/(Over-remittance) (Item 19 Less Item 25)',it[26],{b:1})+'<tr class="g"><td colspan="3">Add: Penalties</td></tr>'+L(27,'Surcharge',it[27])+L(28,'Interest',it[28])+L(29,'Compromise',it[29])+L(30,'Total Penalties (Sum of Items 27 to 29)',it[30])+L(31,'TOTAL AMOUNT STILL DUE/(Over-remittance) (Sum of Items 26 and 30)',it[31],{b:1})+'</table>'
+ +sec('Part III – Details of Payment')+'<table class="pay"><tr><th></th><th>Drawee Bank/Agency</th><th>Number</th><th>Date (MM/DD/YYYY)</th><th>Amount</th></tr>'+['Cash/Bank Debit Memo','Check','Tax Debit Memo','Others (specify)'].map((l,i)=>'<tr><td>'+(32+i)+' '+l+'</td><td></td><td></td><td></td><td></td></tr>').join('')+'</table>'
+ +'<div class="note">Items 20–21 use the 0619-E amounts you marked as filed in the Deadlines calendar ('+(rem.some(v=>v)?'found':'none marked yet')+').</div>'
+ +decl(DECL)+'<div class="sgs">'+sig('Signature over Printed Name of President/Vice President/Authorized Officer or Representative/Tax Agent (Indicate Title/Designation and TIN)',s)+'</div>'
+ +foot('1601-EQ','January 2019 (ENCS)')+'</div>'
+ +(QL.length?(HL=new Set(),'')+'<div class="f"><div class="ttl"><b>Quarterly Alphabetical List of Payees (QAP)</b><small>Attachment to BIR Form 1601-EQ · '+['1st','2nd','3rd','4th'][q-1]+' quarter '+y+'</small></div>'
+ +row(fld('','Withholding Agent',a.name,{w:'60%'}),fld('','TIN',tinBox(a.tin),{raw:1}))
+ +'<table class="g7 qap"><tr><th>Seq</th><th>TIN</th><th>Registered Name</th><th>ATC</th><th>Nature of Income Payment</th><th>Rate</th><th>Amount of Income Payment</th><th>Tax Withheld</th></tr>'
+ +QL.map((o,i)=>'<tr><td>'+(i+1)+'</td><td>'+e(o.p.tin||'')+'</td><td class="t">'+e(o.p.name)+'</td><td>'+e(o.atc)+'</td><td class="t">'+e(atcOf(o.atc).desc)+'</td><td class="a">'+e(o.rate)+'%</td><td class="a">'+am(o.base)+'</td><td class="a">'+am(o.tax)+'</td></tr>').join('')
+ +'<tr class="b"><td colspan="6" class="t">Grand Total</td><td class="a">'+am(tot(L0,'base'))+'</td><td class="a">'+am(total)+'</td></tr></table>'
+ +'<div class="note">Submit the QAP in the BIR-prescribed electronic format (.DAT via the Alphalist Data Entry module); use “Withholding (EWT) › QAP data (CSV)” to get the data out.</div>'+foot('1601-EQ QAP','attachment')+'</div>':'')}}
+// ---------- 2551Q ----------
+function form2551q(y,q){const p=T().profile,a=agent(''),f=TM.bizFig(y,q),s=signer(),indiv=p.itr!=='corp';
+ const it={atc:'PT010',s1:pos(f.taxable),rate:+p.ptRate||0,15:0,16:0,17:0,20:0,21:0,22:0};apply('2551Q',y,q,'',it,(it,S)=>{const d=dv(it,S);d('tax',Math.round(it.s1*it.rate/100));d(14,it.tax);d(18,it[15]+it[16]+it[17]);d(19,it[14]-it[18]);d(23,it[20]+it[21]+it[22]);d(24,it[19]+it[23])});
+ return{n:1,html:'<div class="f">'+head('2551Q','January 2018 (ENCS)','Quarterly Percentage Tax Return')
+ +'<div class="ins">Enter all required information in CAPITAL LETTERS using BLACK ink. Mark all applicable boxes with an "X".</div>'
+ +row(fld(1,'For the',ck(true,'Calendar')+' '+ck(false,'Fiscal'),{raw:1}),fld(2,'Year Ended (MM/YYYY)','12/'+y),fld(3,'Quarter',[1,2,3,4].map(k=>ck(k===q,k+(k===1?'st':k===2?'nd':k===3?'rd':'th'))).join(' '),{raw:1}),fld(4,'Amended Return?',yn(false),{raw:1}),fld(5,'Number of Sheet/s Attached','0'))
+ +sec('Part I – Background Information')+partI(Object.assign({},a),[6,7,8,9,null,'Taxpayer'])
+ +row(fld(10,'Contact Number',a.phone),fld(11,'Email Address',a.email))
+ +row(fld(12,'Are you availing of tax relief under Special Law or International Tax Treaty?',yn(false),{raw:1,w:'70%'}),fld('12A','If yes, specify',''))
+ +row(fld(13,'Only for individual taxpayers whose sales/receipts are subject to Percentage Tax under Section 116 of the Tax Code, as amended: What income tax rates are you availing?',indiv?ck(p.biz!=='EIGHT','Graduated income tax rate on net taxable income')+' '+ck(p.biz==='EIGHT','8% income tax rate on gross sales/receipts/others'):'Not applicable (non-individual)',{raw:1}))
+ +sec('Part II – Total Tax Payable')
+ +'<table class="c">'+L(14,'Total Tax Due (From Schedule 1 Item 7)',it[14])+'<tr class="g"><td colspan="3">Less: Tax Credits/Payments</td></tr>'+L(15,'Creditable Percentage Tax Withheld per BIR Form No. 2307',it[15])+L(16,'Tax Paid in Return Previously Filed, if this is an amended return',it[16])+L(17,'Other Tax Credit/Payment (specify)',it[17])+L(18,'Total Tax Credits/Payments (Sum of Items 15 to 17)',it[18])+L(19,'Tax Still Payable/(Overpayment) (Item 14 Less Item 18)',it[19],{b:1})+'<tr class="g"><td colspan="3">Add: Penalties</td></tr>'+L(20,'Surcharge',it[20])+L(21,'Interest',it[21])+L(22,'Compromise',it[22])+L(23,'Total Penalties (Sum of Items 20 to 22)',it[23])+L(24,'TOTAL AMOUNT PAYABLE/(Overpayment) (Sum of Items 19 and 23)',it[24],{b:1})+'</table>'
+ +sec('Schedule 1 – Computation of Tax')
+ +'<table class="g7"><tr><th></th><th>Alphanumeric Tax Code (ATC)</th><th>Taxable Amount</th><th>Tax Rate</th><th>Tax Due</th></tr><tr><td class="n">1</td><td'+(HL.has('atc')?' class="ov"':'')+'>'+e(it.atc)+'</td><td class="a'+(HL.has('s1')?' ov':'')+'">'+am(it.s1)+'</td><td class="a'+(HL.has('rate')?' ov':'')+'">'+e(it.rate)+'%</td><td class="a'+(HL.has('tax')?' ov':'')+'">'+am(it.tax)+'</td></tr>'+[2,3,4,5,6].map(i=>'<tr class="e"><td class="n">'+i+'</td><td></td><td></td><td></td><td></td></tr>').join('')+'<tr class="b"><td class="n">7</td><td colspan="3" class="t">Total Tax Due (Sum of Items 1 to 6) (To Part II Item 14)</td><td class="a">'+am(it.tax)+'</td></tr></table>'
+ +sec('Part III – Details of Payment')+'<table class="pay"><tr><th></th><th>Drawee Bank/Agency</th><th>Number</th><th>Date (MM/DD/YYYY)</th><th>Amount</th></tr>'+['Cash/Bank Debit Memo','Check','Tax Debit Memo','Others (specify)'].map((l,i)=>'<tr><td>'+(25+i)+' '+l+'</td><td></td><td></td><td></td><td></td></tr>').join('')+'</table>'
+ +'<div class="note">Taxable amount is revenue tagged as taxable in Tax Profile for '+['Jan–Mar','Apr–Jun','Jul–Sep','Oct–Dec'][q-1]+' '+y+' (exempt '+am(f.exempt)+'; excluded '+am(f.excl)+'). PT010 is the general percentage tax under Sec. 116; use Adjust figures to change the ATC, sales or rate.</div>'
+ +decl(DECL)+'<div class="sgs">'+sig('Signature over Printed Name of Taxpayer/Authorized Representative/Tax Agent (Indicate Title/Designation and TIN)',s)+'</div>'
+ +foot('2551Q','January 2018 (ENCS)')+'</div>'}}
+// ---------- worksheets (forms revised often or too long to reproduce): 2550Q, 1701Q/1702Q ----------
+function ws(title,sub,a,rows,note){return '<div class="f ws"><div class="ttl"><b>'+title+'</b><small>'+sub+'</small></div>'+row(fld('','Taxpayer',a.name,{w:'60%'}),fld('','TIN',tinBox(a.tin),{raw:1}))+row(fld('','Registered address',a.addr,{w:'70%'}),fld('','RDO',a.rdo))
+ +'<table class="c">'+rows.map(r=>r[0]==='g'?'<tr class="g"><td colspan="3">'+r[1]+'</td></tr>':L('',r[0],r[1],{b:r[2],k:r[3]})).join('')+'</table><div class="note">'+note+'</div>'+foot('worksheet','AJ ERP System')+'</div>'}
+function form2550q(y,q){const p=T().profile,a=agent(''),f=TM.bizFig(y,q);
+ const it={vat:pos(f.taxable),zero:f.zero,ex:f.exempt,out:f.out,inp:f.inp};apply('2550Q',y,q,'',it,(it,S)=>{const d=dv(it,S);d('tot',it.vat+it.zero+it.ex);d('pay',it.out-it.inp)});
+ return{n:1,html:ws('Worksheet for BIR Form 2550Q – Quarterly Value-Added Tax Return',['1st','2nd','3rd','4th'][q-1]+' quarter '+y+' · copy these figures into the current 2550Q in eBIRForms/eFPS',a,
+ [['g','Sales/Receipts for the quarter'],['VATable sales/receipts',it.vat,0,'vat'],['Zero-rated sales/receipts',it.zero,0,'zero'],['Exempt sales/receipts',it.ex,0,'ex'],['Total sales/receipts',it.tot,1],['g','Output and input tax'],['Output tax due ('+(f.outBooks!=null?'per books':p.vatRate+'% of VATable sales')+')',it.out,0,'out'],['Less: allowable input tax for the quarter (per books)',it.inp,0,'inp'],['VAT payable/(excess input tax)',it.pay,1]],
+ 'BIR Form 2550Q was revised in 2024 (RMC 68-2024), so this is a worksheet, not a copy of the form. Input tax comes from the Input VAT account set in Tax Profile; creditable VAT withheld and carried-over excess input tax are not included.')}}
+function formItrq(y,q){const p=T().profile,a=agent(''),f=TM.itrFig(y,q),corp=p.itr==='corp';
+ const it={base:f.base,tax:f.tax,prev:f.prev};apply('ITRQ',y,q,'',it,(it,S)=>{const d=dv(it,S);d('pay',pos(it.tax-it.prev))});
+ return{n:1,html:ws('Worksheet for BIR Form '+(corp?'1702Q – Quarterly Income Tax Return (Corporations)':'1701Q – Quarterly Income Tax Return (Individuals)'),['1st','2nd','3rd'][q-1]+' quarter '+y+' · cumulative, year to date',a,
+ [[p.biz==='EIGHT'?'Gross sales/receipts, year to date':'Net income per books, year to date',it.base,0,'base'],['Income tax due, year to date',it.tax,0,'tax'],['Less: tax due in previous quarter(s) of '+y,it.prev,0,'prev'],['Income tax payable this quarter',it.pay,1]],
+ e(f.how)+'. Creditable withholding taxes received (2307s from your customers) are not deducted here; subtract them in the actual return. No 4th-quarter quarterly return is filed; the annual return covers it.')}}
+// ---------- the page ----------
+const FORMS=[
+ ['2307','Certificate of Creditable Tax Withheld at Source','Give to each supplier you withheld from','Q','payee'],
+ ['2316','Certificate of Compensation Payment / Tax Withheld','Give to each employee by January 31','Y','emp'],
+ ['1601-C','Monthly Remittance Return of Income Taxes Withheld on Compensation','Monthly, payroll withholding','M','biz'],
+ ['0619-E','Monthly Remittance Form of Creditable Income Taxes Withheld (Expanded)','1st and 2nd month of each quarter','M',''],
+ ['1601-EQ','Quarterly Remittance Return of Creditable Income Taxes Withheld (Expanded)','With the QAP attachment','Q',''],
+ ['2551Q','Quarterly Percentage Tax Return','Non-VAT businesses','Q',''],
+ ['2550Q','Quarterly VAT Return (worksheet)','VAT-registered businesses','Q',''],
+ ['ITRQ','Quarterly Income Tax Return (worksheet)','1701Q individuals / 1702Q corporations','Q3','']];
+const CSS='@page{size:A4;margin:7mm}*{box-sizing:border-box}body{margin:0;background:#9aa3a0;font:8.4pt Arial,Helvetica,sans-serif;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+ +'.f{width:196mm;margin:6mm auto;background:#fff;border:1.6px solid #000;page-break-after:always;break-after:page}.f:last-child{page-break-after:auto;break-after:auto}'
+ +'.hd{display:grid;grid-template-columns:34mm 1fr 40mm;border-bottom:1.4px solid #000}.hd>div{padding:1.6mm 2.4mm}.bu{border-right:1px solid #000;font-size:7pt}.bu small{display:block;font-weight:bold}.rp{text-align:center;line-height:1.35;font-size:8.6pt}.fn{border-left:1px solid #000;text-align:center}.fn small{display:block;font-size:6.8pt}.fn b{display:block;font-size:17pt;letter-spacing:.02em;line-height:1.1}'
+ +'.ttl{text-align:center;padding:2mm;border-bottom:1.4px solid #000}.ttl b{font-size:13pt;line-height:1.15;display:block}.ttl small{display:block;font-size:8pt;margin-top:.6mm}'
+ +'.ins{font-size:7pt;padding:1mm 2.4mm;border-bottom:1px solid #000;background:#f2f2f2}'
+ +'.sec{background:#3b3b3b;color:#fff;font-weight:bold;padding:1mm 2.4mm;font-size:8.2pt;text-transform:none}'
+ +'.row{display:flex;border-bottom:1px solid #000}.fld{flex:1;padding:1mm 2mm;border-right:1px solid #000;min-height:9.5mm;min-width:0}.fld:last-child{border-right:0}'
+ +'.fld .l{font-size:6.9pt;line-height:1.2}.fld .l b{display:inline-block;min-width:4.5mm;margin-right:1mm;font-size:7.4pt}.fld .v{font:bold 9.6pt "Courier New",Courier,monospace;margin-top:.6mm;text-transform:uppercase;word-break:break-word}'
+ +'.tin{display:inline-flex;align-items:center;gap:1mm}.tg{display:inline-flex}.tg i{font-style:normal;display:inline-block;width:4.3mm;height:5.2mm;border:1px solid #000;margin-left:-1px;text-align:center;line-height:5mm}.dash{font-weight:bold}'
+ +'.ck{white-space:nowrap;font:bold 9pt Arial,sans-serif;margin-right:2mm}'
+ +'table{width:100%;border-collapse:collapse}table.c td{border-bottom:1px solid #000;padding:.9mm 2mm;vertical-align:middle}table.c td.n{width:9mm;font-weight:bold;text-align:center;border-right:1px solid #000}table.c td.t{line-height:1.25}table.c td.a{width:38mm;text-align:right;border-left:1px solid #000;font:bold 9.4pt "Courier New",monospace;white-space:nowrap}'
+ +'tr.b td{font-weight:bold;background:#f2f2f2}tr.g td{background:#e3e3e3;font-weight:bold;font-size:7.6pt;padding:.8mm 2mm}'
+ +'table.g7 th,table.g7 td,table.pay th,table.pay td{border:1px solid #000;padding:1mm 1.5mm;font-size:7.6pt}table.g7 th,table.pay th{background:#e3e3e3}table.g7{border-left:0;border-right:0}table.g7 td.a{text-align:right;font:bold 8.6pt "Courier New",monospace;white-space:nowrap}table.g7 td.t{font-size:7.6pt}table.g7 tr.e td,table.pay td{height:6mm}table.g7 td.n{text-align:center;font-weight:bold;width:9mm}table.qap td{font-size:7.4pt}'
+ +'.cols{display:grid;grid-template-columns:1fr 1fr}.cols>.cl:first-child{border-right:1.4px solid #000}.cols table.c td.a{width:28mm;font-size:8.6pt}.cols table.c td{padding:.7mm 1.6mm;font-size:7.4pt}.cols .fld .v{font-size:8.8pt}'
+ +'.dc{font-size:6.9pt;padding:1.4mm 2.4mm;border-bottom:1px solid #000;line-height:1.3;text-align:justify}.sgs{display:flex;border-bottom:1px solid #000}.sg{flex:1;padding:6mm 3mm 1.4mm;text-align:center;border-right:1px solid #000}.sg:last-child{border-right:0}.sg .ln{border-bottom:1px solid #000;min-height:5mm;font:bold 9pt "Courier New",monospace;text-transform:uppercase}.sg small{display:block;font-size:6.6pt;margin-top:.8mm}'
+ +'.note{font-size:7pt;padding:1.2mm 2.4mm;border-bottom:1px solid #000;color:#333;font-style:italic}.ft{display:flex;justify-content:space-between;font-size:6.4pt;padding:1mm 2.4mm;color:#444}'
+ +'.ws table.c td.a{width:45mm}'
+ +'@media screen{td.ov,.ov{background:#fff1b8!important;box-shadow:inset 0 0 0 2px #e0a800}}'
+ +'@media print{body{background:#fff}.f{margin:0 auto;box-shadow:none}}@media screen{.f{box-shadow:0 4px 18px rgba(0,0,0,.25)}}';
+let st={form:'2307',y:0,p:1,who:'ALL'};
+const curYM=()=>{const t=X.today();return[+t.slice(0,4),+t.slice(5,7)]};
+function defaults(f){const[y,m]=curYM();const kind=FORMS.find(x=>x[0]===f)[3];
+ if(kind==='Y')return[m<=2?y-1:y,1];if(kind==='M'){const pm=m===1?[y-1,12]:[y,m-1];return pm}const q=Math.ceil(m/3),pq=q===1?[y-1,4]:[y,q-1];if(kind==='Q3'&&pq[1]===4)return[pq[0],3];return pq}
+function bizList(){return [...new Set((HR().employees||[]).map(e=>e.business).filter(Boolean))].sort()}
+function render(){const el=$('tx-forms');if(!el||!C())return;if(!st.y){const d=defaults(st.form);st.y=d[0];st.p=d[1]}
+ const def=FORMS.find(x=>x[0]===st.form),kind=def[3];
+ el.innerHTML='<div class="hr-head"><h2 style="margin:0">BIR Forms</h2><div class="hr-acts"><button class="btn btn-outline" id="bfSet" type="button">Form details (RDO, signatory…)</button></div></div>'
+ +'<p class="hr-note">Print-ready copies laid out like the BIR forms and filled from your books, payroll and withholding records. Check the figures, sign, and file them, or copy them into eBIRForms/eFPS where electronic filing is required.</p>'
+ +'<div class="bf-grid">'+FORMS.map(f=>'<button type="button" class="bf-card'+(f[0]===st.form?' on':'')+'" data-f="'+f[0]+'"><b>'+(f[0]==='ITRQ'?(T().profile.itr==='corp'?'1702Q':'1701Q'):f[0])+'</b><span>'+e(f[1])+'</span><small>'+e(f[2])+'</small></button>').join('')+'</div>'
+ +'<div class="hr-bar" style="margin-top:1rem"><div class="form-group" style="min-width:90px"><label for="bfY">Year</label><input type="number" id="bfY" min="2000" max="2100" value="'+st.y+'" style="width:100px"></div>'
+ +(kind==='M'?'<div class="form-group"><label for="bfP">Month</label><select id="bfP">'+MN.map((n,i)=>'<option value="'+(i+1)+'"'+(i+1===st.p?' selected':'')+'>'+n+'</option>').join('')+'</select></div>':kind[0]==='Q'?'<div class="form-group"><label for="bfP">Quarter</label><select id="bfP">'+[1,2,3,4].slice(0,kind==='Q3'?3:4).map(q=>'<option value="'+q+'"'+(q===st.p?' selected':'')+'>Q'+q+' ('+['Jan–Mar','Apr–Jun','Jul–Sep','Oct–Dec'][q-1]+')</option>').join('')+'</select></div>':'')
+ +(def[4]?'<div class="form-group grow"><label for="bfW">'+(def[4]==='payee'?'Payee':def[4]==='emp'?'Employee':'Business')+'</label><select id="bfW"></select></div>':'')
+ +'<div class="form-group"><label for="bfPaper">Paper</label><select id="bfPaper"><option value="LONG">Long bond (8.5×13 in)</option><option value="A4">A4</option><option value="LETTER">Letter</option></select></div>'
+ +'<div class="form-group"><label>&nbsp;</label><div class="hr-acts"><button class="btn" id="bfGo" type="button">Show form</button><button class="btn btn-outline" id="bfPrint" type="button" disabled>Print</button><button class="btn btn-outline" id="bfAdj" type="button" disabled>Adjust figures</button>'+(st.form==='2316'?'<button class="btn btn-outline" id="bfEmp" type="button">Employee details</button>':'')+'</div></div></div>'
+ +'<div id="bfWarn"></div><p class="hr-note" id="bfInfo"></p><div id="bfNotes"></div><div class="hr-prev" id="bfPrev" hidden></div>';
+ fillWho();
+ el.querySelectorAll('.bf-card').forEach(b=>b.onclick=()=>{st.form=b.dataset.f;const d=defaults(st.form);st.y=d[0];st.p=d[1];st.who='ALL';render()});
+ $('bfY').onchange=()=>{st.y=+$('bfY').value||st.y;fillWho()};if($('bfP'))$('bfP').onchange=()=>{st.p=+$('bfP').value;fillWho()};
+ if($('bfW'))$('bfW').onchange=()=>st.who=$('bfW').value;
+ $('bfPaper').value=PAPER[F().paper]?F().paper:'LONG';$('bfPaper').onchange=()=>{F().paper=$('bfPaper').value;saveToLocalStorage();if(lastHtml)show()};
+ $('bfGo').onclick=show;$('bfAdj').onclick=adjust;$('bfPrint').onclick=print;$('bfSet').onclick=settings;if($('bfEmp'))$('bfEmp').onclick=empDlg;
+ warn()}
+function fillWho(){const s=$('bfW');if(!s)return;const def=FORMS.find(x=>x[0]===st.form);let opts=[];
+ if(def[4]==='payee'){const[a,b]=qr(st.y,st.p),ids=[...new Set(ewtIn(a,b).map(x=>x.payee))];opts=ids.map(id=>[id,payee(id).name]).sort((x,y)=>x[1].localeCompare(y[1]));s.innerHTML='<option value="ALL">All payees ('+opts.length+')</option>'+opts.map(o=>'<option value="'+e(o[0])+'">'+e(o[1])+'</option>').join('')}
+ else if(def[4]==='emp'){opts=empFig(payRows(st.y,null)).map(x=>[x.empId,x.name]);s.innerHTML='<option value="ALL">All employees ('+opts.length+')</option>'+opts.map(o=>'<option value="'+e(o[0])+'">'+e(o[1])+'</option>').join('')}
+ else{const L0=bizList(),f=F();s.innerHTML='<option value="ALL">All businesses (one return under '+e(C().name)+')</option>'+L0.map(b=>'<option value="'+e(b)+'">'+e(b)+(f.biz[b]&&f.biz[b].tin?' – own TIN':'')+'</option>').join('')}
+ if([...s.options].some(o=>o.value===st.who))s.value=st.who;else st.who='ALL'}
+function warn(){const w=$('bfWarn');if(!w)return;const c=C(),f=F(),m=[];
+ if(!String(c.tin||'').replace(/\D/g,''))m.push('Your company TIN is blank (Settings › Company Profile).');
+ if(!f.rdo)m.push('RDO code is not set.');if(!f.sName)m.push('No signatory name yet.');
+ if(st.form==='2316'){const L0=empFig(payRows(st.y,null)),no=L0.filter(x=>!String(EM(x.empId).tin||'').replace(/\D/g,'')).length;if(no)m.push(no+' employee'+(no===1?' has':'s have')+' no TIN.')}
+ if(st.form==='2307'){const[a,b]=qr(st.y,st.p),no=[...new Set(ewtIn(a,b).map(x=>x.payee))].filter(id=>!String(payee(id).tin||'').replace(/\D/g,'')).length;if(no)m.push(no+' payee'+(no===1?' has':'s have')+' no TIN (Withholding › Payees).')}
+ w.innerHTML=m.length?'<div class="rq-note"><b>Missing details:</b> '+m.map(e).join(' ')+' <a href="#" id="bfFix">Fill in form details</a></div>':'';const fx=$('bfFix');if(fx)fx.onclick=ev=>{ev.preventDefault();if(st.form==='2316'&&/employee/.test(m.join(' '))&&f.rdo&&f.sName)empDlg();else settings()}}
+let lastHtml='';
+function build(){const y=st.y,p=st.p,who=st.who;LAST=[];HL=new Set();
+ if(st.form==='2307'){const[a,b]=qr(y,p),L0=ewtIn(a,b).filter(x=>who==='ALL'||x.payee===who);const by=new Map();L0.forEach(x=>{const l=by.get(x.payee)||[];l.push(x);by.set(x.payee,l)});
+  const ids=[...by.keys()].sort((u,v)=>payee(u).name.localeCompare(payee(v).name));return{n:ids.length,unit:'certificate',html:ids.map(id=>form2307(id,by.get(id),y,p)).join(''),empty:'No withholding recorded for Q'+p+' '+y+'.'}}
+ if(st.form==='2316'){const L0=empFig(payRows(y,null)).filter(x=>who==='ALL'||x.empId===who);return{n:L0.length,unit:'certificate',html:L0.map(x=>form2316(x,y)).join(''),empty:'No saved payroll for '+y+'.'}}
+ if(st.form==='1601-C'){const r=form1601c(y,p,who==='ALL'?'':who);return{n:r.n?1:0,unit:'return',html:r.html,empty:'No saved payroll for '+MN[p-1]+' '+y+'.',force:1}}
+ if(st.form==='0619-E'){const r=form0619e(y,p);return{n:1,unit:'form',html:r.html}}
+ if(st.form==='1601-EQ'){const r=form1601eq(y,p);return{n:1,unit:'return',html:r.html}}
+ if(st.form==='2551Q'){const r=form2551q(y,p);return{n:1,unit:'return',html:r.html}}
+ if(st.form==='2550Q'){const r=form2550q(y,p);return{n:1,unit:'worksheet',html:r.html}}
+ const r=formItrq(y,p);return{n:1,unit:'worksheet',html:r.html}}
+const PAPER={A4:['A4',297],LONG:['8.5in 13in',330],LETTER:['letter',279]};
+function doc(body){const pp=PAPER[F().paper]||PAPER.LONG;return '<!doctype html><html><head><meta charset="utf-8"><title>BIR Form '+e(st.form)+'</title><style>'+CSS.replace('@page{size:A4;','@page{size:'+pp[0]+';')+'</style></head><body>'+body+'<scr'+'ipt>(function(){var H='+(pp[1]-26)+'*96/25.4;document.querySelectorAll(".f").forEach(function(f){f.style.zoom=1;var h=f.getBoundingClientRect().height;if(h>H)f.style.zoom=(Math.floor(H/h*1000)/1000)})})()<\/scr'+'ipt></body></html>'}
+function show(){const r=build(),pv=$('bfPrev'),info=$('bfInfo');
+ if(!r.n&&!r.force){pv.hidden=true;$('bfPrint').disabled=true;$('bfAdj').disabled=true;$('bfNotes').innerHTML='';info.textContent=r.empty||'Nothing to show.';return}
+ const nh=notesHtml();lastHtml=doc(r.html+(nh&&F().ovPrint?notesPage():''));
+ $('bfNotes').innerHTML=nh?'<div class="bf-notes"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><b>Your adjusted figures</b><label class="hr-chk" style="margin:0"><input type="checkbox" id="bfOvP"'+(F().ovPrint?' checked':'')+'> Print these notes on a separate page</label></div>'+nh+'</div>':'';
+ if($('bfOvP'))$('bfOvP').onchange=ev=>{F().ovPrint=ev.target.checked;saveToLocalStorage();show()};$('bfAdj').disabled=false;pv.hidden=false;pv.innerHTML='<iframe title="BIR form preview" style="width:100%;height:78vh;border:1px solid var(--border-color);border-radius:10px;background:#9aa3a0"></iframe>';
+ pv.querySelector('iframe').srcdoc=lastHtml;$('bfPrint').disabled=false;
+ info.textContent=(r.n>1?r.n+' '+r.unit+'s':'1 '+r.unit)+' ready'+(r.empty&&!r.n?' (no figures for this period)':'')+'. Each form is scaled to fit one '+($('bfPaper').selectedOptions[0].text)+' page. In the print dialog, pick the same paper size, keep margins at Default, and turn off headers and footers.';
+ warn()}
+function print(){const fr=$('bfPrev')&&$('bfPrev').querySelector('iframe');if(fr&&fr.contentWindow){fr.contentWindow.focus();fr.contentWindow.print()}}
+// ---------- Adjust figures (manual amounts with a reason) ----------
+const LBL={
+ '2316':[[29,'Basic salary / SMW of MWE (non-taxable)'],[30,'Holiday pay (MWE)'],[31,'Overtime pay (MWE)'],[32,'Night shift differential (MWE)'],[33,'Hazard pay (MWE)'],[34,'13th month pay and other benefits (up to ₱90,000)'],[35,'De minimis benefits'],[36,'SSS, PhilHealth, Pag-IBIG and union dues (employee share)'],[37,'Salaries and other forms of compensation (non-taxable)'],[39,'Basic salary (taxable)'],[40,'Representation'],[41,'Transportation'],[42,'COLA'],[43,'Fixed housing allowance'],['44A','Others – holiday pay'],['44B','Others – taxable allowances'],[45,'Overtime pay'],[46,'Commission'],[47,'Profit sharing'],[48,"Fees incl. director's fees"],[49,'Taxable 13th month benefits'],[50,'Hazard pay'],['51A','Others – de minimis excess'],['51B','Others – bonuses and incentives'],[22,'Taxable compensation from previous employer'],[24,'Tax due'],['25A','Taxes withheld – present employer'],['25B','Taxes withheld – previous employer'],[27,'5% tax credit (PERA)']],
+ '1601-C':[[5,'ATC','t'],[14,'Total amount of compensation'],[15,'Statutory minimum wage (MWEs)'],[16,'Holiday, overtime, night shift, hazard pay (MWEs)'],[17,'13th month pay and other benefits'],[18,'De minimis benefits'],[19,'SSS, GSIS, PHIC, HDMF contributions & union dues'],[20,'Other non-taxable compensation'],[23,'Taxable compensation not subject to withholding'],[25,'Total taxes withheld'],[26,'Adjustment from previous month(s)'],[28,'Tax remitted in return previously filed'],[29,'Other remittances made'],[32,'Surcharge'],[33,'Interest'],[34,'Compromise']],
+ '0619-E':[[5,'ATC','t'],[14,'Amount of remittance'],[15,'Amount remitted in previously filed form'],['17A','Surcharge'],['17B','Interest'],['17C','Compromise']],
+ '1601-EQ':[[19,'Total taxes withheld for the quarter'],[20,'Remittance – 1st month'],[21,'Remittance – 2nd month'],[22,'Tax remitted in return previously filed'],[23,'Over-remittance from previous quarter'],[24,'Other payments made (0605)'],[27,'Surcharge'],[28,'Interest'],[29,'Compromise']],
+ '2551Q':[['atc','ATC (Schedule 1)','t'],['s1','Taxable sales/receipts (Schedule 1)'],['rate','Tax rate (%)','p'],['tax','Tax due (Schedule 1)'],[15,'Creditable percentage tax withheld (2307)'],[16,'Tax paid in return previously filed'],[17,'Other tax credit/payment'],[20,'Surcharge'],[21,'Interest'],[22,'Compromise']],
+ '2550Q':[['vat','VATable sales/receipts'],['zero','Zero-rated sales/receipts'],['ex','Exempt sales/receipts'],['out','Output tax due'],['inp','Allowable input tax']],
+ 'ITRQ':[['base','Gross sales / net income, year to date'],['tax','Income tax due, year to date'],['prev','Tax due in previous quarter(s)']]};
+function fieldsOf(x){if(x.form!=='2307')return LBL[x.form]||[];const out=[];let n=0;for(let i=0;i<8;i++){const P='r'+i;if(x.it._rec[P+'atc']||x.it[P+'atc']||x.it._ov.has(P+'atc'))n=i+1}
+ for(let i=0;i<Math.min(8,n+1);i++){const P='r'+i,L0='Line '+(i+1)+(i>=n?' (new)':'');out.push([P+'atc',L0+' – ATC','t'],[P+'desc',L0+' – income payment','t'],[P+'m1',L0+' – 1st month'],[P+'m2',L0+' – 2nd month'],[P+'m3',L0+' – 3rd month'],[P+'tax',L0+' – tax withheld'])}return out}
+const fmtV=(v,k)=>k==='t'?(v||'–'):k==='p'?(v==null?'–':v+'%'):am(+v||0);
+const whoName=x=>x.form==='2307'?payee(x.who).name:x.form==='2316'?((empFig(payRows(x.y,null)).find(z=>z.empId===x.who)||{}).name||x.who):x.who?x.who:'';
+function adjust(){if(!LAST.length){show();if(!LAST.length)return toast('Nothing to adjust for this period.')}
+ const list=LAST.slice();let cur=0;const who=list.length>1;
+ const m=X.modal('<h2 style="margin-top:0">Adjust figures</h2><p class="hr-note">Type your own figure where the records are wrong or incomplete. Every change needs a short reason; it is saved with your name and the date. Totals recompute from your figures. Clear a box to go back to the records.</p>'
+  +(who?'<div class="form-group"><label for="bfAW">Certificate</label><select id="bfAW">'+list.map((x,i)=>'<option value="'+i+'">'+e(whoName(x))+(x.it._ov.size?' • adjusted':'')+'</option>').join('')+'</select></div>':'')
+  +'<div class="hr-scroll" style="max-height:56vh"><table class="hr-tbl bf-adj"><thead><tr><th>Item</th><th class="number">From records</th><th>Your figure</th><th>Reason</th><th></th></tr></thead><tbody id="bfAB"></tbody></table></div>'
+  +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem"><button class="btn btn-outline" data-x type="button">Cancel</button><button class="btn" id="bfASave" type="button">Save figures</button></div>',900);
+ const draw=()=>{const x=list[cur],o=OVS()[okey(x.form,x.y,x.p,x.who)]||{};
+  m.querySelector('#bfAB').innerHTML=fieldsOf(x).map(([k,lab,kind])=>{const r=x.it._rec[k],ov=o[k],val=ov?(kind==='t'||kind==='p'?ov.v:(ov.v/100).toFixed(2)):'';
+   return '<tr data-k="'+e(k)+'" data-kind="'+(kind||'a')+'"><td><b>'+e(/^\d+[A-Z]?$/.test(k)?k:'')+'</b> '+e(lab)+(ov&&ov.by?'<div class="bk-mut" style="font-size:.75rem">by '+e(ov.by)+' · '+e(String(ov.at||'').slice(0,10))+'</div>':'')+'</td><td class="number">'+e(fmtV(r,kind))+'</td>'
+   +'<td><input class="bf-v" '+(kind==='t'?'maxlength="60"':'type="number" step="0.01"')+' value="'+e(val)+'" placeholder="'+e(kind==='t'?(r||''):kind==='p'?String(r==null?'':r):((+r||0)/100).toFixed(2))+'" style="width:130px"></td>'
+   +'<td><input class="bf-n" maxlength="200" value="'+e(ov?ov.note:'')+'" placeholder="Why this differs" style="width:100%;min-width:180px"></td><td>'+(ov?'<button type="button" class="btn btn-outline btn-sm" data-clr>Use records</button>':'')+'</td></tr>'}).join('')};
+ draw();if(who)m.querySelector('#bfAW').onchange=ev=>{cur=+ev.target.value;draw()};
+ m.addEventListener('click',ev=>{const b=ev.target.closest('[data-clr]');if(b){const tr=b.closest('tr');tr.querySelector('.bf-v').value='';tr.querySelector('.bf-n').value=''}});
+ m.querySelector('#bfASave').onclick=()=>{const x=list[cur],key=okey(x.form,x.y,x.p,x.who),o=Object.assign({},OVS()[key]||{}),me=(window.currentUser&&(currentUser.name||currentUser.username))||'';let bad=null;
+  m.querySelectorAll('#bfAB tr').forEach(tr=>{const k=tr.dataset.k,kind=tr.dataset.kind,raw=tr.querySelector('.bf-v').value.trim(),note=tr.querySelector('.bf-n').value.trim();tr.querySelector('.bf-n').classList.remove('bf-bad');
+   if(raw===''){delete o[k];return}
+   const v=kind==='t'?raw.toUpperCase().slice(0,60):kind==='p'?Math.round((parseFloat(raw)||0)*10000)/10000:c100(raw),rec=x.it._rec[k];
+   const same=kind==='t'?String(rec||'')===v:(+rec||0)===v;if(same&&!note){delete o[k];return}
+   if(!note){bad=bad||tr;tr.querySelector('.bf-n').classList.add('bf-bad');return}
+   const prev=o[k];o[k]={v,note:note.slice(0,200),by:prev&&prev.v===v&&prev.note===note?prev.by:me,at:prev&&prev.v===v&&prev.note===note?prev.at:new Date().toISOString()}});
+  if(bad){bad.querySelector('.bf-n').focus();return toast('Add a reason for each figure you changed.')}
+  if(Object.keys(o).length)OVS()[key]=o;else delete OVS()[key];saveToLocalStorage();m.remove();toast('Figures saved.','success');show()}}
+function notesHtml(){const L0=LAST.filter(x=>x.it._ov.size);if(!L0.length)return'';
+ return L0.map(x=>{const o=OVS()[okey(x.form,x.y,x.p,x.who)]||{},F0=fieldsOf(x);return '<div class="bf-nt"><b>'+e(x.form==='ITRQ'?'Income tax worksheet':x.form)+(whoName(x)?' – '+e(whoName(x)):'')+'</b><ul>'+[...x.it._ov].map(k=>{const f=F0.find(z=>String(z[0])===k)||[k,k],ov=o[k]||{};return '<li><b>'+e(/^\d+[A-Z]?$/.test(k)?k:'')+'</b> '+e(f[1])+': '+e(fmtV(ov.v,f[2]))+' <span class="bk-mut">(records '+e(fmtV(x.it._rec[k],f[2]))+')</span> – '+e(ov.note||'')+(ov.by?' <span class="bk-mut">· '+e(ov.by)+', '+e(String(ov.at||'').slice(0,10))+'</span>':'')+'</li>'}).join('')+'</ul></div>'}).join('')}
+function notesPage(){const h=notesHtml();return h?'<div class="f ws"><div class="ttl"><b>Adjustment notes</b><small>Internal record – not part of the BIR form</small></div><div style="padding:3mm 4mm;font-size:8.6pt">'+h.replace(/class="bk-mut"/g,'style="color:#555"')+'</div>'+foot('notes','AJ ERP System')+'</div>':''}
+// totals for the Deadlines calendar when a return has manual figures
+const TOTK={'1601-C':36,'0619-E':18,'1601-EQ':31,'2551Q':24,'2550Q':'pay','ITRQ':'pay'};
+const FN={'1601-C':(y,p)=>form1601c(y,p,''),'0619-E':form0619e,'1601-EQ':form1601eq,'2551Q':form2551q,'2550Q':form2550q,'ITRQ':formItrq};
+function total(form,y,p){if(!OVS()[okey(form,y,p,'')])return null;const keep=LAST,hl=HL;LAST=[];try{FN[form](y,p);const x=LAST[LAST.length-1];return x?+x.it[TOTK[form]]||0:null}catch(err){return null}finally{LAST=keep;HL=hl}}
+function calAmt(i){const f=i.form==='1701Q'||i.form==='1702Q'?'ITRQ':i.form;if(!TOTK[f])return null;const yp=i.ym||i.yq;if(!yp)return null;const v=total(f,yp[0],yp[1]);return v==null?null:(f==='ITRQ'||f==='2550Q'?Math.max(0,v):v)}
+// ---------- settings ----------
+function settings(){const f=F(),c=C(),bl=bizList();
+ const inp=(id,lab,v,ph,mx)=>'<div class="form-group"><label for="'+id+'">'+lab+'</label><input id="'+id+'" maxlength="'+(mx||120)+'" value="'+e(v||'')+'" placeholder="'+e(ph||'')+'"></div>';
+ const m=X.modal('<h2 style="margin-top:0">Form details</h2><p class="hr-note">These print on every BIR form. Name, TIN and address come from Settings › Company Profile ('+e(c.name)+(c.tin?', TIN '+e(c.tin):'')+').</p>'
+ +'<div class="grid-2">'+inp('bfRdo','RDO code',f.rdo,'e.g. 084',5)+inp('bfZip','ZIP code',f.zip||zipOf(c.address),'e.g. 6312',4)+inp('bfMail','Email address',f.email,'',80)+inp('bfTel','Contact number',f.phone||c.contact,'',40)
+ +'<div class="form-group"><label for="bfCat">Category of withholding agent</label><select id="bfCat"><option value="P">Private</option><option value="G"'+(f.cat==='G'?' selected':'')+'>Government</option></select></div></div>'
+ +'<h3 style="margin:1rem 0 .4rem">Signatory</h3><div class="grid-2">'+inp('bfSN','Printed name',f.sName,'JUAN DELA CRUZ',80)+inp('bfST','Title / designation',f.sTitle,'Owner / President',60)+inp('bfSTin','Signatory TIN',f.sTin,'000-000-000-000',20)+'</div>'
+ +(bl.length?'<h3 style="margin:1rem 0 .4rem">Businesses with their own BIR registration</h3><p class="hr-note">Only fill these in for a business registered under a different TIN or branch code. Its payroll forms (1601-C, 2316) will use these details; leave blank to file under '+e(c.name)+'.</p>'
+  +bl.map((b,i)=>{const o=f.biz[b]||{};return '<details'+(o.tin?' open':'')+' style="margin:.4rem 0"><summary style="cursor:pointer;font-weight:700">'+e(b)+(o.tin?' · '+e(o.tin):'')+'</summary><div class="grid-2" data-b="'+i+'">'+inp('bfB'+i+'n','Registered name',o.name||b,'',120)+inp('bfB'+i+'t','TIN with branch code',o.tin,'000-000-000-00001',20)+inp('bfB'+i+'a','Registered address',o.addr,'',200)+inp('bfB'+i+'z','ZIP code',o.zip,'',4)+inp('bfB'+i+'r','RDO code',o.rdo,'',5)+'</div></details>'}).join(''):'')
+ +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem"><button class="btn btn-outline" data-x type="button">Cancel</button><button class="btn" id="bfSave" type="button">Save</button></div>',720);
+ m.querySelector('#bfSave').onclick=()=>{const v=id=>m.querySelector('#'+id).value.trim();const tin=s=>{const d=s.replace(/\D/g,'').slice(0,14);return d?[d.slice(0,3),d.slice(3,6),d.slice(6,9),d.slice(9)].filter(Boolean).join('-'):''};
+  Object.assign(f,{rdo:v('bfRdo').slice(0,5),zip:v('bfZip').replace(/\D/g,'').slice(0,4),email:v('bfMail').slice(0,80),phone:v('bfTel').slice(0,40),cat:v('bfCat')==='G'?'G':'P',sName:v('bfSN').slice(0,80),sTitle:v('bfST').slice(0,60),sTin:tin(v('bfSTin'))});
+  bl.forEach((b,i)=>{const t=tin(v('bfB'+i+'t'));if(!t){delete f.biz[b];return}f.biz[b]={name:v('bfB'+i+'n').slice(0,120)||b,tin:t,addr:v('bfB'+i+'a').slice(0,200),zip:v('bfB'+i+'z').replace(/\D/g,'').slice(0,4),rdo:v('bfB'+i+'r').slice(0,5)}});
+  saveToLocalStorage();m.remove();toast('Form details saved.','success');render();if(lastHtml)show()}}
+function empDlg(){const L0=empFig(payRows(st.y,null)),t=T();t.emp=t.emp||{};
+ if(!L0.length)return toast('No saved payroll for '+st.y+'.');
+ const m=X.modal('<h2 style="margin-top:0">Employee details for 2316</h2><p class="hr-note">TIN and MWE status are shared with Payroll Remittances › Employee IDs.</p><div class="hr-scroll" style="max-height:55vh"><table class="hr-tbl tx-tbl"><thead><tr><th>Employee</th><th>TIN</th><th>RDO</th><th>Registered address</th><th>ZIP</th><th>Date of birth</th><th>Contact no.</th></tr></thead><tbody>'
+ +L0.map(x=>{const E=t.emp[x.empId]||{};return '<tr data-emp="'+e(x.empId)+'"><td>'+e(x.name)+'</td><td><input data-f="tin" maxlength="20" value="'+e(E.tin||'')+'" style="width:140px"></td><td><input data-f="rdo" maxlength="5" value="'+e(E.rdo||'')+'" style="width:60px"></td><td><input data-f="addr" maxlength="200" value="'+e(E.addr||'')+'" style="width:220px"></td><td><input data-f="zip" maxlength="4" value="'+e(E.zip||'')+'" style="width:60px"></td><td><input data-f="dob" type="date" value="'+e(E.dob||'')+'"></td><td><input data-f="phone" maxlength="40" value="'+e(E.phone||'')+'" style="width:120px"></td></tr>'}).join('')
+ +'</tbody></table></div><div style="text-align:right;margin-top:1rem"><button class="btn" data-x type="button">Done</button></div>',980);
+ m.addEventListener('change',ev=>{const tr=ev.target.closest('tr[data-emp]'),k=ev.target.dataset.f;if(!tr||!k)return;const id=tr.dataset.emp;t.emp[id]=t.emp[id]||{};let v=ev.target.value.trim();
+  if(k==='tin'){const d=v.replace(/\D/g,'').slice(0,14);v=d?[d.slice(0,3),d.slice(3,6),d.slice(6,9),d.slice(9)].filter(Boolean).join('-'):'';ev.target.value=v}
+  if(k==='zip')v=v.replace(/\D/g,'').slice(0,4);if(k==='dob'&&!/^\d{4}-\d{2}-\d{2}$/.test(v))v='';t.emp[id][k]=v;saveToLocalStorage()});
+ const obs=new MutationObserver(()=>{if(!document.body.contains(m)){obs.disconnect();warn();if(lastHtml)show()}});obs.observe(document.body,{childList:true})}
+// ---------- wire up ----------
+document.head.insertAdjacentHTML('beforeend','<style>.bf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}.bf-card{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:12px 14px;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card);color:var(--text-main);cursor:pointer;font-family:inherit;transition:border-color .15s,box-shadow .15s}.bf-card b{font-size:1.05rem;color:var(--accent-primary)}.bf-card span{font-size:.84rem;font-weight:600;line-height:1.3}.bf-card small{font-size:.76rem;color:var(--text-muted)}.bf-card:hover{border-color:var(--accent-primary)}.bf-card.on{border-color:transparent;background:var(--btn-bg);color:var(--on-primary,#fff);box-shadow:0 4px 14px rgba(0,0,0,.14)}.bf-card.on b,.bf-card.on small{color:inherit}.bf-notes{border:1px solid #e0a800;background:color-mix(in srgb,#ffd84d 14%,var(--bg-card));border-radius:10px;padding:10px 14px;margin:0 0 12px;font-size:.88rem}.bf-notes ul{margin:.3rem 0 .4rem 1.1rem;padding:0}.bf-nt{margin-top:.5rem}.bf-adj td{vertical-align:middle}.bf-adj input.bf-bad{border-color:var(--danger)!important;box-shadow:0 0 0 2px color-mix(in srgb,var(--danger) 25%,transparent)}@media(max-width:640px){.bf-grid{grid-template-columns:1fr 1fr}.bf-card{padding:10px}.bf-card span{font-size:.78rem}}</style>');
+X.page('tx-forms','BIR Forms','taxSubMenu',render,'nav-sub-tx-set');
+// sanitize: keep form details and employee extras in backups
+const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);try{const x=d&&d.tax;if(x&&o.tax){const S=(v,n)=>String(v==null?'':v).slice(0,n);
+ if(x.forms&&typeof x.forms==='object'){const f=x.forms,b={};if(f.biz&&typeof f.biz==='object')Object.keys(f.biz).slice(0,50).forEach(k=>{const z=f.biz[k];if(z&&z.tin)b[S(k,120)]={name:S(z.name,120),tin:S(z.tin,20),addr:S(z.addr,200),zip:S(z.zip,4),rdo:S(z.rdo,5)}});
+  const OV0={};if(f.ov&&typeof f.ov==='object')Object.keys(f.ov).slice(0,2000).forEach(k=>{const z=f.ov[k];if(!/^[\w-]{2,10}\|\d{4}\|\d{1,2}\|[^|]{0,120}$/.test(k)||!z||typeof z!=='object')return;const q={};Object.keys(z).slice(0,80).forEach(i=>{const v=z[i];if(!/^[\w]{1,8}$/.test(i)||!v||typeof v!=='object')return;q[i]={v:typeof v.v==='number'&&Number.isFinite(v.v)?v.v:S(v.v,60),note:S(v.note,200),by:S(v.by,80),at:S(v.at,40)}});if(Object.keys(q).length)OV0[k]=q});
+  o.tax.forms={ov:OV0,ovPrint:!!f.ovPrint,paper:['A4','LONG','LETTER'].includes(f.paper)?f.paper:'LONG',rdo:S(f.rdo,5),zip:S(f.zip,4),email:S(f.email,80),phone:S(f.phone,40),cat:f.cat==='G'?'G':'P',sName:S(f.sName,80),sTitle:S(f.sTitle,60),sTin:S(f.sTin,20),biz:b}}
+ if(x.emp&&o.tax.emp)Object.keys(o.tax.emp).forEach(k=>{const src=Object.keys(x.emp).find(z=>safeId(z)===k),E=src&&x.emp[src];if(!E)return;Object.assign(o.tax.emp[k],{rdo:S(E.rdo,5),addr:S(E.addr,200),zip:S(E.zip,4),dob:/^\d{4}-\d{2}-\d{2}$/.test(E.dob||'')?E.dob:'',phone:S(E.phone,40)})})}}catch(err){}return o};
+window.BIRF={calAmt,total,okey,OVS,open:(f,y,p)=>{st.form=f;st.y=y||0;st.p=p||1;st.who='ALL';if(!st.y){const d=defaults(f);st.y=d[0];st.p=d[1]}showTab('tx-forms');setTimeout(show,0)},build:()=>build(),st,f2316,empFig,payRows,agent};
 })();
 // ===== Mobile polish: wrapping section tabs, scroll hints on wide content, card view for lists on phones =====
 (function(){
