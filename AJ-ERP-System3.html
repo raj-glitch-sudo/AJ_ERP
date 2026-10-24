@@ -9100,6 +9100,94 @@ window.CALMUI={sync,openK,alerts};
  const grid = document.querySelector('#setTab-theme .grid-2');
  if (grid) grid.insertAdjacentHTML('beforeend', '<div class="card"><h4>Sidebar Menu</h4><p style="font-size:0.88rem;color:var(--text-muted);margin-top:0;">Press and hold any menu item for 5 seconds, then drag it to a new position. Press Done (or Esc) when finished. The order is remembered on this device.</p><div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn btn-outline" onclick="NAVARR.start()">Rearrange now</button><button type="button" class="btn btn-outline" onclick="NAVARR.reset()">Reset menu order</button></div></div>');
 })();
+// ===== Mobile polish: wrapping section tabs, scroll hints on wide content, card view for lists on phones =====
+(function(){
+document.head.insertAdjacentHTML('beforeend','<style id="mobCss">'
+ // scroll hints (all screen sizes): fade + arrow on the side that has more content
+ +'.xs-wrap{position:relative;min-width:0}.xs-wrap>.xs-f{position:absolute;top:1px;bottom:1px;width:44px;pointer-events:none;opacity:0;transition:opacity .2s;z-index:3;display:flex;align-items:center}'
+ +'.xs-wrap>.xs-f.r{right:1px;justify-content:flex-end;background:linear-gradient(to left,var(--bg-card) 20%,transparent);border-radius:0 10px 10px 0}'
+ +'.xs-wrap>.xs-f.l{left:1px;justify-content:flex-start;background:linear-gradient(to right,var(--bg-card) 20%,transparent);border-radius:10px 0 0 10px}'
+ +'.xs-wrap.more-r>.xs-f.r,.xs-wrap.more-l>.xs-f.l{opacity:1}'
+ +'.xs-f button{pointer-events:auto;width:28px;height:28px;margin:0 3px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-card);color:var(--accent-primary);box-shadow:0 2px 8px rgba(0,0,0,.15);display:grid;place-items:center;cursor:pointer;padding:0;font:700 15px/1 system-ui,sans-serif}'
+ +'.xs-wrap:not(.more-r)>.xs-f.r button,.xs-wrap:not(.more-l)>.xs-f.l button{pointer-events:none}'
+ +'.xs-hint{display:none;font-size:.78rem;color:var(--text-muted);margin:.35rem 0 0;align-items:center;gap:5px}.xs-wrap.more-r+.xs-hint{display:flex}'
+ +'@media(max-width:768px){'
+ // section tabs become a grid of buttons so every option is visible
+ +'.sub-nav{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px!important;border-bottom:none!important;overflow:visible!important;margin-bottom:1.1rem!important}'
+ +'.sub-nav button{justify-content:center;text-align:center;white-space:normal!important;line-height:1.25;min-height:42px;padding:8px 10px!important;margin:0!important;border:1px solid var(--border-color)!important;border-radius:10px!important;background:var(--bg-card)!important;font-size:.86rem!important;color:var(--text-main)!important}'
+ +'.sub-nav button.active{background:var(--btn-bg)!important;color:var(--on-primary,#fff)!important;border-color:transparent!important;box-shadow:0 2px 8px rgba(0,0,0,.12)}'
+ +'.sub-nav button.active svg{color:inherit}.sub-nav button:last-child:nth-child(odd){grid-column:1/-1}'
+ +'.hr-bar .form-group.grow{flex-basis:100%!important}'
+ +'.hr-acts{justify-content:stretch!important}.hr-acts>.btn{flex:1 1 auto}'
+ +'}'
+ // card view for list tables on phones
+ +'.mc-v{display:contents}'
++'@media(max-width:640px){table.mcard .mc-v{display:block;text-align:right}table.mcard td.mc-t .mc-v{text-align:left}'
+ +'table.mcard{display:block!important;white-space:normal!important;overflow:visible!important;border:none!important;min-width:0!important;width:100%!important}'
+ +'table.mcard thead{display:none}table.mcard tbody,table.mcard tfoot{display:block}'
+ +'table.mcard tr{display:block;border:1px solid var(--border-color);border-radius:12px;padding:8px 12px;margin:0 0 8px;background:var(--bg-card)}'
+ +'table.mcard tfoot tr{background:var(--tint,rgba(0,0,0,.03));font-weight:700}'
+ +'table.mcard td{display:flex!important;justify-content:space-between;align-items:baseline;gap:12px;padding:5px 0!important;border:none!important;text-align:right!important;min-width:0;white-space:normal!important;background:none!important;position:static!important;word-break:break-word}'
+ +'table.mcard td::before{content:attr(data-l);flex:0 0 auto;max-width:48%;text-align:left;color:var(--text-muted);font-weight:600;font-size:.82rem}'
+ +'table.mcard td.mc-t{font-weight:700;font-size:1rem;justify-content:flex-start;text-align:left!important;padding-bottom:7px!important;margin-bottom:3px;border-bottom:1px dashed var(--border-color)!important}'
+ +'table.mcard td.mc-t::before,table.mcard td.mc-n::before{display:none}table.mcard td.mc-n{justify-content:flex-end;flex-wrap:wrap}'
+ +'table.mcard td.mc-e{display:none!important}table.mcard td[colspan]{display:block!important;text-align:center!important}table.mcard td[colspan]::before{display:none}'
+ +'.mc-host{border:none!important;max-height:none!important;overflow:visible!important;border-radius:0!important}'
+ +'}</style>');
+const PHONE=()=>innerWidth<=640;
+// ---- card view
+function labels(t){const hr=t.tHead&&t.tHead.rows;if(!hr||hr.length!==1)return null;const L=[];[...hr[0].cells].forEach(th=>{const n=th.colSpan||1,tx=th.textContent.replace(/\s+/g,' ').trim();for(let k=0;k<n;k++)L.push(tx)});return L}
+function stamp(t,L){[...t.tBodies,t.tFoot].filter(Boolean).forEach(b=>[...b.rows].forEach(tr=>{let ci=0;[...tr.cells].forEach((td,j)=>{const lab=L[ci]||'';ci+=td.colSpan||1;if(td.colSpan>1){td.removeAttribute('data-l');return}
+  if(td.getAttribute('data-l')!==lab)td.setAttribute('data-l',lab);if(!td.querySelector(':scope>.mc-v')){const kids=[...td.childNodes].filter(n=>n.nodeType===1||n.textContent.trim());if(kids.length>1&&!kids.some(n=>n.nodeType===1&&n.matches('button,.btn,input,select'))){const sp=document.createElement('span');sp.className='mc-v';kids.forEach(n=>sp.appendChild(n));td.appendChild(sp)}}const txt=td.textContent.trim(),ctl=td.querySelector('button,a.btn,.btn');
+  td.classList.toggle('mc-t',j===0&&!ctl);td.classList.toggle('mc-n',!lab&&!!ctl||(!lab&&j>0));td.classList.toggle('mc-e',!txt&&!td.querySelector('button,a,img,svg,input,select')&&j>0)})}))}
+function host(t){const p=t.parentElement;return p&&p.classList.contains('xs-wrap')?p.parentElement:p}
+function card(t){
+ if(!t.classList.contains('hr-tbl')||t.closest('.no-mcard'))return;
+ const key=innerWidth+'|'+t.rows.length+'|'+t.textContent.length;if(t._mk===key)return;t._mk=key;
+ if(t.querySelector('tbody input,tbody select,tbody textarea')){off(t);return}
+ const L=labels(t);if(!L||L.length<4){off(t);return}
+ if(!PHONE()){off(t);return}
+ stamp(t,L);
+ // only switch to cards when the table would not fit across
+ const h=host(t),was=t.classList.contains('mcard');t.classList.remove('mcard');h&&h.classList.remove('mc-host');
+ const box=(h&&h.clientWidth)||t.parentElement.clientWidth,need=t.scrollWidth>box+4||t.offsetWidth>box+4;
+ if(need){t.classList.add('mcard');if(h&&h.classList.contains('hr-scroll'))h.classList.add('mc-host')}
+}
+function off(t){if(t.classList.contains('mcard')){t.classList.remove('mcard');const h=host(t);h&&h.classList.remove('mc-host')}}
+// ---- scroll hints
+function scroller(el){const cs=getComputedStyle(el);return /(auto|scroll)/.test(cs.overflowX)&&el.scrollWidth>el.clientWidth+4&&el.clientWidth>0}
+function hint(el){
+ let w=el.parentElement;
+ if(!w||!w.classList.contains('xs-wrap')){
+  if(!scroller(el))return;
+  w=document.createElement('div');w.className='xs-wrap';el.parentNode.insertBefore(w,el);w.appendChild(el);
+  w.insertAdjacentHTML('beforeend','<div class="xs-f l"><button type="button" tabindex="-1" aria-label="Scroll left">‹</button></div><div class="xs-f r"><button type="button" tabindex="-1" aria-label="Scroll right">›</button></div>');
+  w.querySelector('.xs-f.l button').onclick=()=>el.scrollBy({left:-el.clientWidth*.75,behavior:'smooth'});
+  w.querySelector('.xs-f.r button').onclick=()=>el.scrollBy({left:el.clientWidth*.75,behavior:'smooth'});
+  el.addEventListener('scroll',()=>upd(el),{passive:true});
+ }
+ upd(el);
+}
+function upd(el){const w=el.parentElement;if(!w||!w.classList.contains('xs-wrap'))return;const can=scroller(el),x=el.scrollLeft,max=el.scrollWidth-el.clientWidth;
+ w.classList.toggle('more-r',can&&x<max-4);w.classList.toggle('more-l',can&&x>4)}
+const SEL='.hr-scroll,table,.report-paper,.gl-body,[style*="overflow-x:auto"],[style*="overflow:auto"]';
+function scan(){
+ const roots=[...document.querySelectorAll('.tab-section.active,.sub-tab-section.active,.modal-overlay:not(.hidden) .modal')];
+ const seen=new Set();
+ roots.forEach(r=>r.querySelectorAll('table').forEach(t=>{if(!seen.has(t)){seen.add(t);try{card(t)}catch(e){}}}));
+ const done=new Set();
+ roots.forEach(r=>r.querySelectorAll(SEL).forEach(el=>{if(done.has(el)||el.closest('.mcard')||el.classList.contains('mcard')||el.offsetParent===null)return;done.add(el);try{hint(el)}catch(e){}}));
+ document.querySelectorAll('.xs-wrap>.xs-f').forEach(()=>{});
+}
+let tm=0;const later=()=>{clearTimeout(tm);tm=setTimeout(scan,90)};
+new MutationObserver(ms=>{for(const m of ms){const t=m.target;if(!t.closest||t.closest('.xs-f,#toastHost,#ajWarp')||!t.closest('main,.modal-overlay')&&t!==document.body)continue;later();return}}).observe(document.body,{childList:true,subtree:true});
+addEventListener('resize',later);addEventListener('orientationchange',later);
+document.addEventListener('click',later,true);
+['showTab','showSettingsSubTab','showBooksSubTab','showReportsSubTab'].forEach(n=>{const o=window[n];if(typeof o==='function')window[n]=function(){const r=o.apply(this,arguments);later();return r}});
+setTimeout(scan,300);
+window.MOBUI={scan};
+})();
+
 </script>
 </body>
 </html>
