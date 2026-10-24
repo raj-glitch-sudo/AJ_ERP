@@ -4841,7 +4841,7 @@ function row(x,T){const fl=x.files||[],sd=x.sub.filter(s=>s.done).length,I=x.id,
  let h='<div class="tk-row'+(x.done?' done':'')+'"><input type="checkbox" class="tk-cb" aria-label="Mark task complete"'+(x.done?' checked':'')+' onchange="TK.done('+q+')"><div class="tk-body" onclick="TK.open('+q+')"><div class="tk-title">'+esc(x.title)+'</div><div class="tk-meta">'+due(x)+(x.sub.length?' <span class="tk-chip">'+ico('i-tasks')+' '+sd+'/'+x.sub.length+'</span>':'')+(fl.length?' <span class="tk-chip">'+ico('i-clip')+' '+fl.length+'</span>':'')+(x.notes?' <span>'+esc(x.notes.slice(0,50))+'</span>':'')+'</div></div><button class="tk-star'+(x.star?' on':'')+'" aria-label="Star" onclick="TK.star('+q+')">'+ico('i-star')+'</button><button class="tk-exp'+(openId===I?' open':'')+'" aria-label="Show details, subtasks and attachments" onclick="TK.open('+q+')">'+ico('i-chev')+'</button></div>';
  if(openId===I){
   h+='<div class="tk-detail"><input value="'+esc(x.title)+'" onchange="TK.set('+q+',\'title\',this.value)"><textarea rows="2" placeholder="Details" onchange="TK.set('+q+',\'notes\',this.value)">'+esc(x.notes)+'</textarea>'
-  +'<div class="inv-bar"><label>Due</label><input type="date" value="'+x.due+'" onchange="TK.set('+q+',\'due\',this.value)"><label>List</label><select onchange="TK.set('+q+',\'list\',this.value)">'+T.lists.map(l=>'<option value="'+l.id+'"'+(l.id===x.list?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select></div>'
+  +'<div class="inv-bar"><label>Due</label><input type="date" value="'+x.due+'" onchange="TK.set('+q+',\'due\',this.value)"><label>List</label><select onchange="TK.set('+q+',\'list\',this.value)">'+T.lists.map(l=>'<option value="'+l.id+'"'+(l.id===x.list?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select>'+(window.TKUSERS&&TKUSERS().length>1?'<label>Assigned to</label><select onchange="TK.assign('+q+',this.value)">'+TKUSERS().map(u=>'<option value="'+u.id+'"'+(u.id===(x.to||x.by)?' selected':'')+'>'+esc(u.name)+'</option>').join('')+'</select>':'')+'</div>'
   +'<div class="tk-sec"><b>Subtasks</b>'+(x.sub.length?'<span>'+sd+' of '+x.sub.length+' done</span>':'')+'</div>'
   +(x.sub.length?'<div class="tk-prog"><i style="width:'+Math.round(sd/x.sub.length*100)+'%"></i></div>':'')
   +x.sub.map((u,i)=>'<div class="tk-sub'+(u.done?' done':'')+'"><input type="checkbox" class="tk-cb sm" aria-label="Mark subtask complete"'+(u.done?' checked':'')+' onchange="TK.subDone('+q+','+i+')"><input class="tk-subt" value="'+esc(u.t)+'" onchange="TK.subSet('+q+','+i+',this.value)"><button class="btn btn-outline btn-sm" aria-label="Delete subtask" onclick="TK.subDel('+q+','+i+')">×</button></div>').join('')
@@ -4852,9 +4852,9 @@ function row(x,T){const fl=x.files||[],sd=x.sub.filter(s=>s.done).length,I=x.id,
   +'<button class="btn btn-danger btn-sm" onclick="TK.del('+q+')">Delete task</button></div>'}
  return h}
 function renderTasks(){if(!C()||!$('tkSide'))return;const T=tk();if(cur!=='star'&&!T.lists.some(l=>l.id===cur))cur=T.lists[0].id;
- const n=l=>T.tasks.filter(x=>!x.done&&(l==='star'?x.star:x.list===l)).length;
+ const V=x=>!window.TKVIS||TKVIS(x),n=l=>T.tasks.filter(x=>V(x)&&!x.done&&(l==='star'?x.star:x.list===l)).length;
  $('tkSide').innerHTML='<button class="tk-li'+(cur==='star'?' on':'')+'" onclick="TK.go(\'star\')"><span><svg class="i"><use href="#i-star"/></svg> Starred</span><b>'+n('star')+'</b></button>'+T.lists.map(l=>'<button class="tk-li'+(cur===l.id?' on':'')+'" onclick="TK.go(\''+l.id+'\')"><span>'+esc(l.name)+'</span><b>'+n(l.id)+'</b></button>').join('')+'<button class="btn btn-outline btn-sm" onclick="TK.newList()">+ New list</button>'+(cur!=='star'&&T.lists.length>1?'<button class="btn btn-outline btn-sm" onclick="TK.delList()">Delete this list</button>':'');
- const all=T.tasks.filter(x=>cur==='star'?x.star:x.list===cur),op=all.filter(x=>!x.done).sort((a,b)=>(a.due||'9')<(b.due||'9')?-1:(a.due||'9')>(b.due||'9')?1:0),dn=all.filter(x=>x.done);
+ const all=T.tasks.filter(x=>V(x)&&(cur==='star'?x.star:x.list===cur)),op=all.filter(x=>!x.done).sort((a,b)=>(a.due||'9')<(b.due||'9')?-1:(a.due||'9')>(b.due||'9')?1:0),dn=all.filter(x=>x.done);
  $('tkMain').innerHTML='<h3 style="margin-top:0">'+(cur==='star'?'Starred':esc(T.lists.find(l=>l.id===cur).name))+'</h3>'+(cur!=='star'?'<form class="tk-add" onsubmit="TK.add(event)"><input id="tkNew" placeholder="Add a task" required><input id="tkDue" type="date" title="Due date"><button class="btn btn-sm">Add</button></form>':'')+(op.length?op.map(x=>row(x,T)).join(''):'<p class="inv-note">No open tasks. Add one above.</p>')+(dn.length?'<button class="tk-done-h" onclick="TK.toggleDone()">'+(showDone?'▾':'▸')+' Completed ('+dn.length+')</button>'+(showDone?dn.map(x=>row(x,T)).join(''):''):'');if(rf){const e=document.querySelector('[data-sa="'+rf+'"] input');rf=null;if(e)e.focus()}}
 const find=id=>tk().tasks.find(x=>x.id===id);
 
@@ -4864,7 +4864,7 @@ let pref={ws:0,h:1,e:1,t:1,view:'month'};try{Object.assign(pref,JSON.parse(local
 const sp=()=>{try{localStorage.setItem(CPK,JSON.stringify(pref))}catch(e){}};
 const selFor=(y,m)=>{const pre=y+'-'+pad(m+1),t=td();return t.slice(0,7)===pre?t:pre+'-01'};
 function renderCal(){const box=$('calBody');if(!box||!C())return;const T=tk(),y=cal.y,m=cal.m,today=td(),ws=+pref.ws||0,yv=pref.view==='year',now=new Date(),cy=now.getFullYear(),cm=now.getMonth();
- const hoOf=k=>pref.h?holOf(k):[],evOf=k=>pref.e?T.events.filter(e=>e.date===k):[],tsOf=k=>pref.t?T.tasks.filter(x=>x.due===k):[],rxOf=k=>pref.e&&window.reCalEvents?window.reCalEvents(k):[];
+ const hoOf=k=>pref.h?holOf(k):[],evOf=k=>pref.e?T.events.filter(e=>e.date===k):[],tsOf=k=>pref.t?T.tasks.filter(x=>x.due===k&&(!window.TKVIS||TKVIS(x))):[],rxOf=k=>pref.e&&window.reCalEvents?window.reCalEvents(k):[];
  const wasOpen=box.querySelector('.cal-opt')&&box.querySelector('.cal-opt').open;
  const yrs=[];for(let i=Math.min(y,cy)-10;i<=Math.max(y,cy)+15;i++)yrs.push(i);
  const bar='<div class="cal-bar"><button class="btn btn-outline btn-sm" onclick="TK.nav(-1)" aria-label="Previous">‹</button>'+(yv?'':'<select id="calM" aria-label="Month" onchange="TK.jump()">'+MON.map((n,i)=>'<option value="'+i+'"'+(i===m?' selected':'')+'>'+n+'</option>').join('')+'</select>')+'<select id="calY" aria-label="Year" onchange="TK.jump()">'+yrs.map(v=>'<option'+(v===y?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn btn-outline btn-sm" onclick="TK.nav(1)" aria-label="Next">›</button><button class="btn btn-outline btn-sm" onclick="TK.today()">Today</button></div>';
@@ -4900,7 +4900,8 @@ window.TK={
  go:l=>{cur=l;openId=null;renderTasks()},
  newList:()=>{const n=(prompt('List name')||'').trim();if(!n)return;const l={id:'l_'+uid(),name:n};tk().lists.push(l);cur=l.id;save()},
  delList:()=>{const T=tk(),l=T.lists.find(x=>x.id===cur);if(!confirm('Delete "'+l.name+'" and its tasks?'))return;T.tasks=T.tasks.filter(x=>x.list!==cur);T.lists=T.lists.filter(x=>x.id!==cur);cur=T.lists[0].id;save()},
- add:e=>{e.preventDefault();tk().tasks.push({id:'t_'+uid(),list:cur,title:$('tkNew').value.trim(),notes:'',due:$('tkDue').value,done:false,star:false,sub:[],files:[]});save()},
+ add:e=>{e.preventDefault();const u=(window.currentUser||{}).id;tk().tasks.push({id:'t_'+uid(),list:cur,title:$('tkNew').value.trim(),notes:'',due:$('tkDue').value,done:false,star:false,sub:[],files:[],by:u,to:u});save()},
+ assign:(id,to)=>{const x=find(id);if(!x)return;x.to=to;if(!x.by)x.by=(window.currentUser||{}).id;save();if(to!==(window.currentUser||{}).id&&window.TKNAME)toast('Assigned to '+TKNAME(to)+'.','success')},
  done:id=>{const x=find(id);x.done=!x.done;save()},star:id=>{const x=find(id);x.star=!x.star;save()},
  open:id=>{openId=openId===id?null:id;renderTasks()},
  set:(id,f,v)=>{const x=find(id);if(f==='title'&&!v.trim())return renderTasks();x[f]=v;save()},
@@ -4923,7 +4924,7 @@ window.TK={
  today:()=>{cal.sel=td();cal.y=new Date().getFullYear();cal.m=new Date().getMonth();renderCal()},
  addEv:e=>{e.preventDefault();tk().events.push({id:'e_'+uid(),title:$('evT').value.trim(),date:cal.sel,time:$('evTm').value,notes:''});save()},
  delEv:id=>{const T=tk();T.events=T.events.filter(e=>e.id!==id);save()},
- addDayTask:e=>{e.preventDefault();tk().tasks.push({id:'t_'+uid(),list:tk().lists[0].id,title:$('dtT').value.trim(),notes:'',due:cal.sel,done:false,star:false,sub:[],files:[]});save()}
+ addDayTask:e=>{e.preventDefault();const u=(window.currentUser||{}).id;tk().tasks.push({id:'t_'+uid(),list:tk().lists[0].id,title:$('dtT').value.trim(),notes:'',due:cal.sel,done:false,star:false,sub:[],files:[],by:u,to:u});save()}
 };
 
 // ---- Wiring ----
@@ -6588,6 +6589,17 @@ window.handleLoginCompanySelectChange=function(){
 const oRender=window.renderLoginCompanySelector;
 window.renderLoginCompanySelector=function(){oRender.apply(this,arguments);[...$('loginCompanySelect').options].forEach(o=>{const c=companies.find(x=>x.id===o.value);if(!c)return;if(c.workspace==='encoder')o.textContent=c.name+' (encoder workspace)';else if(hasUsers(c))o.textContent=c.name+' (sign in)'});window.handleLoginCompanySelectChange()};
 let fails=0;
+const SK='aj_session',SESS_MS=12*3600e3;
+function saveSess(tab){try{const c=activeCompany();if(!c||!me())return;const o=JSON.parse(sessionStorage.getItem(SK)||'{}');sessionStorage.setItem(SK,JSON.stringify({cid:c.id,uid:me().id,legacy:!!me().legacy,at:Date.now(),tab:tab||o.tab||''}))}catch(err){}}
+function clearSess(){try{sessionStorage.removeItem(SK)}catch(err){}}
+function restoreSess(){let s=null;try{s=JSON.parse(sessionStorage.getItem(SK)||'null')}catch(err){}if(!s||!s.cid)return false;
+ if(Date.now()-(+s.at||0)>SESS_MS){clearSess();return false}
+ const comp=companies.find(c=>c.id===s.cid);if(!comp){clearSess();return false}
+ if(hasUsers(comp)){const u=users(comp).find(x=>x.id===s.uid);if(!u||u.active===false){clearSess();return false}window.currentUser={id:u.id,name:u.name,role:u.role}}
+ else{if(!s.legacy){clearSess();return false}window.currentUser={id:'legacy',name:'Admin',role:'admin',legacy:true}}
+ $('loginScreen').classList.add('hidden');switchCompany(comp.id);applyRole();const t=s.tab&&$('tab-'+s.tab)&&can(tabMod(s.tab))?s.tab:firstTab();showTab(t);return true}
+window.AJSESSION={save:saveSess,clear:clearSess,restore:restoreSess};
+const oOnload=window.onload;window.onload=function(){if(oOnload)oOnload.apply(this,arguments);try{restoreSess()}catch(err){console.error(err)}};
 window.handleLoginSubmit=async function(e){
  e.preventDefault();const id=$('loginCompanySelect').value;if(!id)return toast('Please select a company.');const comp=companies.find(c=>c.id===id);if(!comp)return;
  let u=null;
@@ -6605,11 +6617,11 @@ window.handleLoginSubmit=async function(e){
  $('loginScreen').classList.add('hidden');$('loginPassword').value='';$('loginUsername').value='';
  switchCompany(comp.id);
  (comp.reportsHistory||[]).forEach(r=>{if(!r.genBy)r.genBy={role:'admin',name:'',legacy:true}});
- applyRole();showTab(firstTab());
+ applyRole();showTab(firstTab());saveSess();
  if(!hasUsers(comp)&&!comp.workspace)setTimeout(()=>toast('Tip: set up user logins in Settings > Users & Access.','success'),600);
 };
 const oLog=window.logOff;
-window.logOff=function(){const before=activeCompanyId;oLog.apply(this,arguments);if(!activeCompanyId&&before){window.currentUser=null;applyRole();document.querySelectorAll('.rq-modal,.hr-modal,.bk-modal').forEach(x=>x.remove());document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(x=>x.classList.add('hidden'))}};
+window.logOff=function(){const before=activeCompanyId;oLog.apply(this,arguments);if(!activeCompanyId&&before){clearSess();window.currentUser=null;applyRole();document.querySelectorAll('.rq-modal,.hr-modal,.bk-modal').forEach(x=>x.remove());document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(x=>x.classList.add('hidden'))}};
 // company creation: the creator becomes the first Admin
 (()=>{const cb=$('newCompEnablePass'),box=cb&&(cb.closest('.card')||cb.closest('.form-group'));if(!box)return;box.style.display='none';
  box.insertAdjacentHTML('afterend','<div class="form-group card" style="background:rgba(0,0,0,0.02);border:1px dashed var(--border-color);padding:1rem"><label style="font-size:1rem;color:var(--text-main)">Administrator login</label><p class="hr-note" style="margin:.2rem 0 .6rem">You will be this company’s Admin, with full authority.</p><div class="grid-2"><div class="form-group"><label for="ncaName">Your full name *</label><input id="ncaName" autocomplete="name"></div><div class="form-group"><label for="ncaUser">Username *</label><input id="ncaUser" autocomplete="username" autocapitalize="none"></div><div class="form-group"><label for="ncaPw">Password * (6+ characters)</label><input type="password" id="ncaPw" autocomplete="new-password"></div><div class="form-group"><label for="ncaPw2">Confirm password *</label><input type="password" id="ncaPw2" autocomplete="new-password"></div></div></div>'+'<div class="form-group card" id="ncTeamBox" style="background:rgba(0,0,0,0.02);border:1px dashed var(--border-color);padding:1rem"><label style="font-size:1rem;color:var(--text-main)">Who manages this company?</label><div style="display:flex;gap:18px;flex-wrap:wrap;margin:.4rem 0"><label class="hr-chk" style="margin:0"><input type="radio" name="ncWho" value="me" checked> Just me (I do everything)</label><label class="hr-chk" style="margin:0"><input type="radio" name="ncWho" value="team"> Me and other people</label></div><div id="ncTeam" class="hidden"><p class="hr-note" style="margin:.2rem 0 .6rem">Add each person and what they do. They sign in with their own username and password. You can change this later in Settings &gt; Users &amp; Access.</p><div id="ncRows"></div><button type="button" class="btn btn-outline btn-sm" id="ncAdd">+ Add another person</button><small class="bk-mut" id="ncRoleHelp" style="display:block;margin-top:.6rem"></small></div></div>')})();
@@ -6646,7 +6658,7 @@ window.showTab=function(t){
  if(!me()&&activeCompanyId){window.currentUser={id:'legacy',name:'Admin',role:'admin',legacy:true};applyRole()}
  if(me()&&!can(tabMod(t)))t=firstTab();
  const r=oTab.call(this,t);
- const a=document.querySelector('.tab-section.active');
+ const a=document.querySelector('.tab-section.active');if(a&&me()&&$('loginScreen').classList.contains('hidden'))saveSess(a.id.slice(4));
  if(a){const id=a.id.slice(4),on=x=>{const e=$(x);if(e)e.classList.add('active')};
   if(id==='posting'){on('nav-posting');renderQueue()}if(id==='rptlib'){on('nav-rptlib');renderLib()}if(id==='enc'){on('nav-enc');renderEnc()}}
  updCount();return r;
@@ -9954,6 +9966,153 @@ document.addEventListener('click',ev=>{const b=ev.target.closest('[data-bulk]');
   selCw.clear();saveToLocalStorage();toast(n+' 2307'+(n===1?'':'s')+' marked received.','success');showTab('tx-cwt')}});
 let bt=0;new MutationObserver(ms=>{if(ms.every(m=>m.target.closest&&m.target.closest('.bulk-bar')))return;clearTimeout(bt);bt=setTimeout(()=>{invHook();cwHook()},30)}).observe(document.querySelector('main.main-content')||document.body,{childList:true,subtree:true});
 document.head.insertAdjacentHTML('beforeend','<style>.bulk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;margin:0 0 10px;border-radius:10px;background:color-mix(in srgb,var(--aj-6,#3ef7cc) 16%,var(--bg-card));border:1px solid var(--border-color)}.bulk-bar b{margin-right:auto;font-size:.9rem}td.bulk-ck,th:first-child input[type=checkbox]{width:34px}td.bulk-ck input,th input[type=checkbox]{width:17px;height:17px;cursor:pointer}</style>');
+})();
+// ===== Dashboard: permanent Calendar, Tasks (assignable) and Recent transactions; optional widgets you add =====
+(function(){
+const X=window.ERPX;if(!X||!$('tab-home'))return;
+function $(id){return document.getElementById(id)}
+const C=()=>activeCompany(),me=()=>window.currentUser||{id:'legacy',role:'admin'};
+const e=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const td=()=>X.today(),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const can=m=>!window.ROLECAN||ROLECAN(m);
+const tk=()=>{const c=C();return c.tk||(c.tk={lists:[{id:'l_main',name:'My Tasks'}],tasks:[],events:[]})};
+// ---------- who can get tasks ----------
+function userCanTasks(c,u){if(!u||u.active===false)return false;if(u.role==='admin')return true;if(u.role==='bookkeeper'){const p=Object.assign({tasks:true},(c.rolePerms||{}).bookkeeper||{});return !!p.tasks}if(u.role==='custom')return !!(u.perms||{}).tasks;return false}
+const team=()=>{const c=C();return (c&&Array.isArray(c.users)?c.users:[]).filter(u=>userCanTasks(c,u))};
+const uname=id=>{if(!id)return'';const u=(C().users||[]).find(x=>x.id===id);return u?u.name:(id==='legacy'?'Admin':'(removed user)')};
+const isAdmin=()=>me().role==='admin';
+// a task is yours if it is assigned to you, you created it, or it predates assignments
+const mine=x=>x.to===me().id||x.by===me().id||(!x.to&&!x.by);
+const visible=x=>isAdmin()||mine(x);
+window.TKVIS=visible;window.TKUSERS=team;window.TKNAME=uname;
+// ---------- layout ----------
+const banner=document.querySelector('#tab-home .welcome-banner');
+const grid=document.createElement('div');grid.id='dashGrid';grid.innerHTML='<div class="dg-cal" id="dgCal"></div><div class="dg-tasks" id="dgTasks"></div><div class="dg-recent" id="dgRecent"></div>';
+const opt=document.createElement('div');opt.id='dashOpt';
+const anchor=$('backupReminder')||banner;anchor.insertAdjacentElement('afterend',grid);grid.insertAdjacentElement('afterend',opt);
+const empty=document.createElement('div');empty.id='dashEmpty';empty.className='card';empty.innerHTML='<div><b>Add more to your dashboard</b><p>Key figures, ratios, tax deadlines, receivables, bills and payroll can sit here. Pick the ones you want.</p></div><button class="btn btn-outline" type="button" id="dashAddW">+ Add widgets</button>';
+opt.insertAdjacentElement('beforebegin',empty);
+const calCard=$('widget-section-calendar');if(calCard)$('dgCal').appendChild(calCard);
+const rec=$('widget-section-recent');if(rec)$('dgRecent').appendChild(rec);
+$('dgTasks').innerHTML='<div class="card" id="dashTasks"></div>';
+// optional widgets (existing ones are moved here; new ones are created)
+const W=[
+ ['kpi','Key figures','Sales this month, cash, receivables and payables','widgetContainerKPI'],
+ ['ratios','Financial ratios','Liquidity, margin and debt-to-equity','widget-section-ratios'],
+ ['deadlines','Tax deadlines','What is due in the next three weeks','txDash'],
+ ['ar','Receivables to collect','Overdue and soon-due customer invoices','dwAR'],
+ ['ap','Bills to pay','Supplier bills overdue or due within two weeks','dwAP'],
+ ['payroll','Payroll this month','Gross, net pay and remittances','dwPay'],
+ ['inventory','Inventory','Stock value and low-stock items','widget-section-inventory'],
+ ['realestate','Real estate','Occupancy and rent collection','widget-section-realestate']];
+['dwAR','dwAP','dwPay'].forEach(id=>{const d=document.createElement('div');d.className='card';d.id=id;opt.appendChild(d)});
+W.forEach(w=>{const el=$(w[3]);if(el&&el.parentElement!==opt)opt.appendChild(el);if(el)el.dataset.w=w[0]});
+// ---------- preferences (per user, saved with the company) ----------
+const PREF=()=>{const c=C();if(!c.dash||typeof c.dash!=='object')c.dash={};const k=me().id||'legacy';c.dash[k]=c.dash[k]||{on:{}};return c.dash[k]};
+function applyPrefs(){if(!C())return;['widget-section-recent','widgetContainerKPI','widget-section-ratios','widget-kpi-sales','widget-kpi-cash','widget-kpi-receivables','widget-kpi-payables'].forEach(id=>{const el=$(id);if(el)el.classList.remove('hidden')});const p=PREF();let n=0;W.forEach(w=>{const el=$(w[3]);if(!el)return;const on=!!p.on[w[0]];el.classList.toggle('w-off',!on);if(on)n++});
+ const ord=(p.order||[]).filter(k=>W.some(w=>w[0]===k));W.map(w=>w[0]).forEach(k=>{if(!ord.includes(k))ord.push(k)});ord.forEach(k=>{const w=W.find(x=>x[0]===k),el=w&&$(w[3]);if(el)opt.appendChild(el)});
+ empty.classList.toggle('w-off',n>0)}
+window.applyWidgetPrefs=applyPrefs;
+function customize(){const p=PREF();const ord=(p.order||[]).filter(k=>W.some(w=>w[0]===k));W.forEach(w=>{if(!ord.includes(w[0]))ord.push(w[0])});
+ const m=X.modal('<h2 style="margin-top:0">Dashboard widgets</h2><p class="hr-note"><b>Always on:</b> Calendar (with BIR deadlines, holidays and events), Tasks and Recent transactions. Add any of these below them, and use the arrows to set the order.</p><div id="dwList"></div><div style="text-align:right;margin-top:1rem"><button class="btn" data-x type="button">Done</button></div>',600);
+ const draw=()=>{m.querySelector('#dwList').innerHTML=ord.map((k,i)=>{const w=W.find(x=>x[0]===k),el=$(w[3]);return '<div class="dw-it"><label class="hr-chk" style="margin:0;flex:1"><input type="checkbox" data-k="'+k+'"'+(p.on[k]?' checked':'')+(el?'':' disabled')+'> <span><b>'+e(w[1])+'</b><small>'+e(w[2])+(el?'':' (turn the module on first)')+'</small></span></label><span><button type="button" class="btn btn-outline btn-sm" data-up="'+i+'"'+(i?'':' disabled')+' aria-label="Move up">↑</button> <button type="button" class="btn btn-outline btn-sm" data-dn="'+i+'"'+(i<ord.length-1?'':' disabled')+' aria-label="Move down">↓</button></span></div>'}).join('')};draw();
+ m.addEventListener('change',ev=>{const k=ev.target.dataset.k;if(!k)return;p.on[k]=ev.target.checked;p.order=ord.slice();saveToLocalStorage();renderAll()});
+ m.addEventListener('click',ev=>{const u=ev.target.closest('[data-up]'),d=ev.target.closest('[data-dn]');if(!u&&!d)return;const i=+(u?u.dataset.up:d.dataset.dn),j=u?i-1:i+1;[ord[i],ord[j]]=[ord[j],ord[i]];p.order=ord.slice();saveToLocalStorage();draw();applyPrefs()})}
+window.openWidgetConfigModal=customize;$('dashAddW').onclick=customize;
+// ---------- Tasks widget ----------
+let view='mine',showDone=false,showAll=false;
+function renderTasksW(){const box=$('dashTasks');if(!box||!C())return;const T=tk(),tm=team(),assign=tm.length>1,adm=isAdmin(),t=td();
+ if(!can('tasks')){$('dgTasks').classList.add('w-off');return}$('dgTasks').classList.remove('w-off');
+ const pick=x=>view==='mine'?(x.to===me().id||(!x.to&&(x.by===me().id||!x.by))):view==='byme'?(x.by===me().id&&x.to&&x.to!==me().id):visible(x);
+ const L=T.tasks.filter(x=>visible(x)&&pick(x)),open=L.filter(x=>!x.done).sort((a,b)=>(a.due||'9999')<(b.due||'9999')?-1:(a.due||'9999')>(b.due||'9999')?1:0),done=L.filter(x=>x.done);
+ const mineN=T.tasks.filter(x=>!x.done&&(x.to===me().id||(!x.to&&(x.by===me().id||!x.by)))).length;
+ const due=x=>{if(!x.due)return'';const tom=X.addDays(t,1),lbl=x.due===t?'Today':x.due===tom?'Tomorrow':new Date(x.due+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});return '<span class="dt-due'+(x.due<t&&!x.done?' late':'')+'">'+lbl+'</span>'};
+ const who=x=>assign&&x.to&&x.to!==me().id?'<span class="dt-who">→ '+e(uname(x.to))+'</span>':assign&&x.by&&x.by!==me().id?'<span class="dt-who from">from '+e(uname(x.by))+'</span>':'';
+ const row=x=>'<div class="dt-row'+(x.done?' done':'')+'"><input type="checkbox" aria-label="Done"'+(x.done?' checked':'')+' data-dn="'+x.id+'"><button type="button" class="dt-t" data-op="'+x.id+'">'+e(x.title)+'</button>'+who(x)+due(x)+'</div>';
+ const shown=showAll?open:open.slice(0,8);
+ box.innerHTML='<div class="dt-head"><h3>Tasks'+(mineN?' <span class="dt-n">'+mineN+'</span>':'')+'</h3><a href="#" id="dtPage">Lists &amp; details</a></div>'
+ +(assign?'<div class="cal-seg dt-seg"><button type="button" data-v="mine" class="'+(view==='mine'?'on':'')+'">My tasks</button>'+(assign?'<button type="button" data-v="byme" class="'+(view==='byme'?'on':'')+'">Assigned by me</button>':'')+(adm&&assign?'<button type="button" data-v="all" class="'+(view==='all'?'on':'')+'">Everyone</button>':'')+'</div>':'')
+ +'<form class="dt-add" id="dtAdd"><input id="dtTitle" placeholder="Add a task" maxlength="200" required><input id="dtDue" type="date" title="Due date">'+(assign?'<select id="dtTo" title="Assign to">'+tm.slice().sort((u,v)=>(v.id===me().id)-(u.id===me().id)).map(u=>'<option value="'+u.id+'"'+(u.id===me().id?' selected':'')+'>'+(u.id===me().id?'Me':e(u.name))+'</option>').join('')+'</select>':'')+'<button class="btn btn-sm">Add</button></form>'
+ +(shown.length?shown.map(row).join(''):'<p class="dt-empty">'+(view==='byme'?'You have not assigned tasks to anyone.':'Nothing to do. Nice.')+'</p>')
+ +(open.length>8?'<button type="button" class="dt-more" id="dtMore">'+(showAll?'Show fewer':'Show all '+open.length)+'</button>':'')
+ +(done.length?'<button type="button" class="dt-more" id="dtDone">'+(showDone?'▾':'▸')+' Completed ('+done.length+')</button>'+(showDone?done.slice(0,15).map(row).join(''):''):'')
+ +(assign?'':(adm&&(C().users||[]).length?'<p class="dt-hint">To assign tasks, give other users access to Tasks in Settings › Users &amp; Access.</p>':''));
+ box.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{view=b.dataset.v;renderTasksW()});
+ $('dtAdd').onsubmit=ev=>{ev.preventDefault();const title=$('dtTitle').value.trim();if(!title)return;const to=$('dtTo')?$('dtTo').value:me().id;
+  T.tasks.push({id:'t_'+uid(),list:T.lists[0].id,title,notes:'',due:$('dtDue').value,done:false,star:false,sub:[],files:[],by:me().id,to});saveToLocalStorage();
+  if(to!==me().id)toast('Task assigned to '+uname(to)+'.','success');renderAll()};
+ box.querySelectorAll('[data-dn]').forEach(c=>c.onchange=()=>{const x=T.tasks.find(z=>z.id===c.dataset.dn);if(!x)return;x.done=c.checked;if(c.checked){x.doneBy=me().id;x.doneAt=new Date().toISOString()}saveToLocalStorage();renderAll()});
+ box.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{const x=T.tasks.find(z=>z.id===b.dataset.op);showTab('tasks');if(x&&window.TK){TK.go(x.list);TK.open(x.id)}});
+ if($('dtMore'))$('dtMore').onclick=()=>{showAll=!showAll;renderTasksW()};if($('dtDone'))$('dtDone').onclick=()=>{showDone=!showDone;renderTasksW()};
+ $('dtPage').onclick=ev=>{ev.preventDefault();showTab('tasks')}}
+// ---------- Recent transactions ----------
+const SRC={inv:'Inventory',hr:'Payroll',hr13:'13th month',hrx:'Payroll',bank:'Banking',queue:'Encoder',close:'Closing',tax:'Tax',fa:'Fixed assets',ar:'Sales',ap:'Purchases',recur:'Recurring',rec:'Bank rec.',re:'Real estate',rebill:'Rebilling'};
+let recN=8;
+function renderRecent(){const box=$('widget-section-recent');if(!box||!C())return;const c=C(),A=new Map(c.chartOfAccounts.map(a=>[+a.code,a]));
+ if(!can('books')&&!can('home')){$('dgRecent').classList.add('w-off');return}$('dgRecent').classList.remove('w-off');
+ const L=c.journalEntries.slice().sort((a,b)=>b.date.localeCompare(a.date)||String(b.id).localeCompare(String(a.id))).slice(0,recN);
+ box.innerHTML='<div class="dt-head"><h3>Recent transactions</h3><a href="#" id="drAll">Full journal</a></div>'
+ +(L.length?'<div class="dr-list">'+L.map(x=>{const tot=x.lines.reduce((s,l)=>s+Math.round((+l.debit||0)*100),0),dr=x.lines.filter(l=>+l.debit).map(l=>(A.get(+l.accountCode)||{}).title||l.accountCode),cr=x.lines.filter(l=>+l.credit).map(l=>(A.get(+l.accountCode)||{}).title||l.accountCode);
+   return '<details class="dr-it"><summary><span class="dr-d">'+e(X.fdl(x.date))+'</span><span class="dr-m"><b>'+e(x.desc||x.ref||'Entry')+'</b><small>'+e(x.ref||'')+(x.src&&SRC[x.src]?' · '+SRC[x.src]:'')+' · '+e(dr.slice(0,2).join(', '))+' / '+e(cr.slice(0,2).join(', '))+'</small></span><span class="dr-a">'+X.n2(tot)+'</span>'+(x.fileAttachment?'<button type="button" class="dr-f" data-f="'+e(x.id)+'" title="View attachment" aria-label="View attachment"><svg class="i"><use href="#i-clip"/></svg></button>':'')+'</summary>'
+   +'<table class="dr-lines">'+x.lines.map(l=>'<tr><td>'+e(l.accountCode+' '+((A.get(+l.accountCode)||{}).title||''))+'</td><td class="number">'+(+l.debit?X.n2(Math.round(l.debit*100)):'')+'</td><td class="number">'+(+l.credit?X.n2(Math.round(l.credit*100)):'')+'</td></tr>').join('')+'</table></details>'}).join('')+'</div>'
+  +(c.journalEntries.length>recN?'<button type="button" class="dt-more" id="drMore">Show more</button>':''):'<p class="dt-empty">No entries yet. Use “+ New Entry” above.</p>');
+ $('drAll').onclick=ev=>{ev.preventDefault();showTab('books');if(window.showBooksSubTab)showBooksSubTab('journal')};
+ if($('drMore'))$('drMore').onclick=()=>{recN+=10;renderRecent()};
+ box.querySelectorAll('[data-f]').forEach(b=>b.onclick=ev=>{ev.preventDefault();ev.stopPropagation();if(window.openFilePreviewModal)openFilePreviewModal(b.dataset.f)})}
+// ---------- new optional widgets ----------
+function renderOpt(){const c=C();if(!c)return;const t=td(),p=PREF().on,fm=X.fm;
+ const AR=window.ARAPMOD&&c.ar?ARAPMOD.A():null,AP=window.ARAPMOD&&c.ap?ARAPMOD.P():null;
+ if(p.ar&&$('dwAR')){const L=AR?AR.inv.filter(d=>!d.void&&ARAPMOD.openAR(d)>0&&d.due<=X.addDays(t,14)).sort((a,b)=>a.due.localeCompare(b.due)):[],cu=id=>(AR.customers.find(z=>z.id===id)||{}).name||'';
+  $('dwAR').innerHTML='<div class="dt-head"><h3>Receivables to collect</h3><a href="#" data-go="ar-age">Aging</a></div>'+(L.length?'<div class="dw-l">'+L.slice(0,6).map(d=>'<div><span><b>'+e(cu(d.cust))+'</b><small>'+e(d.no)+' · due '+e(X.fdl(d.due))+'</small></span><span class="'+(d.due<t?'late':'')+'">'+fm(ARAPMOD.openAR(d))+'</span></div>').join('')+'</div><p class="dw-tot">Total '+fm(L.reduce((s,d)=>s+ARAPMOD.openAR(d),0))+'</p>':'<p class="dt-empty">Nothing due in the next two weeks.</p>')}
+ if(p.ap&&$('dwAP')){const L=AP?AP.bills.filter(d=>!d.void&&ARAPMOD.openAP(d)>0&&d.due<=X.addDays(t,14)).sort((a,b)=>a.due.localeCompare(b.due)):[],su=id=>(AP.suppliers.find(z=>z.id===id)||{}).name||'';
+  $('dwAP').innerHTML='<div class="dt-head"><h3>Bills to pay</h3><a href="#" data-go="ap-age">Aging</a></div>'+(L.length?'<div class="dw-l">'+L.slice(0,6).map(d=>'<div><span><b>'+e(su(d.sup))+'</b><small>'+e(d.no)+' · due '+e(X.fdl(d.due))+'</small></span><span class="'+(d.due<t?'late':'')+'">'+fm(ARAPMOD.openAP(d))+'</span></div>').join('')+'</div><p class="dw-tot">Total '+fm(L.reduce((s,d)=>s+ARAPMOD.openAP(d),0))+'</p>':'<p class="dt-empty">No bills due in the next two weeks.</p>')}
+ if(p.payroll&&$('dwPay')){const y=+t.slice(0,4),m=+t.slice(5,7),runs=((c.hr||{}).runs||[]).filter(r=>r.year===y&&r.month===m);let g=0,n=0,ppl=new Set();runs.forEach(r=>r.rows.forEach(x=>{const k=window.HRAPI?HRAPI.calc(x):{gross:0,net:0};g+=k.gross;n+=k.net;ppl.add(x.empId)}));
+  const L=window.TAXMOD?TAXMOD.payByEmp(y,m):[],sum=k=>L.reduce((s,x)=>s+(x[k]||0),0);
+  $('dwPay').innerHTML='<div class="dt-head"><h3>Payroll – '+X.MN[m-1]+'</h3><a href="#" data-go="hr-hist">History</a></div>'+(runs.length?'<div class="dw-k"><div><small>Gross</small><b>'+fm(g)+'</b></div><div><small>Net pay</small><b>'+fm(n)+'</b></div><div><small>Employees</small><b>'+ppl.size+'</b></div></div><div class="dw-l"><div><span>Withholding tax (1601-C)</span><span>'+fm(sum('tax'))+'</span></div><div><span>SSS (EE + ER + EC)</span><span>'+fm(sum('sss')+sum('erSss')+sum('erEc'))+'</span></div><div><span>PhilHealth</span><span>'+fm(sum('ph')+sum('erPh'))+'</span></div><div><span>Pag-IBIG</span><span>'+fm(sum('pg')+sum('erPg'))+'</span></div></div>':'<p class="dt-empty">No payroll saved for '+X.MN[m-1]+' yet.</p>')}
+ opt.querySelectorAll('[data-go]').forEach(a=>a.onclick=ev=>{ev.preventDefault();showTab(a.dataset.go)})}
+// ---------- calendar: BIR deadlines join holidays, events and tasks ----------
+const prevRx=window.reCalEvents;
+window.reCalEvents=k=>{let out=[];try{if(prevRx)out=prevRx(k)||[]}catch(err){}
+ try{if(window.TAXMOD&&can('tax')){const y=+k.slice(0,4);(DL[y]||(DL[y]=TAXMOD.items(y))).forEach(i=>{if(i.due===k){const f=(TAXMOD.T().filed||{})[i.key];out.push({c:f?'bd':'b',t:(f?'✓ ':'')+'BIR '+i.form+' – '+i.per})}})}}catch(err){}
+ return out};
+let DL={};
+// ---------- render everything ----------
+function renderAll(){if(!C())return;DL={};applyPrefs();try{renderTasksW()}catch(err){console.error(err)}try{renderRecent()}catch(err){console.error(err)}try{renderOpt()}catch(err){console.error(err)}
+ if(window.TK&&TK.today&&$('calBody')){/* calendar re-renders itself on metric refresh */}}
+const w=(n,f)=>{const o=window[n];if(typeof o!=='function')return;window[n]=function(){const r=o.apply(this,arguments);try{f()}catch(err){console.error(err)}return r}};
+w('calculateDashboardMetrics',renderAll);w('switchCompany',()=>{view='mine';showAll=false;recN=8;renderAll()});window.renderDashboardJournalLog=renderRecent;
+w('showTab',()=>{const a=document.querySelector('.tab-section.active');if(a&&a.id==='tab-home')renderAll()});
+// hide the separate Tasks menu item: tasks now live on the dashboard
+const nt=$('nav-tasks');if(nt)nt.classList.add('dash-merged');
+// alerts: tasks assigned to you
+if(X.onAlert)X.onAlert(()=>{if(!C()||!C().tk)return[];const t=td(),L=tk().tasks.filter(x=>!x.done&&x.to===me().id&&x.by&&x.by!==me().id);const late=L.filter(x=>x.due&&x.due<t);return L.length?[{c:late.length?'':'y',t:L.length+' task'+(L.length===1?'':'s')+' assigned to you'+(late.length?' ('+late.length+' overdue)':''),s:'Tasks',go:()=>showTab('home')}]:[]});
+// keep dashboard prefs in backups
+if(X.keep)X.keep('dash',d=>{const o={};Object.keys(d||{}).slice(0,200).forEach(k=>{const v=d[k];if(!v||typeof v!=='object')return;const on={};W.forEach(w=>{if(v.on&&v.on[w[0]])on[w[0]]=true});o[String(k).slice(0,60)]={on,order:Array.isArray(v.order)?v.order.filter(x=>W.some(w=>w[0]===x)):[]}});return o});
+// task assignment fields survive backups
+const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);try{if(d&&d.tk&&Array.isArray(d.tk.tasks)&&o.tk&&Array.isArray(o.tk.tasks))o.tk.tasks.forEach(t=>{const s=d.tk.tasks.find(x=>x&&x.id===t.id);if(s){['to','by','doneBy'].forEach(k=>{if(s[k])t[k]=String(s[k]).slice(0,60)});if(s.doneAt)t.doneAt=String(s.doneAt).slice(0,40)}})}catch(err){}return o};
+document.head.insertAdjacentHTML('beforeend','<style>'
+ +'#dashGrid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:1.25rem;align-items:start;margin-bottom:1.25rem}#dashGrid .card{margin:0}.dg-recent{grid-column:1/-1}'
+ +'#dashOpt{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.25rem;align-items:start}#dashOpt>.card,#dashOpt>.metrics-grid{margin:0}#dashOpt>#widgetContainerKPI,#dashOpt>#widget-section-ratios{grid-column:1/-1}'
+ +'.w-off{display:none!important}#dashEmpty{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border:1.5px dashed var(--border-color);background:transparent;box-shadow:none}#dashEmpty p{margin:.2rem 0 0;color:var(--text-muted);font-size:.88rem}'
+ +'.dt-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:.7rem}.dt-head h3{margin:0;font-size:1.08rem;display:flex;align-items:center;gap:8px}.dt-head a{font-weight:700;font-size:.85rem;color:var(--accent-primary);text-decoration:none}.dt-head a:hover{text-decoration:underline}.dt-n{background:var(--btn-bg);color:var(--on-primary,#fff);border-radius:999px;font-size:.72rem;padding:1px 8px}'
+ +'.dt-seg{margin-bottom:.7rem;display:flex;width:100%}.dt-seg button{flex:1}'
+ +'.dt-add{display:flex;gap:6px;margin-bottom:.6rem;flex-wrap:wrap}.dt-add input:first-child{flex:1 1 160px;min-width:0}.dt-add input[type=date],.dt-add select{flex:0 1 auto;width:auto;padding:6px 8px}'
+ +'.dt-row{display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border-color)}.dt-row:last-of-type{border-bottom:0}.dt-row input{width:18px;height:18px;flex:0 0 auto;cursor:pointer}.dt-t{flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;color:var(--text-main);font:600 .92rem Figtree,sans-serif;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dt-row.done .dt-t{text-decoration:line-through;color:var(--text-muted);font-weight:500}'
+ +'.dt-due,.dt-who{font-size:.74rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--tint,rgba(0,0,0,.05));white-space:nowrap}.dt-due.late{background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--danger)}.dt-who{background:color-mix(in srgb,var(--aj-6,#3ef7cc) 22%,transparent)}.dt-who.from{background:color-mix(in srgb,#7c6cf0 18%,transparent)}'
+ +'.dt-more{background:none;border:0;color:var(--accent-primary);font:700 .85rem Figtree,sans-serif;cursor:pointer;padding:8px 0 0}.dt-empty{color:var(--text-muted);font-size:.9rem;margin:.4rem 0}.dt-hint{font-size:.78rem;color:var(--text-muted);margin:.6rem 0 0}'
+ +'.dr-it{border-bottom:1px solid var(--border-color)}.dr-it summary{display:flex;align-items:center;gap:12px;padding:9px 2px;cursor:pointer;list-style:none}.dr-it summary::-webkit-details-marker{display:none}.dr-d{flex:0 0 92px;font-size:.8rem;color:var(--text-muted)}.dr-m{flex:1;min-width:0;display:flex;flex-direction:column}.dr-m b{font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dr-m small{color:var(--text-muted);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dr-a{font:700 .92rem "Courier New",monospace;white-space:nowrap}.dr-f{border:0;background:none;color:var(--accent-primary);cursor:pointer;padding:2px}.dr-lines{width:100%;margin:0 0 8px;font-size:.82rem}.dr-lines td{padding:3px 6px;border:0}'
+ +'.dw-it{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-color)}.dw-it span b{display:block}.dw-it small{display:block;color:var(--text-muted);font-size:.78rem}'
+ +'.dw-l>div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed var(--border-color);font-size:.9rem}.dw-l>div:last-child{border-bottom:0}.dw-l small{display:block;color:var(--text-muted);font-size:.76rem}.dw-l .late{color:var(--danger);font-weight:700}.dw-tot{text-align:right;font-weight:800;margin:.5rem 0 0}.dw-k{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:.6rem}.dw-k>div{background:var(--tint,rgba(0,0,0,.04));border-radius:10px;padding:8px 10px}.dw-k small{display:block;color:var(--text-muted);font-size:.74rem}.dw-k b{font-size:1rem}'
+ +'.cal-legend .c-b{background:color-mix(in srgb,#e0a800 26%,transparent);color:#7a5800}.cal-chip.c-b{background:color-mix(in srgb,#e0a800 26%,transparent);color:#7a5800}.cal-chip.c-bd{background:color-mix(in srgb,#13805a 18%,transparent);color:#13805a}.cal-it.c-b{border-left:3px solid #e0a800}.cal-it.c-bd{border-left:3px solid #13805a}body.dark-mode .cal-chip.c-b{color:#ffd77a}'
+ +'#nav-tasks.dash-merged{display:none!important}.brand,#sbBrand{cursor:pointer}'
+ +'@media(max-width:980px){#dashGrid{grid-template-columns:minmax(0,1fr)}}#dashGrid>div{min-width:0}'
+ +'</style>');
+// legend entry for BIR deadlines
+new MutationObserver(()=>{const lg=document.querySelector('#calBody .cal-legend');if(lg&&!lg.querySelector('.c-b'))lg.insertAdjacentHTML('beforeend','<span class="c-b">BIR deadline</span>')}).observe($('dgCal'),{childList:true,subtree:true});
+// clicking the logo or app name goes to the dashboard
+document.addEventListener('click',ev=>{const b=ev.target.closest('.brand,#sbBrand');if(!b||!C()||!$('loginScreen').classList.contains('hidden'))return;ev.preventDefault();if(window.innerWidth<=768)document.body.classList.remove('sidebar-open');showTab('home')});
+setTimeout(()=>{if(C())renderAll()},0);
+window.DASH2={renderAll,customize,visible,team};
 })();
 // ===== Mobile polish: wrapping section tabs, scroll hints on wide content, card view for lists on phones =====
 (function(){
