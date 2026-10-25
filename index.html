@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#016351"><link rel="apple-touch-icon" href="icon-192.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='4' y='4' width='92' height='92' rx='24' fill='%23016351'/%3E%3Cpath d='M22 78 L39 28 Q41.5 21 46 21 Q50.5 21 53 28 L61 50' fill='none' stroke='%23fff' stroke-width='9' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M31 59 H54' stroke='%23fff' stroke-width='8' stroke-linecap='round'/%3E%3Cpath d='M75 23 V60 Q75 79 57 79 Q49 79 45 73' fill='none' stroke='%233ef7cc' stroke-width='9' stroke-linecap='round'/%3E%3C/svg%3E">
@@ -2315,7 +2316,7 @@ body.dark-mode .login-logo{--lm-edge:color-mix(in srgb,var(--aj-6) 40%,transpare
             startLiveClock();
             renderLoginCompanySelector();
             document.getElementById('loginScreen').classList.remove('hidden');
-            if (!companies.length) openCreateCompanyModal();
+            if (!companies.length && !window.AJLOCKED) openCreateCompanyModal();
         };
 
         function startLiveClock() {
@@ -2392,7 +2393,7 @@ body.dark-mode .login-logo{--lm-edge:color-mix(in srgb,var(--aj-6) 40%,transpare
         }
 
         function logOff() {
-            if (confirm("Are you sure you want to log off?")) {
+            {
                 activeCompanyId = null;
                 renderLoginCompanySelector();
                 document.getElementById('loginScreen').classList.remove('hidden');
@@ -6775,9 +6776,9 @@ $('rqLibBack').onclick=renderLib;
 function renderUsers(){
  const c=C(),us=users(),bp=bkPerms(),ef=encForms(),admin=role()==='admin';if(!admin){$('rqUsers').innerHTML='';return}
  $('rqUsers').innerHTML='<div class="hr-head"><h3 style="margin:0">Users &amp; Access</h3><button class="btn" id="rqAddU">+ Add User</button></div>'
-  +(us.length?'':'<div class="rq-note" style="margin-bottom:1rem">No user logins yet: anyone who opens this company has full access. Add yourself as an <b>Admin</b> first; after that everyone signs in with a username and password, and the old company password is no longer used.</div>')
-  +'<div class="hr-scroll" style="margin-bottom:1.2rem"><table class="hr-tbl"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>'
-  +(us.map(u=>'<tr'+(u.active===false?' class="hr-off"':'')+'><td><b>'+esc(u.name)+'</b>'+(me()&&me().id===u.id?' <span class="badge badge-debit">you</span>':'')+'</td><td>'+esc(u.username)+'</td><td>'+(u.role==='custom'?esc(u.title||'Custom')+' <small class="bk-mut">custom</small>':ROLES[u.role])+'</td><td>'+(u.active===false?'Inactive':'Active')+'</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-ue="'+esc(u.id)+'">Edit</button>'+(u.role==='encoder'?' <button class="btn btn-outline btn-sm" data-uf="'+esc(u.id)+'" title="For an encoder on another computer">Encoder file</button>'+(encCos(u.username).length>1?' <button class="btn btn-outline btn-sm" data-ufa="'+esc(u.id)+'" title="One file for every business where this encoder has the same username">All businesses ('+encCos(u.username).length+')</button>':''):'')+' <button class="btn btn-outline btn-sm" data-rk="'+esc(u.id)+'" title="One-time key to reset a forgotten password">'+(u.rk&&u.rk.salt?'New recovery key':'Recovery key')+'</button>'+(u.rk&&u.rk.salt?' <small class="bk-mut">key set '+esc(fd(u.rkAt))+'</small>':'')+(u.mustChange?' <small class="bk-mut">must change password</small>':'')+'</td></tr>').join('')||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.2rem">No users yet.</td></tr>')+'</tbody></table></div>'
+  +'<p class="hr-note" style="margin:-.4rem 0 1rem">Add people with their <b>Google email</b>: they open the app, continue with Google and see this company in their list. If the company syncs, the app also shares the Drive folder with them. Removing someone (or making them inactive) takes their access away and replaces the company key.</p>'
+  +'<div class="hr-scroll" style="margin-bottom:1.2rem"><table class="hr-tbl"><thead><tr><th>Name</th><th>Signs in with</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>'
+  +(us.map(u=>'<tr'+(u.active===false?' class="hr-off"':'')+'><td><b>'+esc(u.name)+'</b>'+(me()&&me().id===u.id?' <span class="badge badge-debit">you</span>':'')+'</td><td>'+(u.email?'<span title="Google account">'+esc(u.email)+'</span>'+(u.pw&&u.username&&u.username!==u.email?'<br><small class="bk-mut">or username '+esc(u.username)+'</small>':''):esc(u.username)+' <small class="bk-mut">username</small>')+'</td><td>'+(u.role==='custom'?esc(u.title||'Custom')+' <small class="bk-mut">custom</small>':ROLES[u.role])+'</td><td>'+(u.active===false?'Inactive':'Active')+'</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-ue="'+esc(u.id)+'">Edit</button>'+(u.role==='encoder'&&u.pw?' <button class="btn btn-outline btn-sm" data-uf="'+esc(u.id)+'" title="For an encoder on another computer">Encoder file</button>'+(encCos(u.username).length>1?' <button class="btn btn-outline btn-sm" data-ufa="'+esc(u.id)+'" title="One file for every business where this encoder has the same username">All businesses ('+encCos(u.username).length+')</button>':''):'')+(u.pw?' <button class="btn btn-outline btn-sm" data-rk="'+esc(u.id)+'" title="One-time key to reset a forgotten password">'+(u.rk&&u.rk.salt?'New recovery key':'Recovery key')+'</button>'+(u.rk&&u.rk.salt?' <small class="bk-mut">key set '+esc(fd(u.rkAt))+'</small>':''):'')+(u.mustChange?' <small class="bk-mut">must change password</small>':'')+'</td></tr>').join('')||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.2rem">No users yet.</td></tr>')+'</tbody></table></div>'
   +'<div class="card" style="box-shadow:none;border:1px solid var(--border-color)"><h3 style="margin-top:0;font-size:1rem">What each role can do</h3>'
   +'<p><b>Admin.</b> '+ROLE_NOTE.admin+'</p><p style="margin-bottom:.3rem"><b>Bookkeeper.</b> '+ROLE_NOTE.bookkeeper+'</p><div class="rq-perm">'+MODS.map(x=>'<label><input type="checkbox" data-bk="'+x[0]+'"'+(bp[x[0]]?' checked':'')+'> '+x[1]+'</label>').join('')+'</div>'
   +'<p style="margin-bottom:.3rem"><b>Accountant.</b> '+ROLE_NOTE.accountant+'</p><div class="form-group" style="max-width:420px"><label for="rqAccSees">Accountant can see reports saved by</label><select id="rqAccSees"><option value="bookkeepers">Bookkeepers only</option><option value="all">Bookkeepers and admins</option></select></div>'
@@ -6795,34 +6796,40 @@ function openUser(id){
  const c=C(),u=id?users().find(x=>x.id===id):null,first=!hasUsers();
  const m=modal('<h2 style="margin-top:0">'+(u?'Edit User':'Add User')+'</h2><form novalidate><div class="grid-2">'
   +'<div class="form-group"><label for="ruName">Full name *</label><input id="ruName" value="'+esc(u?u.name:'')+'" autocomplete="off"></div>'
-  +'<div class="form-group"><label for="ruUser">Username *</label><input id="ruUser" value="'+esc(u?u.username:'')+'" autocomplete="off" autocapitalize="none"></div>'
+  +'<div class="form-group"><label for="ruEmail">Google email</label><input id="ruEmail" type="email" value="'+esc(u&&u.email||'')+'" autocomplete="off" autocapitalize="none" placeholder="name@gmail.com"'+(u&&me()&&me().id===u.id&&u.email?' disabled':'')+'><small class="bk-mut">They sign in with this Google account.</small></div>'
   +'<div class="form-group"><label for="ruRole">Role *</label><select id="ruRole"'+(first?' disabled':'')+'>'+Object.keys(ROLES).map(r=>'<option value="'+r+'"'+((u?u.role:first?'admin':'encoder')===r?' selected':'')+'>'+ROLES[r]+'</option>').join('')+'</select><small class="bk-mut" id="ruNote"></small></div>'
   +'<div class="form-group ru-cust"><label for="ruTitle">Title / position *</label><input id="ruTitle" maxlength="60" value="'+esc(u&&u.title||'')+'" placeholder="e.g. Store Manager, HR Officer"></div>'
   +'<div class="form-group"><label for="ruActive">Status</label><select id="ruActive"><option value="1">Active</option><option value="0"'+(u&&u.active===false?' selected':'')+'>Inactive (cannot log in)</option></select></div>'
-  +'<div class="form-group"><label for="ruPw">'+(u?'New password (leave blank to keep)':'Password *')+'</label><input type="password" id="ruPw" autocomplete="new-password"></div>'
+  +'<details style="grid-column:1/-1"'+(u&&u.pw?' open':'')+'><summary style="cursor:pointer;font-weight:700">Username and password (only for encoder files, or someone without Google)</summary><div class="grid-2" style="margin-top:.6rem"><div class="form-group"><label for="ruUser">Username</label><input id="ruUser" value="'+esc(u&&u.username&&u.username!==u.email?u.username:'')+'" autocomplete="off" autocapitalize="none"></div><div></div>'
+  +'<div class="form-group"><label for="ruPw">'+(u&&u.pw?'New password (leave blank to keep)':'Password')+'</label><input type="password" id="ruPw" autocomplete="new-password"></div>'
   +'<div class="form-group"><label for="ruPw2">Confirm password</label><input type="password" id="ruPw2" autocomplete="new-password"></div>'
-  +'<label style="display:flex;gap:8px;align-items:center;grid-column:1/-1;font-weight:500"><input type="checkbox" id="ruMust"'+(u&&u.mustChange?' checked':'')+'> Ask them to choose their own password at next sign-in (use this when resetting a forgotten password)</label>'
+  +'<label style="display:flex;gap:8px;align-items:center;grid-column:1/-1;font-weight:500"><input type="checkbox" id="ruMust"'+(u&&u.mustChange?' checked':'')+'> Ask them to choose their own password at next sign-in</label></div></details>'
   +'</div><div class="ru-cust" style="border:1px dashed var(--border-color);border-radius:10px;padding:10px 12px;margin-bottom:1rem"><label style="font-weight:700">What this person can open</label><div class="rq-perm">'+MODS.map(x=>'<label><input type="checkbox" data-cp="'+x[0]+'"'+(u&&u.perms&&u.perms[x[0]]?' checked':'')+'> '+x[1]+'</label>').join('')+'</div><label style="font-weight:700">Extra permissions</label><div class="rq-perm">'+EXTRA_PERMS.map(x=>'<label><input type="checkbox" data-cp="'+x[0]+'"'+(u&&u.perms&&u.perms[x[0]]?' checked':'')+'> '+x[1]+'</label>').join('')+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="bk-mut" style="align-self:center">Start from:</span><button type="button" class="btn btn-outline btn-sm" data-pre="all">Everything</button><button type="button" class="btn btn-outline btn-sm" data-pre="bk">Like a Bookkeeper</button><button type="button" class="btn btn-outline btn-sm" data-pre="hr">HR only</button><button type="button" class="btn btn-outline btn-sm" data-pre="sales">Sales &amp; collections</button><button type="button" class="btn btn-outline btn-sm" data-pre="none">Clear</button></div><p class="hr-note" style="margin:.6rem 0 0">Users &amp; Access and full Admin rights stay with Admins.</p></div>'+(first?'<p class="hr-note">The first user is always an Admin. After you save, logins are required for this company.</p>':'')
   +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>'+(u?'<button type="button" class="btn btn-danger btn-outline" id="ruDel">Delete</button>':'')+'</span><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">Save User</button></span></div></form>',680);
  const q=s=>m.querySelector(s),note=()=>{q('#ruNote').textContent=ROLE_NOTE[q('#ruRole').value];m.querySelectorAll('.ru-cust').forEach(x=>x.style.display=q('#ruRole').value==='custom'?'':'none')};q('#ruRole').onchange=note;note();
  const PRE={all:MODS.map(x=>x[0]).concat(['rptlib']),bk:Object.keys(BK_DEFAULT).filter(k=>BK_DEFAULT[k]),hr:['home','tasks','hr'],sales:['home','tasks','ar','reports'],none:[]};
  m.querySelectorAll('[data-pre]').forEach(b=>b.onclick=()=>{const L=PRE[b.dataset.pre];m.querySelectorAll('[data-cp]').forEach(i=>i.checked=L.includes(i.dataset.cp))});
  const admins=()=>users().filter(x=>x.role==='admin'&&x.active!==false);
- if(u)q('#ruDel').onclick=()=>{if(me()&&me().id===u.id)return toast('You cannot delete your own login.');if(u.role==='admin'&&admins().length<=1)return toast('Keep at least one active Admin.');if(!confirm('Delete '+u.name+'? Their entries and history are kept.'))return;c.users=users().filter(x=>x.id!==u.id);saveToLocalStorage();m.remove();renderUsers()};
+ if(u)q('#ruDel').onclick=()=>{if(me()&&me().id===u.id)return toast('You cannot delete your own login.');if(u.role==='admin'&&admins().length<=1)return toast('Keep at least one active Admin.');if(!confirm('Delete '+u.name+'? Their entries and history are kept.'))return;const before=window.AJACCT?AJACCT.emails(c):[];c.users=users().filter(x=>x.id!==u.id);saveToLocalStorage();m.remove();renderUsers();if(window.AJACCT)AJACCT.membersChanged(c,before)};
  q('form').onsubmit=async ev=>{ev.preventDefault();
-  const name=q('#ruName').value.trim(),un=q('#ruUser').value.trim(),r=first?'admin':q('#ruRole').value,act=q('#ruActive').value==='1',pw=q('#ruPw').value,pw2=q('#ruPw2').value;
-  if(!name||!un)return toast('Enter the full name and a username.');if(!/^[\w.\-@]{3,40}$/.test(un))return toast('Username: 3 to 40 letters, numbers, dots or dashes, no spaces.');
-  if(users().some(x=>x.id!==id&&x.username.toLowerCase()===un.toLowerCase()))return toast('That username is taken.');
-  if(!u||pw){if(!pwOk(pw))return toast('Password must be at least 6 characters.');if(pw!==pw2)return toast('The passwords do not match.')}
+  const name=q('#ruName').value.trim(),em=(q('#ruEmail').disabled&&u?u.email:q('#ruEmail').value.trim().toLowerCase())||'',r=first?'admin':q('#ruRole').value,act=q('#ruActive').value==='1',pw=q('#ruPw').value,pw2=q('#ruPw2').value;let un=q('#ruUser').value.trim();
+  if(!name)return toast('Enter the full name.');if(em&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))return toast('Check the Google email.');
+  if(!em&&!un)return toast('Enter their Google email (or a username and password).');
+  if(em&&users().some(x=>x.id!==id&&String(x.email||'').toLowerCase()===em))return toast('Someone else already uses that Google email here.');
+  if(!un)un=em;if(!/^[\w.\-@+]{3,80}$/.test(un))return toast('Username: 3 to 80 letters, numbers, dots or dashes, no spaces.');
+  if(users().some(x=>x.id!==id&&String(x.username||'').toLowerCase()===un.toLowerCase()))return toast('That username is taken.');
+  if(pw||(!em&&!(u&&u.pw))){if(!pwOk(pw))return toast('Password must be at least 6 characters.');if(pw!==pw2)return toast('The passwords do not match.')}
+  if(u&&me()&&me().id===u.id&&u.email&&em!==u.email)return toast('You cannot change your own Google email.');
+  const before=window.AJACCT?AJACCT.emails(c):[];
   if(u&&u.role==='admin'&&(r!=='admin'||!act)&&admins().length<=1)return toast('Keep at least one active Admin.');
   if(u&&me()&&me().id===u.id&&(r!=='admin'||!act))return toast('You cannot remove your own Admin access.');
-  const rec={name,username:un,role:r,active:act};
+  const rec={name,username:un,email:em||undefined,role:r,active:act};
   if(r==='custom'){const t=q('#ruTitle').value.trim();if(!t)return toast('Enter a title for this person, e.g. Store Manager.');const perms={};m.querySelectorAll('[data-cp]:checked').forEach(i=>perms[i.dataset.cp]=true);if(!Object.keys(perms).length)return toast('Tick at least one module this person can open.');rec.title=t.slice(0,60);rec.perms=perms}else{rec.title=undefined;rec.perms=undefined}
-  if(!u||pw)rec.pw=await makePw(pw);
+  if(pw)rec.pw=await makePw(pw);
   rec.mustChange=q('#ruMust').checked&&!(me()&&u&&me().id===u.id)?true:undefined;
   if(u)Object.assign(u,rec);else{c.users=users().concat([Object.assign({id:'u_'+uid()},rec)])}
   if(first){c.passwordHash=null;window.currentUser={id:c.users[0].id,name,role:'admin'}}
-  saveToLocalStorage();m.remove();renderUsers();applyRole();toast(first?'Admin login created. From now on, sign in with your username and password.':'User saved.','success');
+  saveToLocalStorage();m.remove();renderUsers();applyRole();toast(first?'Admin login created.':'User saved.','success');if(window.AJACCT)AJACCT.membersChanged(c,before);
  };
 }
 
@@ -6853,7 +6860,7 @@ function restoreSess(){let s=null;try{s=JSON.parse(sessionStorage.getItem(SK)||'
  else{if(!s.legacy){clearSess();return false}window.currentUser={id:'legacy',name:'Admin',role:'admin',legacy:true}}
  $('loginScreen').classList.add('hidden');switchCompany(comp.id);applyRole();const t=s.tab&&$('tab-'+s.tab)&&can(tabMod(s.tab))?s.tab:firstTab();showTab(t);return true}
 window.AJSESSION={save:saveSess,clear:clearSess,restore:restoreSess};
-const oOnload=window.onload;window.onload=function(){if(oOnload)oOnload.apply(this,arguments);try{restoreSess()}catch(err){console.error(err)}};
+const oOnload=window.onload;window.onload=function(){if(oOnload)oOnload.apply(this,arguments);try{if(!window.AJLOCKED)restoreSess()}catch(err){console.error(err)}};
 window.handleLoginSubmit=async function(e){
  e.preventDefault();const id=$('loginCompanySelect').value;if(!id)return toast('Please select a company.');const comp=companies.find(c=>c.id===id);if(!comp)return;
  let u=null;
@@ -6876,34 +6883,30 @@ window.handleLoginSubmit=async function(e){
 };
 const oLog=window.logOff;
 window.logOff=function(){const before=activeCompanyId;oLog.apply(this,arguments);if(!activeCompanyId&&before){clearSess();window.currentUser=null;applyRole();document.querySelectorAll('.rq-modal,.hr-modal,.bk-modal').forEach(x=>x.remove());document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(x=>x.classList.add('hidden'))}};
-// company creation: the creator becomes the first Admin
+// company creation: the signed-in account becomes the first Admin; others are added by Google email
 (()=>{const cb=$('newCompEnablePass'),box=cb&&(cb.closest('.card')||cb.closest('.form-group'));if(!box)return;box.style.display='none';
- box.insertAdjacentHTML('afterend','<div class="form-group card" style="background:rgba(0,0,0,0.02);border:1px dashed var(--border-color);padding:1rem"><label style="font-size:1rem;color:var(--text-main)">Administrator login</label><p class="hr-note" style="margin:.2rem 0 .6rem">You will be this company’s Admin, with full authority.</p><div class="grid-2"><div class="form-group"><label for="ncaName">Your full name *</label><input id="ncaName" autocomplete="name"></div><div class="form-group"><label for="ncaUser">Username *</label><input id="ncaUser" autocomplete="username" autocapitalize="none"></div><div class="form-group"><label for="ncaPw">Password * (6+ characters)</label><input type="password" id="ncaPw" autocomplete="new-password"></div><div class="form-group"><label for="ncaPw2">Confirm password *</label><input type="password" id="ncaPw2" autocomplete="new-password"></div></div></div>'+'<div class="form-group card" id="ncTeamBox" style="background:rgba(0,0,0,0.02);border:1px dashed var(--border-color);padding:1rem"><label style="font-size:1rem;color:var(--text-main)">Who manages this company?</label><div style="display:flex;gap:18px;flex-wrap:wrap;margin:.4rem 0"><label class="hr-chk" style="margin:0"><input type="radio" name="ncWho" value="me" checked> Just me (I do everything)</label><label class="hr-chk" style="margin:0"><input type="radio" name="ncWho" value="team"> Me and other people</label></div><div id="ncTeam" class="hidden"><p class="hr-note" style="margin:.2rem 0 .6rem">Add each person and what they do. They sign in with their own username and password. You can change this later in Settings &gt; Users &amp; Access.</p><div id="ncRows"></div><button type="button" class="btn btn-outline btn-sm" id="ncAdd">+ Add another person</button><small class="bk-mut" id="ncRoleHelp" style="display:block;margin-top:.6rem"></small></div></div>')})();
+ box.insertAdjacentHTML('afterend','<div class="form-group card" style="background:rgba(0,0,0,0.02);border:1px dashed var(--border-color);padding:1rem"><label style="font-size:1rem;color:var(--text-main)">Administrator</label><p class="hr-note" style="margin:.2rem 0 0" id="ncaMe">You will be this company’s Admin, with full authority.</p></div>'+'<div class="form-group card" id="ncTeamBox" style="background:rgba(0,0,0,0.02);border:1px dashed var(--border-color);padding:1rem"><label style="font-size:1rem;color:var(--text-main)">Who manages this company?</label><div style="display:flex;gap:18px;flex-wrap:wrap;margin:.4rem 0"><label class="hr-chk" style="margin:0"><input type="radio" name="ncWho" value="me" checked> Just me (I do everything)</label><label class="hr-chk" style="margin:0"><input type="radio" name="ncWho" value="team"> Me and other people</label></div><div id="ncTeam" class="hidden"><p class="hr-note" style="margin:.2rem 0 .6rem">Add each person with their Google email and what they do. They open the app and continue with Google. You can change this later in Settings &gt; Users &amp; Access.</p><div id="ncRows"></div><button type="button" class="btn btn-outline btn-sm" id="ncAdd">+ Add another person</button><small class="bk-mut" id="ncRoleHelp" style="display:block;margin-top:.6rem"></small></div></div>')})();
 (()=>{const rows=$('ncRows');if(!rows)return;
  const RH={bookkeeper:'Bookkeeper: keeps the books and makes reports.',accountant:'Accountant: sees only the saved reports.',encoder:'Encoder: enters transactions in plain forms (no debits or credits); you post them.'};
- const row=()=>{const d=document.createElement('div');d.className='nc-row';d.style.cssText='display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px';d.innerHTML='<div class="form-group" style="margin:0"><label>Full name</label><input data-f="name" autocomplete="off"></div><div class="form-group" style="margin:0"><label>Role</label><select data-f="role"><option value="bookkeeper">Bookkeeper</option><option value="accountant">Accountant</option><option value="encoder">Encoder</option></select></div><div class="form-group" style="margin:0"><label>Username</label><input data-f="user" autocomplete="off" autocapitalize="none"></div><div class="form-group" style="margin:0"><label>Password</label><input type="password" data-f="pw" autocomplete="new-password"></div><button type="button" class="btn btn-outline btn-sm" data-rm title="Remove" style="height:38px">✕</button>';d.querySelector('[data-rm]').onclick=()=>{d.remove();if(!rows.children.length)row()};d.querySelector('[data-f=role]').onchange=help;rows.appendChild(d);help()};
- const help=()=>{const used=[...new Set([...rows.querySelectorAll('[data-f=role]')].map(s=>s.value))];$('ncRoleHelp').textContent=used.map(r=>RH[r]).join(' ')};
+ const row=()=>{const d=document.createElement('div');d.className='nc-row';d.style.cssText='display:grid;grid-template-columns:1.2fr 1fr 1.5fr auto;gap:8px;align-items:end;margin-bottom:8px';d.innerHTML='<div class="form-group" style="margin:0"><label>Full name</label><input data-f="name" autocomplete="off"></div><div class="form-group" style="margin:0"><label>Role</label><select data-f="role"><option value="bookkeeper">Bookkeeper</option><option value="accountant">Accountant</option><option value="encoder">Encoder</option><option value="admin">Admin</option></select></div><div class="form-group" style="margin:0"><label>Google email</label><input data-f="email" type="email" autocomplete="off" autocapitalize="none" placeholder="name@gmail.com"></div><button type="button" class="btn btn-outline btn-sm" data-rm title="Remove" style="height:38px">✕</button>';d.querySelector('[data-rm]').onclick=()=>{d.remove();if(!rows.children.length)row()};d.querySelector('[data-f=role]').onchange=help;rows.appendChild(d);help()};
+ const help=()=>{const used=[...new Set([...rows.querySelectorAll('[data-f=role]')].map(s=>s.value))];$('ncRoleHelp').textContent=used.map(r=>RH[r]||'').join(' ')};
  document.querySelectorAll('input[name=ncWho]').forEach(r=>r.onchange=()=>{const t=document.querySelector('input[name=ncWho]:checked').value==='team';$('ncTeam').classList.toggle('hidden',!t);if(t&&!rows.children.length)row()});
  $('ncAdd').onclick=row;
- window.__ncTeam=()=>{if(document.querySelector('input[name=ncWho]:checked').value!=='team')return[];return [...rows.querySelectorAll('.nc-row')].map(d=>{const g=f=>d.querySelector('[data-f='+f+']').value;return{name:g('name').trim(),role:g('role'),username:g('user').trim(),pw:g('pw')}}).filter(x=>x.name||x.username||x.pw)};
+ window.__ncTeam=()=>{if(document.querySelector('input[name=ncWho]:checked').value!=='team')return[];return [...rows.querySelectorAll('.nc-row')].map(d=>{const g=f=>d.querySelector('[data-f='+f+']').value;return{name:g('name').trim(),role:g('role'),email:g('email').trim().toLowerCase()}}).filter(x=>x.name||x.email)};
  window.__ncReset=()=>{rows.innerHTML='';document.querySelector('input[name=ncWho][value=me]').checked=true;$('ncTeam').classList.add('hidden')};
- const oOpen=window.openCreateCompanyModal;window.openCreateCompanyModal=function(){const r=oOpen.apply(this,arguments);window.__ncReset();return r};
+ const oOpen=window.openCreateCompanyModal;window.openCreateCompanyModal=function(){const r=oOpen.apply(this,arguments);window.__ncReset();const a=window.AJACCT&&AJACCT.me();if(a)$('ncaMe').innerHTML='<b>'+esc(a.name)+'</b> ('+esc(a.email)+') will be this company’s Admin, with full authority.';return r};
 })();
 const oNew=window.saveNewCompany;
 window.saveNewCompany=async function(e){
- const name=$('ncaName').value.trim(),un=$('ncaUser').value.trim(),pw=$('ncaPw').value;
- if(!name||!un){e.preventDefault();return toast('Enter your name and a username for the Admin login.')}
- if(!/^[\w.\-@]{3,40}$/.test(un)){e.preventDefault();return toast('Username: 3 to 40 letters, numbers, dots or dashes, no spaces.')}
- if(!pwOk(pw)){e.preventDefault();return toast('Admin password must be at least 6 characters.')}
- if(pw!==$('ncaPw2').value){e.preventDefault();return toast('The passwords do not match.')}
- const team=window.__ncTeam?window.__ncTeam():[],seen=new Set([un.toLowerCase()]);
- for(const t of team){if(!t.name||!t.username){e.preventDefault();return toast('Enter the name and username of each person, or remove the empty row.')}if(!/^[\w.\-@]{3,40}$/.test(t.username)){e.preventDefault();return toast('Username for '+t.name+': 3 to 40 letters, numbers, dots or dashes, no spaces.')}if(seen.has(t.username.toLowerCase())){e.preventDefault();return toast('Each person needs a different username ('+t.username+').')}seen.add(t.username.toLowerCase());if(!pwOk(t.pw)){e.preventDefault();return toast('Password for '+t.name+' must be at least 6 characters.')}}
+ const a=window.AJACCT&&AJACCT.me();if(!a){e.preventDefault();return toast('Sign in first.')}
+ const EM=/^[^\s@]+@[^\s@]+\.[^\s@]+$/,team=window.__ncTeam?window.__ncTeam():[],seen=new Set([a.email]);
+ for(const t of team){if(!t.name||!t.email){e.preventDefault();return toast('Enter the name and Google email of each person, or remove the empty row.')}if(!EM.test(t.email)){e.preventDefault();return toast('Check the Google email of '+t.name+'.')}if(seen.has(t.email)){e.preventDefault();return toast('Each person needs a different Google email ('+t.email+').')}seen.add(t.email)}
  const n=companies.length;$('newCompEnablePass').checked=false;
  await oNew.apply(this,arguments);
- if(companies.length>n){const c=companies[companies.length-1];c.passwordHash=null;c.users=[{id:'u_'+uid(),name,username:un,role:'admin',active:true,pw:await makePw(pw)}];for(const t of team)c.users.push({id:'u_'+uid(),name:t.name.slice(0,80),username:t.username,role:t.role,active:true,pw:await makePw(t.pw)});
+ if(companies.length>n){const c=companies[companies.length-1];c.passwordHash=null;c.users=[{id:'u_'+uid(),name:String(a.name).slice(0,80),username:a.email,email:a.email,role:'admin',active:true}];for(const t of team)c.users.push({id:'u_'+uid(),name:t.name.slice(0,80),username:t.email,email:t.email,role:t.role,active:true});
   if(team.some(t=>t.role==='bookkeeper')){c.rolePerms={bookkeeper:Object.assign({},BK_DEFAULT)}}
   saveToLocalStorage();renderLoginCompanySelector();
-  ['ncaName','ncaUser','ncaPw','ncaPw2'].forEach(i=>$(i).value='');if(window.__ncReset)window.__ncReset();setTimeout(()=>toast('Company created'+(team.length?' with '+team.length+' other user'+(team.length===1?'':'s'):'')+'. Sign in with your Admin username and password.','success'),50)}
+  if(window.__ncReset)window.__ncReset();setTimeout(()=>toast('Company created'+(team.length?' with '+team.length+' other '+(team.length===1?'person':'people')+'. They can open it after you start syncing (Settings › Sync & Backup)':'')+'.','success'),50)}
 };
 
 // ---------- guards and wiring ----------
@@ -6924,7 +6927,7 @@ window.saveToLocalStorage=function(){const c=C(),u=me();if(c&&u&&Array.isArray(c
 // Books: only admins and bookkeepers may change journal entries
 ['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(){if(me()&&!can('books'))return toast('Your role cannot change the books.');return o.apply(this,arguments)}});
 // backups keep users, permissions, the queue and posting memory
-const cleanUsers=a=>(Array.isArray(a)?a:[]).filter(u=>u&&u.username&&u.pw&&u.pw.salt&&ROLES[u.role]).map(u=>({id:safeId(u.id)||'u_'+uid(),name:String(u.name||u.username).slice(0,80),username:String(u.username).slice(0,40),role:u.role,title:u.role==='custom'?String(u.title||'Custom').slice(0,60):undefined,perms:u.role==='custom'&&u.perms&&typeof u.perms==='object'?Object.fromEntries(Object.keys(u.perms).filter(k=>/^\w{1,20}$/.test(k)&&u.perms[k]).map(k=>[k,true])):undefined,active:u.active!==false,pw:{salt:String(u.pw.salt).slice(0,64),hash:String(u.pw.hash||'').slice(0,128),iter:parseInt(u.pw.iter,10)||150000},rk:u.rk&&u.rk.salt?{salt:String(u.rk.salt).slice(0,64),hash:String(u.rk.hash||'').slice(0,128),iter:parseInt(u.rk.iter,10)||150000}:undefined,rkAt:/^\d{4}-\d{2}-\d{2}$/.test(u.rkAt||'')?u.rkAt:undefined,mustChange:u.mustChange?true:undefined}));
+const EMRX=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;const cleanUsers=a=>(Array.isArray(a)?a:[]).filter(u=>u&&ROLES[u.role]&&((u.username&&u.pw&&u.pw.salt)||EMRX.test(u.email||''))).map(u=>({id:safeId(u.id)||'u_'+uid(),name:String(u.name||u.username||u.email).slice(0,80),username:String(u.username||u.email).slice(0,80),email:EMRX.test(u.email||'')?String(u.email).toLowerCase().slice(0,120):undefined,role:u.role,title:u.role==='custom'?String(u.title||'Custom').slice(0,60):undefined,perms:u.role==='custom'&&u.perms&&typeof u.perms==='object'?Object.fromEntries(Object.keys(u.perms).filter(k=>/^\w{1,20}$/.test(k)&&u.perms[k]).map(k=>[k,true])):undefined,active:u.active!==false,pw:u.pw&&u.pw.salt?{salt:String(u.pw.salt).slice(0,64),hash:String(u.pw.hash||'').slice(0,128),iter:parseInt(u.pw.iter,10)||150000}:undefined,rk:u.rk&&u.rk.salt?{salt:String(u.rk.salt).slice(0,64),hash:String(u.rk.hash||'').slice(0,128),iter:parseInt(u.rk.iter,10)||150000}:undefined,rkAt:/^\d{4}-\d{2}-\d{2}$/.test(u.rkAt||'')?u.rkAt:undefined,mustChange:u.mustChange?true:undefined}));
 const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);
  const us=cleanUsers(d.users);if(us.length&&us.some(u=>u.role==='admin'))o.users=us;
  if(d.rolePerms&&d.rolePerms.bookkeeper){o.rolePerms={bookkeeper:{}};MODS.forEach(m=>o.rolePerms.bookkeeper[m[0]]=!!d.rolePerms.bookkeeper[m[0]])}
@@ -6936,7 +6939,10 @@ const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d)
  o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x){['encodedBy','postedBy','postedAt'].forEach(k=>{if(x[k])e[k]=String(x[k]).slice(0,80)});if(x.qId)e.qId=safeId(x.qId)}});
  return o};
 applyRole();
-window.ROLEMOD={can,suggest:id=>suggest(Q().find(x=>x.id===id)),postItem:(id,codes)=>postItem(Q().find(x=>x.id===id),codes),applyRole,makePw};
+function enterAs(comp,u){const was=!$('loginScreen').classList.contains('hidden');window.currentUser={id:u.id,name:u.name,role:u.role};$('loginScreen').classList.add('hidden');switchCompany(comp.id);
+ (comp.reportsHistory||[]).forEach(r=>{if(!r.genBy)r.genBy={role:'admin',name:'',legacy:true}});applyRole();showTab(firstTab());saveSess();
+ try{if(was&&window.AJWARP)AJWARP.play()}catch(e){}if(u.pw&&!u.email)setTimeout(()=>afterLogin(u,comp),700)}
+window.ROLEMOD={can,suggest:id=>suggest(Q().find(x=>x.id===id)),postItem:(id,codes)=>postItem(Q().find(x=>x.id===id),codes),applyRole,makePw,enterAs,loadPackage:(t,w)=>loadPackage(t,w)};
 })();
 
 
@@ -10444,10 +10450,10 @@ $('sbUMenu').onclick=()=>{if(pop&&pop.dataset.k==='user')return closePop();const
   +'<button type="button" data-a="theme">'+ICON(dark()?I.sun:I.moon)+(dark()?'Light mode':'Dark mode')+'</button>'
   +(window.NAVARR?'<button type="button" data-a="arrange">'+ICON(I.move)+'Rearrange menu</button>':'')
   +(!$('nav-settings').classList.contains('role-hide')?'<button type="button" data-a="settings">'+ICON(I.gear)+'Settings</button>':'')
-  +'<hr><button type="button" data-a="out" class="danger">'+ICON(I.out)+'Log off</button>','up');
- p.dataset.k='user';p.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const a=b.dataset.a;closePop();if(a==='theme'){toggleDarkMode();syncTheme()}if(a==='arrange')NAVARR.start();if(a==='settings')showTab('settings');if(a==='out')logOff()})};
+  +'<hr><button type="button" data-a="co">'+ICON(I.swap)+'Switch company</button><button type="button" data-a="out" class="danger">'+ICON(I.out)+'Sign out</button>','up');
+ p.dataset.k='user';p.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const a=b.dataset.a;closePop();if(a==='theme'){toggleDarkMode();syncTheme()}if(a==='arrange')NAVARR.start();if(a==='settings')showTab('settings');if(a==='co')logOff();if(a==='out'){if(window.AJACCT)AJACCT.lock();else logOff()}})};
 $('sbCo').onclick=()=>{if(pop&&pop.dataset.k==='co')return closePop();const c=C();if(!c)return;
- const p=openPop($('sbCo'),'<div class="h"><b>'+esc(c.name)+'</b>'+esc(c.tin?'TIN '+c.tin:'')+'</div>'+(!$('nav-settings').classList.contains('role-hide')?'<button type="button" data-a="set">'+ICON(I.gear)+'Company settings</button>':'')+'<button type="button" data-a="sw">'+ICON(I.swap)+'Switch company (sign out)</button>');
+ const p=openPop($('sbCo'),'<div class="h"><b>'+esc(c.name)+'</b>'+esc(c.tin?'TIN '+c.tin:'')+'</div>'+(!$('nav-settings').classList.contains('role-hide')?'<button type="button" data-a="set">'+ICON(I.gear)+'Company settings</button>':'')+'<button type="button" data-a="sw">'+ICON(I.swap)+'Switch company</button>');
  p.dataset.k='co';p.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{closePop();if(b.dataset.a==='set')showTab('settings');else logOff()})};
 // ---------- Jump to (Ctrl K) ----------
 const KW={'nav-sub-tx-mix':'mixed income compensation salary employee 2316 1701 annual income tax employer','nav-sub-sv-jobs':'job order engagement project patient enrollment booking contract service billing','nav-sub-sv-pos':'walk-in sale cash salon clinic counter commission','nav-sub-sv-rec':'retainer monthly manpower security janitorial headcount','nav-sub-cl-lease':'lease lessee tenant commercial stall office rent escalation CAM','nav-sub-cl-bill':'rent billing monthly lease invoice','nav-sub-cl-dep':'security deposit advance rent refund forfeit','nav-sub-tx-biz':'2551Q 2550Q 1701Q 1702Q percentage tax VAT income tax','nav-sub-tx-ewt':'2307 0619-E 1601-EQ QAP EWT expanded withholding suppliers 1604-E','nav-sub-tx-pay':'1601-C 2316 alphalist 1604-C SSS PhilHealth Pag-IBIG HDMF remittance','nav-sub-tx-cwt':'2307 received creditable withholding CWT customers SAWT','nav-sub-rx-books':'books of accounts journal ledger cash receipts disbursements sales purchase loose-leaf print permit','nav-sub-rx-seg':'profit by business segment branch store p&l per business','nav-sub-hx-recur':'loan salary loan recurring allowance deduction','nav-sub-hx-leave':'leave vacation sick SIL service incentive convert','nav-sub-tx-forms':'BIR forms print 2307 2316 1601-C 0619-E 1601-EQ QAP 2551Q 2550Q 1701Q 1702Q certificate return','nav-sub-tx-cal':'BIR deadlines calendar due','nav-sub-close':'archive closing year end lock','nav-sub-rpt-pctb':'post closing','nav-sub-journal':'journal entries JE','nav-home':'home dashboard','nav-sub-rx-group':'consolidated group umbrella combined all companies holding','nav-sub-ar-inv':'billing invoice SI sales','nav-sub-ar-age':'aging receivable statement SOA collectibles','nav-sub-ar-pay':'collection OR receipt payment received','nav-sub-ap-bill':'bill supplier invoice payable','nav-sub-ap-pay':'pay supplier voucher PV check','nav-sub-ap-age':'aging payable','nav-sub-fa-reg':'fixed asset property equipment PPE','nav-sub-fa-dep':'depreciation','nav-sub-fa-lap':'lapsing schedule','nav-sub-bk-rec':'bank reconciliation bank rec','nav-sub-bx-recur':'recurring accrual amortization','nav-sub-rx-budget':'budget variance','nav-sub-rx-books':'BIR books journal ledger cash receipts disbursements','nav-sub-bx-audit':'audit log history changes','nav-sub-hx-13th':'13th month bonus','nav-settings':'company chart of accounts COA users backup theme colors'};
@@ -11773,43 +11779,159 @@ window.MOBUI={scan,setPref};
 })();
 
 
-// ===== Storage (IndexedDB) and Google Drive sync =====
-// Data lives in the browser's IndexedDB (hundreds of MB or more) instead of localStorage (about 5 MB).
-// Sync: each device writes small encrypted "change files" into a shared Google Drive folder and reads everyone else's.
-// Two ways to reach the folder: Google Drive for Desktop + a folder picked in Chrome/Edge (computers), or Google sign-in (phones, hosted app).
+// ===== Accounts (Sign in with Google), the encrypted device vault, and Google Drive sync =====
+// Opening the app: sign in with Google (or with this device's passcode) -> the list of your companies.
+// Everything kept on this device is encrypted with a key that only your account can unlock.
+// Sync: each device writes small encrypted change files into a shared Google Drive folder. Each company's key is
+// handed to every member's account (no shared passphrase) and replaced when someone is removed.
 (function(){
+// Paste your Google OAuth client ID between the quotes so new devices don't have to type it, e.g.
+// const AJ_CLIENT_ID='1234567890-abc123.apps.googleusercontent.com';
+const AJ_CLIENT_ID='';
 const $=id=>document.getElementById(id),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // ---------- IndexedDB key-value store ----------
 let dbp=null;
 function db(){if(dbp)return dbp;dbp=new Promise((res,rej)=>{if(!window.indexedDB)return rej(new Error('no idb'));const r=indexedDB.open('aj_erp',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});dbp.catch(()=>{dbp=null});return dbp}
 const kv=(mode,f)=>db().then(d=>new Promise((res,rej)=>{const t=d.transaction('kv',mode),s=t.objectStore('kv');let out;const rq=f(s);if(rq)rq.onsuccess=()=>{out=rq.result};t.oncomplete=()=>res(out);t.onerror=t.onabort=()=>rej(t.error)}));
 const kget=k=>kv('readonly',s=>s.get(k)),kset=(k,v)=>kv('readwrite',s=>s.put(v,k)),kdel=k=>kv('readwrite',s=>s.delete(k));
-// ---------- loading: IndexedDB first, migrating the old localStorage copy once ----------
-let IDB_OK=false;
-const oOnload=window.onload;
-window.onload=async function(){const args=arguments;let list=null;
- try{list=await kget('companies');IDB_OK=true}catch(e){IDB_OK=false}
- try{const ls=localStorage.getItem('accounting_companies');
-  if(ls&&(!Array.isArray(list)||localStorage.getItem('aj_ls_newer'))){const arr=JSON.parse(ls);if(IDB_OK){await kset('companies',arr);localStorage.removeItem('accounting_companies');localStorage.removeItem('aj_ls_newer');try{localStorage.setItem('aj_migrated',new Date().toISOString())}catch(e){}}list=arr}}catch(e){console.error(e)}
- window.__ajLoaded=Array.isArray(list)?list:null;
- try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
- return oOnload?oOnload.apply(this,args):undefined};
-// ---------- saving: every change is written to IndexedDB right away (writes are coalesced) ----------
-let writing=false,pending=false,lastErr=null;
-async function flush(){if(writing)return;writing=true;try{while(pending){pending=false;
-  if(IDB_OK){try{await kset('companies',companies);lastErr=null;continue}catch(e){lastErr=e;IDB_OK=false}}
-  try{localStorage.setItem('accounting_companies',JSON.stringify(companies));localStorage.setItem('aj_ls_newer','1')}catch(e){if(confirm('Storage is full – your latest changes are NOT saved and will be lost on reload.\n\nDownload an emergency backup of all companies now?'))downloadJSON(companies,'EMERGENCY_BACKUP_'+localDateStr(new Date())+'.json')}}}finally{writing=false}}
-window.AJSTORE={save(){pending=true;Promise.resolve().then(flush);try{SY.dirty()}catch(e){}}};
-addEventListener('pagehide',()=>{pending=true;flush()});document.addEventListener('visibilitychange',()=>{if(document.hidden){pending=true;flush()}});
+const kkeys=()=>kv('readonly',s=>s.getAllKeys());
 // ---------- small helpers ----------
 const SEP='\u001f',td=()=>localDateStr(new Date());
 const stab=v=>v===null||typeof v!=='object'?(v===undefined?'null':JSON.stringify(v)):Array.isArray(v)?'['+v.map(stab).join(',')+']':'{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stab(v[k])).join(',')+'}';
 function hsh(s){let a=0xdeadbeef,b=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);a=Math.imul(a^c,2654435761);b=Math.imul(b^c,1597334677)}a=Math.imul(a^(a>>>16),2246822507)^Math.imul(b^(b>>>13),3266489909);b=Math.imul(b^(b>>>16),2246822507)^Math.imul(a^(a>>>13),3266489909);return(b>>>0).toString(36)+'.'+(a>>>0).toString(36)+'.'+s.length.toString(36)}
 const H=v=>hsh(stab(v)),clone=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
+const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+// ---------- encryption ----------
+const te=new TextEncoder(),tdc=new TextDecoder();
+const b64e=u=>{let s='';const a=u instanceof Uint8Array?u:new Uint8Array(u);for(let i=0;i<a.length;i+=8192)s+=String.fromCharCode.apply(null,a.subarray(i,i+8192));return btoa(s)},b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const rnd=n=>crypto.getRandomValues(new Uint8Array(n));
+async function gz(u,on){const S=on?new CompressionStream('gzip'):new DecompressionStream('gzip');return new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(S)).arrayBuffer())}
+const aesRaw=raw=>crypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt','decrypt']);
+async function hkdf(raw,info){const b=await crypto.subtle.importKey('raw',raw,'HKDF',false,['deriveKey']);return crypto.subtle.deriveKey({name:'HKDF',hash:'SHA-256',salt:new Uint8Array(32),info:te.encode(info)},b,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function pbkRaw(pass,salt,it){const b=await crypto.subtle.importKey('raw',te.encode(pass),'PBKDF2',false,['deriveBits']);return new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:it,hash:'SHA-256'},b,256))}
+async function sha(s){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',te.encode(s)))].map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function sealS(key,str){let d=te.encode(str),z=0;if(window.CompressionStream){try{d=await gz(d,true);z=1}catch(e){}}const iv=rnd(12),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,d));
+ const out=new Uint8Array(5+12+ct.length);out.set(te.encode('AJS1'),0);out[4]=z;out.set(iv,5);out.set(ct,17);return out}
+async function unsealS(key,u){if(!(u instanceof Uint8Array))u=new Uint8Array(u);if(u.length<18||tdc.decode(u.slice(0,4))!=='AJS1')throw new Error('Not an AJ ERP file');let d=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(5,17)},key,u.slice(17)));if(u[4])d=await gz(d,false);return tdc.decode(d)}
+const seal=(key,obj)=>sealS(key,JSON.stringify(obj)),unseal=async(key,u)=>JSON.parse(await unsealS(key,u));
+async function unsealAny(keys,u){let err;for(const k of keys){try{return await unseal(k,u)}catch(e){err=e}}throw err||new Error('no key')}
+// account key pairs (ECDH P-256): a company key is "wrapped" for each member's public key
+const EC={name:'ECDH',namedCurve:'P-256'};
+async function genPair(){const k=await crypto.subtle.generateKey(EC,true,['deriveKey']);return{priv:b64e(new Uint8Array(await crypto.subtle.exportKey('pkcs8',k.privateKey))),pub:await crypto.subtle.exportKey('jwk',k.publicKey)}}
+const impPriv=b=>crypto.subtle.importKey('pkcs8',b64d(b),EC,false,['deriveKey']);
+const impPub=j=>crypto.subtle.importKey('jwk',{kty:j.kty,crv:j.crv,x:j.x,y:j.y,ext:true},EC,true,[]);
+async function wrapFor(pub,raw){const e=await crypto.subtle.generateKey(EC,true,['deriveKey']),k=await crypto.subtle.deriveKey({name:'ECDH',public:await impPub(pub)},e.privateKey,{name:'AES-GCM',length:256},false,['encrypt']),iv=rnd(12);
+ const j=await crypto.subtle.exportKey('jwk',e.publicKey);return{epk:{kty:j.kty,crv:j.crv,x:j.x,y:j.y},iv:b64e(iv),ct:b64e(new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},k,raw)))}}
+async function unwrap(priv,w){const k=await crypto.subtle.deriveKey({name:'ECDH',public:await impPub(w.epk)},priv,{name:'AES-GCM',length:256},false,['decrypt']);return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64d(w.iv)},k,b64d(w.ct)))}
+// ---------- this device ----------
+const DEV=(()=>{try{let d=localStorage.getItem('aj_dev_id');if(!d){d='d'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);localStorage.setItem('aj_dev_id',d)}return d}catch(e){return 'd'+Math.random().toString(36).slice(2,10)}})();
+const devName=()=>{try{return localStorage.getItem('aj_dev_name')||((/Android|iPhone|iPad/i.test(navigator.userAgent)?'Phone':'Computer')+' '+DEV.slice(-4))}catch(e){return 'Device'}};
+const idleMin=()=>{try{const v=localStorage.getItem('aj_idle_min');if(v===null)return 15;const n=+v;return Number.isFinite(n)&&n>=0?n:15}catch(e){return 15}};
+// ---------- the signed-in account ----------
+let ACC=null; // {aid,email,name,pic,vk,priv,pub}
+const me=()=>ACC;
+const aidOf=async email=>(await sha('ajerp:'+String(email).toLowerCase())).slice(0,24);
+// ---------- transports to the shared folder ----------
+let CFG={mode:'',root:null,gdRoot:'',gdClient:'',rootKey:''};
+const canFS=()=>typeof window.showDirectoryPicker==='function';
+const canGD=()=>/^https:$/.test(location.protocol)||/^localhost$|^127\./.test(location.hostname);
+const clientId=()=>AJ_CLIENT_ID||CFG.gdClient||'';
+const FS={name:'fs',
+ async dir(path,create){let d=CFG.root;for(const n of path.split('/').filter(Boolean))d=await d.getDirectoryHandle(n,{create:!!create});return d},
+ async list(path){try{const d=await this.dir(path,false),o=[];for await(const [n,h] of d.entries())if(h.kind==='file')o.push(n);return o}catch(e){return []}},
+ async dirs(path){try{const d=await this.dir(path,false),o=[];for await(const [n,h] of d.entries())if(h.kind==='directory')o.push(n);return o}catch(e){return []}},
+ async read(path,name){const d=await this.dir(path,false),f=await(await d.getFileHandle(name)).getFile();return new Uint8Array(await f.arrayBuffer())},
+ async write(path,name,u){const d=await this.dir(path,true),h=await d.getFileHandle(name,{create:true}),w=await h.createWritable();await w.write(u);await w.close()},
+ async del(path,name){try{const d=await this.dir(path,false);await d.removeEntry(name)}catch(e){}},
+ async ready(){if(!CFG.root)return false;try{return(await CFG.root.queryPermission({mode:'readwrite'}))==='granted'}catch(e){return false}},
+ async grant(){if(!CFG.root)return false;try{return(await CFG.root.requestPermission({mode:'readwrite'}))==='granted'}catch(e){return false}},
+ label:()=>CFG.root?'Folder “'+CFG.root.name+'” on this computer':'No folder chosen'};
+const SCOPES='openid email profile https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.appdata';
+const GD={name:'gd',tok:'',exp:0,ids:{},files:{},
+ loadGis(){return window.google&&google.accounts&&google.accounts.oauth2?Promise.resolve():new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=res;s.onerror=()=>rej(new Error('Could not reach Google. Check the internet connection.'));document.head.appendChild(s)})},
+ async grant(){const u=await IDP.signIn(ACC&&ACC.email);if(ACC&&u.email!==ACC.email){this.tok='';throw new Error('Please choose '+ACC.email+' on the Google screen.')}return true},
+ tokOk(){return !!this.tok&&Date.now()<this.exp-60000},
+ async ready(){return this.tokOk()&&!!CFG.gdRoot},
+ async api(method,url,body,type){if(!this.tok)throw Object.assign(new Error('Sign in to Google first.'),{access:true});const r=await fetch(url,{method,headers:Object.assign({Authorization:'Bearer '+this.tok},type?{'Content-Type':type}:{}),body});if(r.status===401){this.tok='';throw Object.assign(new Error('Google sign-in expired. Tap the sync button to sign in again.'),{access:true})}if(!r.ok)throw Object.assign(new Error('Google Drive error '+r.status+': '+(await r.text()).slice(0,160)),{status:r.status});return r},
+ q:s=>encodeURIComponent(s),
+ async folder(path,create){let id=CFG.gdRoot,acc='';for(const n of path.split('/').filter(Boolean)){acc+='/'+n;if(this.ids[acc]){id=this.ids[acc];continue}
+   const r=await(await this.api('GET','https://www.googleapis.com/drive/v3/files?q='+this.q("name='"+n.replace(/'/g,"\\'")+"' and '"+id+"' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false")+'&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true')).json();
+   let f=r.files&&r.files[0];if(!f){if(!create)return null;f=await(await this.api('POST','https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',JSON.stringify({name:n,mimeType:'application/vnd.google-apps.folder',parents:[id]}),'application/json')).json()}id=this.ids[acc]=f.id}return id},
+ async listAll(fid,folders){const out=[];let pt='';do{const r=await(await this.api('GET','https://www.googleapis.com/drive/v3/files?q='+this.q("'"+fid+"' in parents and trashed=false and mimeType"+(folders?'=':'!=')+"'application/vnd.google-apps.folder'")+'&fields=nextPageToken,files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true'+(pt?'&pageToken='+pt:''))).json();(r.files||[]).forEach(f=>out.push(f));pt=r.nextPageToken}while(pt);return out},
+ async list(path){const fid=await this.folder(path,false);if(!fid)return[];const L=await this.listAll(fid);const m=this.files[path]={};L.forEach(f=>m[f.name]=f.id);return Object.keys(m)},
+ async dirs(path){const fid=await this.folder(path,false);if(!fid)return[];return(await this.listAll(fid,true)).map(f=>{this.ids[(path?'/'+path:'')+'/'+f.name]=f.id;return f.name})},
+ async read(path,name){if(!(this.files[path]&&this.files[path][name]))await this.list(path);const id=this.files[path]&&this.files[path][name];if(!id)throw new Error('missing');return new Uint8Array(await(await this.api('GET','https://www.googleapis.com/drive/v3/files/'+id+'?alt=media&supportsAllDrives=true')).arrayBuffer())},
+ async write(path,name,u){const fid=await this.folder(path,true);if(!(this.files[path]&&this.files[path][name]))await this.list(path).catch(()=>{});const id=this.files[path]&&this.files[path][name];
+  if(id){await this.api('PATCH','https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media&supportsAllDrives=true',u,'application/octet-stream');return}
+  const b='aj'+Math.random().toString(36).slice(2),meta=JSON.stringify({name,parents:[fid]});const body=new Blob(['--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+meta+'\r\n--'+b+'\r\nContent-Type: application/octet-stream\r\n\r\n',u,'\r\n--'+b+'--']);
+  const f=await(await this.api('POST','https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id',body,'multipart/related; boundary='+b)).json();(this.files[path]=this.files[path]||{})[name]=f.id},
+ async del(path,name){const id=this.files[path]&&this.files[path][name];if(id){try{await this.api('DELETE','https://www.googleapis.com/drive/v3/files/'+id+'?supportsAllDrives=true')}catch(e){}delete this.files[path][name]}},
+ label:()=>CFG.gdRoot?'Google Drive folder'+(CFG.gdName?' “'+CFG.gdName+'”':''):'No Drive folder linked'};
+let TEST=null;const T=()=>TEST||(CFG.mode==='gd'?GD:FS);
+async function loadCfg(){try{const c=await kget('synccfg');if(c)CFG=Object.assign(CFG,c)}catch(e){}}
+async function saveCfg(){try{await kset('synccfg',{mode:CFG.mode,root:CFG.root,gdRoot:CFG.gdRoot,gdName:CFG.gdName||'',gdClient:CFG.gdClient,rootKey:CFG.rootKey||''})}catch(e){console.error(e)}}
+const connected=()=>!!(TEST||CFG.mode);
+// ---------- Google identity and the account's private data (kept in the app's hidden Drive space) ----------
+const IDP={async signIn(hint){const cid=clientId();if(!cid)throw new Error('Set up Google sign-in first (the OAuth client ID).');await GD.loadGis();
+  const tok=await new Promise((res,rej)=>{const tc=google.accounts.oauth2.initTokenClient({client_id:cid,scope:SCOPES,hint:hint||undefined,callback:r=>r&&r.access_token?res(r):rej(new Error(r&&(r.error_description||r.error)||'Google sign-in was cancelled.')),error_callback:e=>rej(new Error(e&&e.type==='popup_closed'?'The Google window was closed before sign-in finished.':e&&e.type==='popup_failed_to_open'?'The Google window was blocked. Allow pop-ups for this site and try again.':e&&e.message||'Google sign-in was cancelled.'))});tc.requestAccessToken({prompt:hint?'':'select_account'})});
+  GD.tok=tok.access_token;GD.exp=Date.now()+(+tok.expires_in||3600)*1000;
+  if(google.accounts.oauth2.hasGrantedAllScopes&&!google.accounts.oauth2.hasGrantedAllScopes(tok,'https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/drive.appdata')){GD.tok='';throw new Error('Please tick the Google Drive boxes on the Google screen. The app keeps your account key and your companies there.')}
+  const u=await(await GD.api('GET','https://www.googleapis.com/oauth2/v3/userinfo')).json();if(!u.email||u.email_verified===false){GD.tok='';throw new Error('This Google account has no verified email.')}
+  return{email:String(u.email).toLowerCase(),name:u.name||u.email,pic:u.picture||''}}};
+const AD={NAME:'ajerp-account.json',
+ async find(){const r=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q='+GD.q("name='"+this.NAME+"' and trashed=false")+'&fields=files(id)')).json();return r.files&&r.files[0]&&r.files[0].id},
+ async get(){const id=await this.find();if(!id)return null;return await(await GD.api('GET','https://www.googleapis.com/drive/v3/files/'+id+'?alt=media')).json()},
+ async put(o){const id=await this.find(),u=JSON.stringify(o);if(id){await GD.api('PATCH','https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media',u,'application/json');return}
+  const b='aj'+Math.random().toString(36).slice(2),body=new Blob(['--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:this.NAME,parents:['appDataFolder']})+'\r\n--'+b+'\r\nContent-Type: application/json\r\n\r\n'+u+'\r\n--'+b+'--']);
+  await GD.api('POST','https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',body,'multipart/related; boundary='+b)}};
+let IDPX=IDP,ADX=AD; // replaceable in tests
+// ---------- accounts remembered on this device ----------
+async function accts(){try{return(await kget('accts'))||[]}catch(e){return[]}}
+async function putAcct(a){const L=await accts(),i=L.findIndex(x=>x.aid===a.aid);if(i>=0)L[i]=a;else L.push(a);await kset('accts',L)}
+async function openSecret(o){return{vk:await hkdf(b64d(o.ak),'aj-vault'),priv:await impPriv(o.priv),pub:o.pub}}
+const PIN_IT=310000;
+async function pinBox(pass,secret){const salt=rnd(16),k=await aesRaw(await pbkRaw(pass,salt,PIN_IT));return{salt:b64e(salt),it:PIN_IT,box:b64e(await seal(k,secret))}}
+async function pinOpen(pass,pin){const k=await aesRaw(await pbkRaw(pass,b64d(pin.salt),pin.it||PIN_IT));return unseal(k,b64d(pin.box))}
+// ---------- the vault: this account's companies and sync state, encrypted on this device ----------
+const vkey=k=>'v:'+ACC.aid+':'+k;
+async function vget(k){if(!ACC)return null;let u=null;try{u=await kget(vkey(k))}catch(e){}if(!u)return null;try{return await unseal(ACC.vk,u)}catch(e){console.error('vault',k,e);return null}}
+async function vset(k,v){if(!ACC)return;await kset(vkey(k),await seal(ACC.vk,v))}
+async function vdel(k){if(ACC)try{await kdel(vkey(k))}catch(e){}}
+const LASTH={};let IDB_OK=false,writing=false,pending=false,fT=0;
+async function flush(){if(writing||!ACC||!IDB_OK)return;writing=true;try{while(pending){pending=false;const a=ACC;if(!a)break;const ids=[];
+  for(const c of companies){if(!c||!c.id)continue;ids.push(c.id);const s=JSON.stringify(c),h=hsh(s);if(LASTH[c.id]===h)continue;await kset('v:'+a.aid+':co:'+c.id,await sealS(a.vk,s));LASTH[c.id]=h}
+  const ih=ids.join('|');if(LASTH.__idx!==ih){const prev=(LASTH.__idx||'').split('|').filter(Boolean);await kset('v:'+a.aid+':idx',await seal(a.vk,ids));for(const p of prev)if(!ids.includes(p)){try{await kdel('v:'+a.aid+':co:'+p)}catch(e){}delete LASTH[p]}LASTH.__idx=ih}}}
+ catch(e){console.error(e);toast('Could not save on this device: '+e.message,'error')}finally{writing=false;if(pending)setTimeout(flush,50)}}
+async function flushNow(){pending=true;clearTimeout(fT);let n=0;while(writing&&n++<400)await new Promise(r=>setTimeout(r,25));await flush()}
+window.AJSTORE={save(){pending=true;clearTimeout(fT);fT=setTimeout(flush,30);try{SY.dirty()}catch(e){}}};
+addEventListener('pagehide',()=>{if(pending)flush()});addEventListener('beforeunload',e=>{if(ACC&&(pending||writing)){flush();e.preventDefault();e.returnValue='Still saving your last change.';return e.returnValue}});document.addEventListener('visibilitychange',()=>{if(document.hidden&&pending)flush()});
+async function loadVault(){const out=[];let ids=[];try{ids=(await vget('idx'))||[]}catch(e){}
+ for(const id of ids){let u=null;try{u=await kget(vkey('co:'+id))}catch(e){}if(!u)continue;try{const s=await unsealS(ACC.vk,u);LASTH[id]=hsh(s);out.push(JSON.parse(s))}catch(e){console.error('vault company',id,e)}}
+ LASTH.__idx=out.map(c=>c.id).join('|');return out}
+// data saved before accounts existed (not encrypted)
+async function legacyList(){let list=null;try{list=await kget('companies')}catch(e){}
+ if(!Array.isArray(list)||!list.length){try{const ls=localStorage.getItem('accounting_companies');if(ls)list=JSON.parse(ls)}catch(e){}}
+ return Array.isArray(list)?list.filter(c=>c&&c.id):[]}
+async function setLegacy(list){try{if(list.length)await kset('companies',list);else await kdel('companies')}catch(e){}try{localStorage.removeItem('accounting_companies');localStorage.removeItem('aj_ls_newer')}catch(e){}}
+// ---------- per-company sync state (in the vault) ----------
+const ST={},KEY={},BASE={};
+async function st(cid){if(!(cid in ST))ST[cid]=(await vget('syncs:'+cid))||null;return ST[cid]}
+async function putSt(cid){if(ST[cid])await vset('syncs:'+cid,ST[cid])}
+async function base(cid){if(!BASE[cid])BASE[cid]=(await vget('syncb:'+cid))||{};return BASE[cid]}
+async function putBase(cid){await vset('syncb:'+cid,BASE[cid])}
+// keys: v2 {v:2,epoch,cur(b64),old:[b64]} in the vault; v1 = the old passphrase key (raw in the vault, or the old device key)
+async function keyRec(cid){return await vget('synck:'+cid)}
+async function key(cid){if(KEY[cid])return KEY[cid];const r=await keyRec(cid);
+ if(r&&r.v===2){KEY[cid]={v:2,epoch:r.epoch,raw:r.cur,cur:await aesRaw(b64d(r.cur)),all:[await aesRaw(b64d(r.cur))].concat(await Promise.all((r.old||[]).map(o=>aesRaw(b64d(o))))),old:r.old||[]};return KEY[cid]}
+ if(r&&r.v===1&&r.raw){const k=await aesRaw(b64d(r.raw));KEY[cid]={v:1,raw1:r.raw,cur:k,all:[k]};return KEY[cid]}
+ let lk=null;try{lk=await kget('synck:'+cid)}catch(e){}if(lk&&lk.type==='secret'){KEY[cid]={v:1,cur:lk,all:[lk]};return KEY[cid]}return null}
+async function setKey(cid,r){await vset('synck:'+cid,r);delete KEY[cid];return key(cid)}
+const comp=cid=>companies.find(c=>c.id===cid);
+const pad=(n,w)=>String(n).padStart(w,'0'),stamp=()=>{const d=new Date();return d.getFullYear()+pad(d.getMonth()+1,2)+pad(d.getDate(),2)+'-'+pad(d.getHours(),2)+pad(d.getMinutes(),2)};
+// ---------- a company as a flat map of records (for merging) ----------
 const idOf=x=>x&&typeof x==='object'&&!Array.isArray(x)?(typeof x.id==='string'||typeof x.id==='number'?'i:'+x.id:(typeof x.code==='number'||typeof x.code==='string')?'c:'+x.code:null):null;
 function isColl(a){const s=new Set();for(const x of a){const k=idOf(x);if(!k||s.has(k))return false;s.add(k)}return true}
-// A company becomes a flat map of "records": every record in a list that has an id (journal entries, invoices, tenants…)
-// and every single setting. Two devices can then edit different records at the same time without overwriting each other.
 const LOCAL=new Set(['pkgAt']);
 function flat(o,pre,out){for(const k of Object.keys(o)){const v=o[k];if(v===undefined||(!pre&&LOCAL.has(k)))continue;const p=pre?pre+SEP+k:k;
  if(Array.isArray(v)){if(v.length&&isColl(v))v.forEach(x=>out.set(p+SEP+'#'+idOf(x),x));else out.set(p,v)}
@@ -11821,125 +11943,143 @@ function setAt(root,key,val){const S=key.split(SEP);let o=root;for(let i=0;i<S.l
 function delAt(root,key){const S=key.split(SEP);let o=root;for(let i=0;i<S.length-1;i++){o=o&&o[S[i]];if(!o||typeof o!=='object')return false}const l=S[S.length-1];
  if(l[0]==='#'){if(!Array.isArray(o))return false;const el=findEl(o,l);if(el)o.splice(o.indexOf(el),1);return true}
  const cur=o[l];if(cur&&typeof cur==='object'&&(Array.isArray(cur)?cur.length&&isColl(cur):Object.keys(cur).length))return false;delete o[l];return true}
-// ---------- encryption (AES-GCM, key from the company sync passphrase) ----------
-const te=new TextEncoder(),tdc=new TextDecoder();
-const b64e=u=>{let s='';u.forEach(b=>s+=String.fromCharCode(b));return btoa(s)},b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-async function gz(u,on){const S=on?new CompressionStream('gzip'):new DecompressionStream('gzip');return new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(S)).arrayBuffer())}
-async function keyFor(pass,salt){const b=await crypto.subtle.importKey('raw',te.encode(pass),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt:b64d(salt),iterations:210000,hash:'SHA-256'},b,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
-async function seal(key,obj){let d=te.encode(JSON.stringify(obj)),z=0;if(window.CompressionStream){try{d=await gz(d,true);z=1}catch(e){}}const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,d));
- const out=new Uint8Array(5+12+ct.length);out.set(te.encode('AJS1'),0);out[4]=z;out.set(iv,5);out.set(ct,17);return out}
-async function unseal(key,u){if(u.length<18||tdc.decode(u.slice(0,4))!=='AJS1')throw new Error('Not an AJ ERP sync file');let d=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(5,17)},key,u.slice(17)));if(u[4])d=await gz(d,false);return JSON.parse(tdc.decode(d))}
-// ---------- this device ----------
-const DEV=(()=>{try{let d=localStorage.getItem('aj_dev_id');if(!d){d='d'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);localStorage.setItem('aj_dev_id',d)}return d}catch(e){return 'd'+Math.random().toString(36).slice(2,10)}})();
-const devName=()=>{try{return localStorage.getItem('aj_dev_name')||((/Android|iPhone|iPad/i.test(navigator.userAgent)?'Phone':'Computer')+' '+DEV.slice(-4))}catch(e){return 'Device'}};
-// ---------- transports ----------
-let CFG={mode:'',root:null,gdRoot:'',gdClient:''};
-const canFS=()=>typeof window.showDirectoryPicker==='function';
-const canGD=()=>/^https:$/.test(location.protocol)||/^localhost$|^127\./.test(location.hostname);
-const FS={name:'fs',
- async dir(path,create){let d=CFG.root;for(const n of path.split('/').filter(Boolean))d=await d.getDirectoryHandle(n,{create:!!create});return d},
- async list(path){try{const d=await this.dir(path,false),o=[];for await(const [n,h] of d.entries())if(h.kind==='file')o.push(n);return o}catch(e){return []}},
- async dirs(path){try{const d=await this.dir(path,false),o=[];for await(const [n,h] of d.entries())if(h.kind==='directory')o.push(n);return o}catch(e){return []}},
- async read(path,name){const d=await this.dir(path,false),f=await(await d.getFileHandle(name)).getFile();return new Uint8Array(await f.arrayBuffer())},
- async write(path,name,u){const d=await this.dir(path,true),h=await d.getFileHandle(name,{create:true}),w=await h.createWritable();await w.write(u);await w.close()},
- async del(path,name){try{const d=await this.dir(path,false);await d.removeEntry(name)}catch(e){}},
- async ready(){if(!CFG.root)return false;try{return(await CFG.root.queryPermission({mode:'readwrite'}))==='granted'}catch(e){return false}},
- async grant(){if(!CFG.root)return false;try{return(await CFG.root.requestPermission({mode:'readwrite'}))==='granted'}catch(e){return false}},
- label:()=>CFG.root?'Folder “'+CFG.root.name+'” on this computer':'No folder chosen'};
-const GD={name:'gd',tok:'',exp:0,ids:{},files:{},
- loadGis(){return window.google&&google.accounts&&google.accounts.oauth2?Promise.resolve():new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=res;s.onerror=()=>rej(new Error('Could not load Google sign-in. Check the internet connection.'));document.head.appendChild(s)})},
- async grant(){if(!CFG.gdClient)throw new Error('Enter the Google client ID first (Settings › Sync & Backup).');await this.loadGis();return new Promise((res,rej)=>{const tc=google.accounts.oauth2.initTokenClient({client_id:CFG.gdClient,scope:'https://www.googleapis.com/auth/drive',callback:r=>{if(r&&r.access_token){this.tok=r.access_token;this.exp=Date.now()+(+r.expires_in||3600)*1000;res(true)}else rej(new Error(r&&r.error||'Google sign-in was cancelled.'))},error_callback:e=>rej(new Error(e&&e.message||'Google sign-in was cancelled.'))});tc.requestAccessToken({prompt:''})})},
- async ready(){return !!this.tok&&Date.now()<this.exp-60000&&!!CFG.gdRoot},
- async api(method,url,body,type){const r=await fetch(url,{method,headers:Object.assign({Authorization:'Bearer '+this.tok},type?{'Content-Type':type}:{}),body});if(r.status===401){this.tok='';throw new Error('Google sign-in expired. Tap the sync button to sign in again.')}if(!r.ok)throw new Error('Google Drive error '+r.status+': '+(await r.text()).slice(0,160));return r},
- q:s=>encodeURIComponent(s),
- async folder(path,create){let id=CFG.gdRoot,acc='';for(const n of path.split('/').filter(Boolean)){acc+='/'+n;if(this.ids[acc]){id=this.ids[acc];continue}
-   const r=await(await this.api('GET','https://www.googleapis.com/drive/v3/files?q='+this.q("name='"+n.replace(/'/g,"\\'")+"' and '"+id+"' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false")+'&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true')).json();
-   let f=r.files&&r.files[0];if(!f){if(!create)return null;f=await(await this.api('POST','https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',JSON.stringify({name:n,mimeType:'application/vnd.google-apps.folder',parents:[id]}),'application/json')).json()}id=this.ids[acc]=f.id}return id},
- async listAll(fid,folders){const out=[];let pt='';do{const r=await(await this.api('GET','https://www.googleapis.com/drive/v3/files?q='+this.q("'"+fid+"' in parents and trashed=false and mimeType"+(folders?'=':'!=')+"'application/vnd.google-apps.folder'")+'&fields=nextPageToken,files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true'+(pt?'&pageToken='+pt:''))).json();(r.files||[]).forEach(f=>out.push(f));pt=r.nextPageToken}while(pt);return out},
- async list(path){const fid=await this.folder(path,false);if(!fid)return[];const L=await this.listAll(fid);const m=this.files[path]={};L.forEach(f=>m[f.name]=f.id);return Object.keys(m)},
- async dirs(path){const fid=await this.folder(path,false);if(!fid)return[];return(await this.listAll(fid,true)).map(f=>{this.ids[(path?'/'+path:'')+'/'+f.name]=f.id;return f.name})},
- async read(path,name){if(!(this.files[path]&&this.files[path][name]))await this.list(path);const id=this.files[path]&&this.files[path][name];if(!id)throw new Error('missing');return new Uint8Array(await(await this.api('GET','https://www.googleapis.com/drive/v3/files/'+id+'?alt=media&supportsAllDrives=true')).arrayBuffer())},
- async write(path,name,u){const fid=await this.folder(path,true);const id=this.files[path]&&this.files[path][name];
-  if(id){await this.api('PATCH','https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media&supportsAllDrives=true',u,'application/octet-stream');return}
-  const b='aj'+Math.random().toString(36).slice(2),meta=JSON.stringify({name,parents:[fid]});const body=new Blob(['--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+meta+'\r\n--'+b+'\r\nContent-Type: application/octet-stream\r\n\r\n',u,'\r\n--'+b+'--']);
-  const f=await(await this.api('POST','https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id',body,'multipart/related; boundary='+b)).json();(this.files[path]=this.files[path]||{})[name]=f.id},
- async del(path,name){const id=this.files[path]&&this.files[path][name];if(id){try{await this.api('DELETE','https://www.googleapis.com/drive/v3/files/'+id+'?supportsAllDrives=true')}catch(e){}delete this.files[path][name]}},
- label:()=>CFG.gdRoot?'Google Drive folder (signed in with Google)':'No Drive folder linked'};
-let TEST=null;const T=()=>TEST||(CFG.mode==='gd'?GD:FS);
-async function loadCfg(){try{const c=await kget('synccfg');if(c)CFG=Object.assign(CFG,c)}catch(e){}}
-async function saveCfg(){try{await kset('synccfg',{mode:CFG.mode,root:CFG.root,gdRoot:CFG.gdRoot,gdClient:CFG.gdClient})}catch(e){console.error(e)}}
-// ---------- per-company sync state (kept on this device only) ----------
-const ST={},KEY={},BASE={};
-async function st(cid){if(!ST[cid]){ST[cid]=(await kget('syncs:'+cid).catch(()=>null))||null}return ST[cid]}
-async function putSt(cid){await kset('syncs:'+cid,ST[cid])}
-async function base(cid){if(!BASE[cid])BASE[cid]=(await kget('syncb:'+cid).catch(()=>null))||{};return BASE[cid]}
-async function putBase(cid){await kset('syncb:'+cid,BASE[cid])}
-async function key(cid){if(!KEY[cid])KEY[cid]=(await kget('synck:'+cid).catch(()=>null))||null;return KEY[cid]}
-const comp=cid=>companies.find(c=>c.id===cid);
-const pad=(n,w)=>String(n).padStart(w,'0'),stamp=()=>{const d=new Date();return d.getFullYear()+pad(d.getMonth()+1,2)+pad(d.getDate(),2)+'-'+pad(d.getHours(),2)+pad(d.getMinutes(),2)};
 function baseOf(c){const b={};flatC(c).forEach((v,k)=>b[k]=H(v));return b}
-function normalize(c){try{if(!Array.isArray(c.serviceLines)){const m=deriveServiceLines(c);c.serviceLines=m.serviceLines;c.otherLine=m.otherLine}backfillContraLinks(c);rebuildAllBeginningBalances(c)}catch(e){console.error(e)}}
-// ---------- start / join ----------
+function normalize(c){try{if(c.coaSetupDone===undefined)c.coaSetupDone=true;if(!Array.isArray(c.serviceLines)){const m=deriveServiceLines(c);c.serviceLines=m.serviceLines;c.otherLine=m.otherLine}backfillContraLinks(c);rebuildAllBeginningBalances(c)}catch(e){console.error(e)}}
+// ---------- members: people with a Google email in Users & Access ----------
+const members=c=>(Array.isArray(c&&c.users)?c.users:[]).filter(u=>u&&u.active!==false&&EMAIL.test(u.email||'')).map(u=>({email:u.email.toLowerCase(),role:u.role,name:u.name}));
+const myUser=c=>ACC&&Array.isArray(c&&c.users)?c.users.find(u=>u&&u.active!==false&&String(u.email||'').toLowerCase()===ACC.email):null;
+const amAdmin=c=>{const u=myUser(c);return !!u&&u.role==='admin'};
+const AIDS={};async function aidCached(e){return AIDS[e]||(AIDS[e]=await aidOf(e))}
+// ---------- the shared folder: company info, public keys of accounts, folder marker ----------
 async function readInfo(cid){try{return JSON.parse(tdc.decode(await T().read(cid,'info.json')))}catch(e){return null}}
-async function latestSnap(cid,k){const L=(await T().list(cid+'/backups')).filter(n=>/\.ajs$/.test(n)).sort((a,b)=>a.split('_').pop().localeCompare(b.split('_').pop()));for(let i=L.length-1;i>=0;i--){try{return Object.assign(await unseal(k,await T().read(cid+'/backups',L[i])),{file:L[i]})}catch(e){}}return null}
-async function startSync(c,pass){const cid=c.id;if(await readInfo(cid))throw new Error('This company is already in the sync folder. Use “Join” with its passphrase instead.');
- const salt=b64e(crypto.getRandomValues(new Uint8Array(16))),k=await keyFor(pass,salt);
- await T().write(cid,'info.json',te.encode(JSON.stringify({app:'AJ ERP System',v:1,id:cid,name:c.name,salt,check:b64e(await seal(k,{ok:'ajerp'})),created:new Date().toISOString(),by:devName()})));
- KEY[cid]=k;await kset('synck:'+cid,k);ST[cid]={on:true,seq:0,applied:{},devs:{},conflicts:[],sent:[],lastSnap:0,lastSync:0};BASE[cid]=baseOf(c);
+async function writeInfo(cid,info){await T().write(cid,'info.json',te.encode(JSON.stringify(info)))}
+const PUBS={};
+async function readPub(aid){if(PUBS[aid])return PUBS[aid];try{const p=JSON.parse(tdc.decode(await T().read('_accounts',aid+'.json')));if(p&&p.pub&&p.email&&(await aidCached(p.email))===aid)return PUBS[aid]=p}catch(e){}return null}
+let published='';
+async function publishMe(){if(!ACC||!connected())return;const tag=ACC.aid+'@'+(CFG.gdRoot||CFG.mode||'t');if(published===tag)return;try{if(!(await T().ready()))return;const cur=await readPub(ACC.aid);
+ if(!cur||JSON.stringify(cur.pub)!==JSON.stringify(ACC.pub))await T().write('_accounts',ACC.aid+'.json',te.encode(JSON.stringify({email:ACC.email,name:ACC.name,pub:ACC.pub,at:new Date().toISOString()})));published=tag;delete PUBS[ACC.aid]}catch(e){console.error(e)}}
+const MARK='ajerp-root.json';
+async function ensureMarker(){try{if(!(await T().ready()))return;let ok=false;try{const m=JSON.parse(tdc.decode(await T().read('',MARK)));if(m&&m.key){if(CFG.rootKey!==m.key){CFG.rootKey=m.key;await saveCfg()}ok=true}}catch(e){}
+ if(!ok){CFG.rootKey=CFG.rootKey||rid()+rid();await T().write('',MARK,te.encode(JSON.stringify({app:'AJ ERP System',key:CFG.rootKey,created:new Date().toISOString()})));await saveCfg()}}catch(e){console.error(e)}}
+// ---------- start syncing / open a shared company ----------
+async function latestSnap(cid,keys){const L=(await T().list(cid+'/backups')).filter(n=>/\.ajs$/.test(n)).sort((a,b)=>a.split('_').pop().localeCompare(b.split('_').pop()));for(let i=L.length-1;i>=0;i--){try{return Object.assign(await unsealAny(keys,await T().read(cid+'/backups',L[i])),{file:L[i]})}catch(e){}}return null}
+async function wrapsFor(c,raw){const keys={};for(const m of members(c)){const aid=await aidCached(m.email);const pub=aid===ACC.aid?{pub:ACC.pub}:await readPub(aid);if(pub)keys[aid]=Object.assign({e:m.email},await wrapFor(pub.pub,raw))}return keys}
+async function startSync(c){const cid=c.id;if(!amAdmin(c))throw new Error('Only an Admin can start syncing.');if(await readInfo(cid))throw new Error('This company is already in the sync folder. Open it from the company list instead.');
+ await ensureMarker();await publishMe();const raw=rnd(32),ck=await aesRaw(raw);
+ const info={app:'AJ ERP System',v:2,id:cid,name:c.name,epoch:1,created:new Date().toISOString(),by:ACC.email,members:members(c).map(m=>m.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:null};
+ await writeInfo(cid,info);await setKey(cid,{v:2,epoch:1,cur:b64e(raw),old:[]});
+ ST[cid]={on:true,seq:0,applied:{},devs:{},conflicts:[],sent:[],lastSnap:0,lastSync:0};BASE[cid]=baseOf(c);
  await snapshot(cid,true);await putSt(cid);await putBase(cid);return true}
-async function unlock(cid,pass){const info=await readInfo(cid);if(!info)throw new Error('That company is not in the sync folder.');const k=await keyFor(pass,info.salt);try{const ok=await unseal(k,b64d(info.check));if(ok.ok!=='ajerp')throw 0}catch(e){throw new Error('Wrong passphrase.')}return{k,info}}
-async function joinSync(cid,pass){const{k,info}=await unlock(cid,pass),snap=await latestSnap(cid,k);if(!snap)throw new Error('No backup of this company was found in the folder yet. Ask the person who started syncing to open the app and press “Sync now”.');
- const ex=comp(cid);if(ex){try{await kset('prejoin:'+cid,clone(ex))}catch(e){}companies.splice(companies.indexOf(ex),1)}
- const c=snap.company;normalize(c);companies.push(c);KEY[cid]=k;await kset('synck:'+cid,k);
+async function openOld(raw,old){if(!old)return[];try{return(await unseal(await aesRaw(raw),b64d(old))).keys||[]}catch(e){return[]}}
+async function adopt(cid,snap,info){const ex=comp(cid);if(ex){try{await vset('prejoin:'+cid,clone(ex))}catch(e){}companies.splice(companies.indexOf(ex),1)}
+ const c=snap.company;normalize(c);companies.push(c);
  const ap=Object.assign({},snap.applied||{});delete ap[DEV];ST[cid]={on:true,seq:0,applied:ap,devs:{},conflicts:[],sent:[],lastSnap:Date.now(),lastSync:0};BASE[cid]=baseOf(c);await putSt(cid);await putBase(cid);
- pending=true;await flush();await syncCo(cid);return{name:info.name,replaced:!!ex}}
+ pending=true;await flushNow();await syncCo(cid);return{name:(info&&info.name)||c.name,replaced:!!ex}}
+async function openShared(cid){await publishMe();const info=await readInfo(cid);if(!info)throw new Error('That company is not in the sync folder.');if(info.v!==2)throw new Error('This company still syncs with a passphrase.');
+ const w=info.keys&&info.keys[ACC.aid];if(!w)throw Object.assign(new Error('Waiting for an Admin to approve this account.'),{wait:true});
+ const raw=await unwrap(ACC.priv,w);const K=await setKey(cid,{v:2,epoch:info.epoch,cur:b64e(raw),old:await openOld(raw,info.old)});
+ const snap=await latestSnap(cid,K.all);if(!snap)throw new Error('No backup of this company was found in the folder yet. Ask an Admin to open the app and press “Sync now”.');return adopt(cid,snap,info)}
+// companies that still sync with a passphrase (set up before accounts)
+async function joinV1(cid,pass){const info=await readInfo(cid);if(!info)throw new Error('That company is not in the sync folder.');if(info.v===2)return openShared(cid);
+ const raw=await pbkRaw(pass,b64d(info.salt),210000),k=await aesRaw(raw);try{const ok=await unseal(k,b64d(info.check));if(ok.ok!=='ajerp')throw 0}catch(e){throw new Error('Wrong passphrase.')}
+ const snap=await latestSnap(cid,[k]);if(!snap)throw new Error('No backup of this company was found in the folder yet.');await setKey(cid,{v:1,raw:b64e(raw)});return adopt(cid,snap,info)}
+// move a passphrase company to account keys (an Admin, once)
+async function upgrade(cid,pass){const c=comp(cid);if(!amAdmin(c))throw new Error('Only an Admin can do this.');const info=await readInfo(cid);if(!info)throw new Error('This company is not in the sync folder.');if(info.v===2)return true;
+ let K=await key(cid),raw1=K&&K.raw1;if(!raw1){if(!pass)throw Object.assign(new Error('Enter the sync passphrase once.'),{needPass:true});const r=await pbkRaw(pass,b64d(info.salt),210000);try{await unseal(await aesRaw(r),b64d(info.check))}catch(e){throw new Error('Wrong passphrase.')}raw1=b64e(r)}
+ await ensureMarker();await publishMe();const raw=rnd(32),ck=await aesRaw(raw);
+ const ni={app:'AJ ERP System',v:2,id:cid,name:c.name,epoch:1,created:info.created||new Date().toISOString(),by:ACC.email,members:members(c).map(m=>m.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:b64e(await seal(ck,{keys:[raw1]})),upgraded:new Date().toISOString()};
+ await writeInfo(cid,ni);await setKey(cid,{v:2,epoch:1,cur:b64e(raw),old:[raw1]});try{await kdel('synck:'+cid)}catch(e){}const s=await st(cid);if(s){s.v1=false;await putSt(cid)}await snapshot(cid,true);return true}
+// replace the company key (after someone is removed)
+async function rotate(cid,info){const c=comp(cid),K=await key(cid);if(!c||!K||K.v!==2)return;const raw=rnd(32),ck=await aesRaw(raw),olds=[K.raw].concat(K.old||[]).slice(0,40);
+ const ni=Object.assign({},info,{name:c.name,epoch:(info.epoch||1)+1,members:members(c).map(m=>m.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:b64e(await seal(ck,{keys:olds})),rotated:new Date().toISOString(),by:ACC.email});
+ await writeInfo(cid,ni);await setKey(cid,{v:2,epoch:ni.epoch,cur:b64e(raw),old:olds});await snapshot(cid,true);return ni}
+// every sync round: follow key changes; Admins hand the key to new members and replace it when someone leaves
+async function checkInfo(cid,s){const info=await readInfo(cid);if(!info)return;const c=comp(cid);
+ if(info.v!==2){s.v1=true;const K=await key(cid);if(!K)throw new Error('This device does not have the sync key for this company.');if(c&&amAdmin(c)&&K.raw1){try{await upgrade(cid)}catch(e){console.error(e)}}return}
+ s.v1=false;let K=await key(cid);
+ if(!K||K.v!==2||K.epoch!==info.epoch){const w=info.keys&&info.keys[ACC.aid];
+  if(!w){if((K&&K.v===2&&info.epoch>K.epoch)||(K&&K.v===1)){if(!(info.members||[]).includes(ACC.email))return removed(cid,info)}await publishMe();throw Object.assign(new Error('Waiting for an Admin to approve this account.'),{wait:true})}
+  const raw=await unwrap(ACC.priv,w);K=await setKey(cid,{v:2,epoch:info.epoch,cur:b64e(raw),old:await openOld(raw,info.old)})}
+ if(c&&c.name!==info.name&&!amAdmin(c))info.name=c.name;
+ if(c&&amAdmin(c))await adminDuty(cid,info,K)}
+async function adminDuty(cid,info,K){const c=comp(cid),mem=members(c),want=new Set();for(const m of mem)want.add(await aidCached(m.email));
+ const keys=info.keys||{};if(Object.keys(keys).some(a=>!want.has(a)))return rotate(cid,info);
+ let ch=false;const raw=b64d(K.raw);
+ for(const m of mem){const a=await aidCached(m.email);if(keys[a])continue;const pub=a===ACC.aid?{pub:ACC.pub}:await readPub(a);if(pub){keys[a]=Object.assign({e:m.email},await wrapFor(pub.pub,raw));ch=true}}
+ const ml=mem.map(m=>m.email).sort();if(JSON.stringify(ml)!==JSON.stringify(info.members||[])){info.members=ml;ch=true}
+ if(info.name!==c.name){info.name=c.name;ch=true}
+ if(ch){info.keys=keys;await writeInfo(cid,info)}}
+async function removed(cid,info){const c=comp(cid);const s=ST[cid];if(s){s.on=false;s.removed=true}
+ if(c){companies.splice(companies.indexOf(c),1);if(activeCompanyId===cid){try{logOff()}catch(e){}}}
+ for(const k of['syncs:','syncb:','synck:','prejoin:','prerestore:'])await vdel(k+cid);delete ST[cid];delete BASE[cid];delete KEY[cid];pending=true;await flushNow();
+ toast('Your access to '+((info&&info.name)||'a company')+' was removed by an Admin, so it was taken off this device.','error');renderGate();throw Object.assign(new Error('removed'),{quiet:true})}
 // ---------- one sync round for a company: pull everyone else's changes, then push ours ----------
 const busy={};
-async function syncCo(cid,why){if(busy[cid])return busy[cid];return busy[cid]=(async()=>{try{const s=await st(cid);if(!s||!s.on)return;const k=await key(cid);if(!k)throw new Error('This device does not have the sync passphrase yet.');if(!(await T().ready()))throw Object.assign(new Error('needs-access'),{access:true});
-  await pull(cid,s,k);await push(cid,s,k);if(Date.now()-(s.lastSnap||0)>20*3600e3)await snapshot(cid);s.lastSync=Date.now();s.err='';await putSt(cid)}
- catch(e){const s=ST[cid];if(s){s.err=e.access?'access':e.message;try{await putSt(cid)}catch(x){}}if(!e.access)console.error(e)}finally{busy[cid]=null;paint()}})()}
-async function pull(cid,s,k){const names=await T().list(cid+'/changes'),by={};
+async function syncCo(cid){if(busy[cid])return busy[cid];return busy[cid]=(async()=>{try{if(!ACC)return;const s=await st(cid);if(!s||!s.on)return;if(!(await T().ready()))throw Object.assign(new Error('needs-access'),{access:true});
+  await checkInfo(cid,s);const K=await key(cid);if(!K)throw new Error('This device does not have the key for this company yet.');
+  await pull(cid,s,K);await push(cid,s,K);if(Date.now()-(s.lastSnap||0)>20*3600e3)await snapshot(cid);s.lastSync=Date.now();s.err='';await putSt(cid)}
+ catch(e){const s=ST[cid];if(s&&!e.quiet){s.err=e.access?'access':e.wait?'wait':e.message;try{await putSt(cid)}catch(x){}}if(!e.access&&!e.wait&&!e.quiet)console.error(e)}finally{busy[cid]=null;paint()}})()}
+async function pull(cid,s,K){const names=await T().list(cid+'/changes'),by={};
  names.forEach(n=>{const m=/^([\w-]+)_(\d+)\.ajc$/.exec(n);if(m&&m[1]!==DEV)(by[m[1]]=by[m[1]]||[]).push(+m[2])});
  const got=[];s.waiting=[];for(const d of Object.keys(by)){const seqs=by[d].sort((a,b)=>a-b);let a=s.applied[d]||0;
   if(seqs.length&&seqs[0]>a+1&&!seqs.includes(a+1)&&seqs.every(x=>x>a+1)){s.stale=d;continue}
-  for(const q of seqs){if(q<=a)continue;if(q!==a+1){s.waiting.push(d);break}let p;try{p=await unseal(k,await T().read(cid+'/changes',d+'_'+pad(q,6)+'.ajc'))}catch(e){s.waiting.push(d);break}got.push(p);a=q}}
+  for(const q of seqs){if(q<=a)continue;if(q!==a+1){s.waiting.push(d);break}let p;try{p=await unsealAny(K.all,await T().read(cid+'/changes',d+'_'+pad(q,6)+'.ajc'))}catch(e){s.waiting.push(d);break}got.push(p);a=q}}
  if(!got.length)return;got.sort((x,y)=>x.ts-y.ts||String(x.dev).localeCompare(y.dev)||x.seq-y.seq);
  const c=comp(cid);if(!c)return;const B=await base(cid),L=flatC(c),lh=new Map(),cur=k2=>{if(!lh.has(k2))lh.set(k2,L.has(k2)?H(L.get(k2)):null);return lh.get(k2)};let n=0;
- for(const p of got){for(const ch of p.ch.slice().sort((x,y)=>(x[1]===null?0:1)-(y[1]===null?0:1))){const kk=ch[0],h=ch[1],b=B[kk]==null?null:B[kk],mine=cur(kk);
+ for(const p of got){for(const ch of p.ch){const kk=ch[0],h=ch[1],b=B[kk]==null?null:B[kk],mine=cur(kk);
    if(mine===b||(b===null&&!kk.includes(SEP+'#'))){if(h===null){if(delAt(c,kk)){L.delete(kk);lh.set(kk,null)}delete B[kk]}else{const ref=setAt(c,kk,ch[2]);L.set(kk,ref);lh.set(kk,h);B[kk]=h}n++}
    else if(mine===h){if(h===null)delete B[kk];else B[kk]=h}
    else{s.conflicts=(s.conflicts||[]).filter(x=>x.k!==kk);s.conflicts.push({k:kk,mine:mine===null?null:clone(L.get(kk)),theirs:h===null?null:ch[2],dev:p.devName||p.dev,ts:p.ts});if(h===null)delete B[kk];else B[kk]=h}}
   s.applied[p.dev]=p.seq;(s.devs=s.devs||{})[p.dev]={name:p.devName||p.dev,last:p.ts}}
  if(s.conflicts&&s.conflicts.length>200)s.conflicts=s.conflicts.slice(-200);
- normalize(c);await putBase(cid);pending=true;await flush();if(n&&c.id===activeCompanyId)refreshUI()}
-async function push(cid,s,k){const c=comp(cid);if(!c)return;const B=await base(cid),L=flatC(c),ch=[];
+ normalize(c);await putBase(cid);pending=true;await flushNow();if(n&&c.id===activeCompanyId){refreshUI();try{ROLEMOD.applyRole()}catch(e){}}}
+async function push(cid,s,K){const c=comp(cid);if(!c)return;const B=await base(cid),L=flatC(c),ch=[];
  L.forEach((v,kk)=>{const h=H(v);if(B[kk]!==h)ch.push([kk,h,v])});Object.keys(B).forEach(kk=>{if(!L.has(kk))ch.push([kk,null])});if(!ch.length)return 0;
- const seq=(s.seq||0)+1,p={v:1,cid,dev:DEV,devName:devName(),seq,ts:Date.now(),ch};await T().write(cid+'/changes',DEV+'_'+pad(seq,6)+'.ajc',await seal(k,p));
+ const seq=(s.seq||0)+1,p={v:1,cid,dev:DEV,devName:devName(),by:ACC&&ACC.email,seq,ts:Date.now(),ch};await T().write(cid+'/changes',DEV+'_'+pad(seq,6)+'.ajc',await seal(K.cur,p));
  s.seq=seq;(s.sent=s.sent||[]).push([seq,p.ts]);ch.forEach(x=>{if(x[1]===null)delete B[x[0]];else B[x[0]]=x[1]});await putBase(cid);await putSt(cid);return ch.length}
 // daily full backup (also how new devices join); keeps 30 per device and clears this device's change files older than 45 days
-async function snapshot(cid,force){const s=ST[cid],k=KEY[cid],c=comp(cid);if(!s||!k||!c)return;const ap=Object.assign({},s.applied,{[DEV]:s.seq||0});
- await T().write(cid+'/backups',DEV+'_'+stamp()+'.ajs',await seal(k,{v:1,cid,dev:DEV,devName:devName(),ts:Date.now(),applied:ap,company:c}));s.lastSnap=Date.now();
+async function snapshot(cid,force){const s=ST[cid],K=await key(cid),c=comp(cid);if(!s||!K||!c)return;const ap=Object.assign({},s.applied,{[DEV]:s.seq||0});
+ await T().write(cid+'/backups',DEV+'_'+stamp()+'.ajs',await seal(K.cur,{v:1,cid,dev:DEV,devName:devName(),ts:Date.now(),applied:ap,company:c}));s.lastSnap=Date.now();
  try{const mine=(await T().list(cid+'/backups')).filter(n=>n.startsWith(DEV+'_')&&/\.ajs$/.test(n)).sort();for(const n of mine.slice(0,Math.max(0,mine.length-30)))await T().del(cid+'/backups',n);
   const old=Date.now()-45*864e5,keep=(s.sent||[]).filter(x=>x[1]>=old);for(const x of(s.sent||[]).filter(x=>x[1]<old))await T().del(cid+'/changes',DEV+'_'+pad(x[0],6)+'.ajc');s.sent=keep}catch(e){}}
+// ---------- Drive sharing (folder access follows Users & Access) ----------
+async function rootId(){if(CFG.mode==='gd')return CFG.gdRoot;if(!GD.tokOk()||!CFG.rootKey)return null;
+ try{const r=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files?q='+GD.q("name='"+MARK+"' and trashed=false")+'&fields=files(id,parents)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=50')).json();
+  for(const f of r.files||[]){try{const m=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files/'+f.id+'?alt=media&supportsAllDrives=true')).json();if(m.key===CFG.rootKey&&f.parents)return f.parents[0]}catch(e){}}}catch(e){}return null}
+const DRV={async share(email,cname){const id=await rootId();if(!id)return false;const msg='You now have access to '+cname+' in AJ ERP System. Open '+location.origin+location.pathname+' and continue with Google using this email.';
+  await GD.api('POST','https://www.googleapis.com/drive/v3/files/'+id+'/permissions?supportsAllDrives=true&sendNotificationEmail=true&emailMessage='+GD.q(msg),JSON.stringify({type:'user',role:'writer',emailAddress:email}),'application/json');return true},
+ async unshare(email){const id=await rootId();if(!id)return false;const r=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files/'+id+'/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress,role)')).json();
+  const p=(r.permissions||[]).find(x=>String(x.emailAddress||'').toLowerCase()===email&&x.role!=='owner');if(!p)return false;await GD.api('DELETE','https://www.googleapis.com/drive/v3/files/'+id+'/permissions/'+p.id+'?supportsAllDrives=true');return true}};
+let DRVX=DRV;
+async function stillMemberElsewhere(email,exceptCid){try{for(const d of await T().dirs('')){if(d===exceptCid||d[0]==='_')continue;const i=await readInfo(d);if(i&&(i.members||[]).includes(email))return true}}catch(e){}return false}
+async function membersChanged(c,before){if(!ACC||!c||c.workspace)return;const now=members(c).map(m=>m.email),added=now.filter(e=>!before.includes(e)),gone=before.filter(e=>!now.includes(e));if(!added.length&&!gone.length)return;
+ const s=await st(c.id);if(!s||!s.on){if(added.length)setTimeout(()=>toast('Saved. '+added.join(', ')+' can open '+c.name+' after you start syncing it (Settings › Sync & Backup).','success'),400);return}
+ const can=connected()&&(TEST||GD.tokOk());
+ for(const e of added){if(!can){toast('Share the sync folder with '+e+' (Editor) in Google Drive, or sign in to Google so the app can do it.');continue}try{if(await DRVX.share(e,c.name))toast('Shared the sync folder with '+e+'. They open the app and continue with Google.','success');else toast('Share the sync folder with '+e+' (Editor) in Google Drive.')}catch(x){toast('Could not share the folder with '+e+': '+x.message,'error')}}
+ for(const e of gone){if(!can)continue;try{if(!(await stillMemberElsewhere(e,c.id)))await DRVX.unshare(e)}catch(x){console.error(x)}}
+ if(gone.length)toast('The company key will be replaced so '+gone.join(', ')+' can no longer read new changes.','success');
+ syncCo(c.id)}
+const emails=c=>members(c).map(m=>m.email);
 // ---------- triggers ----------
 let dT=0;const SY={dirty(){clearTimeout(dT);dT=setTimeout(()=>{const id=activeCompanyId;if(id&&ST[id]&&ST[id].on)syncCo(id)},12000)}};
-async function cycle(){if(document.hidden||!activeCompanyId)return;const ids=new Set([activeCompanyId]);companies.forEach(c=>{if(ST[c.id]&&ST[c.id].on)ids.add(c.id)});for(const id of ids){await st(id);if(ST[id]&&ST[id].on)await syncCo(id)}}
+async function cycle(){if(document.hidden||!ACC)return;const ids=new Set();if(activeCompanyId)ids.add(activeCompanyId);for(const c of companies){await st(c.id);if(ST[c.id]&&ST[c.id].on)ids.add(c.id)}for(const id of ids){if(ST[id]&&ST[id].on)await syncCo(id)}if(!activeCompanyId&&gateState==='hub')renderShared()}
 setInterval(cycle,120000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(cycle,800);else if(activeCompanyId&&ST[activeCompanyId]&&ST[activeCompanyId].on)syncCo(activeCompanyId)});
-{const o=window.switchCompany;window.switchCompany=function(){const r=o.apply(this,arguments);setTimeout(async()=>{const id=activeCompanyId;if(!id)return;await st(id);paint();if(ST[id]&&ST[id].on)syncCo(id)},1500);return r}}
+{const o=window.switchCompany;window.switchCompany=function(){const r=o.apply(this,arguments);setTimeout(async()=>{const id=activeCompanyId;if(!id||!ACC)return;await st(id);paint();if(ST[id]&&ST[id].on)syncCo(id)},1500);return r}}
 function refreshUI(){try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}try{if(!document.querySelector('.modal-overlay:not(.hidden) .modal')&&window.ERPX)ERPX.rerender()}catch(e){}}
 // ---------- header status button ----------
 const ICO='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.2 9.1 4 4 0 0 0 6.5 17H8"/><path d="M12 12v8M9 15l3-3 3 3"/></svg>';
 document.head.insertAdjacentHTML('beforeend','<style>#syncChip{position:relative}#syncChip i{position:absolute;right:5px;bottom:5px;width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px var(--frame,#016351);top:auto}#syncChip i.ok{background:#22c55e}#syncChip i.wait{background:#f59e0b}#syncChip i.bad{background:#ef4444}#syncChip i.off{background:#9ca3af}#syncChip.spin svg{animation:sySpin 1s linear infinite}@keyframes sySpin{50%{opacity:.4}}'
- +'.sy-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.sy-step{border:1px solid var(--border-color);border-radius:12px;padding:12px 14px;margin-bottom:10px}.sy-step h4{margin:0 0 6px}.sy-ok{color:#16a34a;font-weight:700}.sy-warn{color:#b45309;font-weight:700}.sy-bad{color:var(--danger,#dc2626);font-weight:700}.sy-mono{font-family:ui-monospace,Consolas,monospace;font-size:.82rem;word-break:break-all}</style>');
+ +'.sy-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.sy-step{border:1px solid var(--border-color);border-radius:12px;padding:12px 14px;margin-bottom:10px}.sy-step h4{margin:0 0 6px}.sy-ok{color:#16a34a;font-weight:700}.sy-warn{color:#b45309;font-weight:700}.sy-bad{color:var(--danger,#dc2626);font-weight:700}.sy-mono{font-family:ui-monospace,Consolas,monospace;font-size:.82rem;word-break:break-all}.sy-tbl td,.sy-tbl th{padding:6px 8px}</style>');
 const hr=document.querySelector('header .header-right');
 if(hr){hr.insertAdjacentHTML('afterbegin','<button type="button" class="tb-ib" id="syncChip" title="Sync">'+ICO+'<i class="off"></i></button>');$('syncChip').onclick=chipClick}
 function stateOf(){const id=activeCompanyId,s=id&&ST[id];if(!s||!s.on)return['off','Sync is off for this company'];if(busy[id])return['wait','Syncing…'];
- if(s.err==='access')return['bad',CFG.mode==='gd'?'Tap to sign in to Google Drive':'Tap to allow access to the sync folder'];if(s.err)return['bad','Sync problem: '+s.err];
+ if(s.err==='access')return['bad',CFG.mode==='gd'?'Tap to sign in to Google Drive':'Tap to allow access to the sync folder'];if(s.err==='wait')return['wait','Waiting for an Admin to approve this account'];if(s.err)return['bad','Sync problem: '+s.err];
  if(s.conflicts&&s.conflicts.length)return['wait',s.conflicts.length+' change'+(s.conflicts.length===1?'':'s')+' to review'];if(s.stale)return['bad','This device is too far behind. Open Sync & Backup.'];
  if(s.waiting&&s.waiting.length)return['wait','Waiting for files from another device to finish uploading'];const m=s.lastSync?Math.round((Date.now()-s.lastSync)/60000):null;return['ok',m==null?'Synced':m<1?'Synced just now':'Synced '+m+' min ago']}
 function paint(){const c=$('syncChip');if(!c)return;const[k,t]=stateOf();c.querySelector('i').className=k;c.title=t;c.classList.toggle('spin',k==='wait'&&!!busy[activeCompanyId]);const p=$('setTab-sync');if(p&&p.classList.contains('active'))renderSet()}
+async function access(){if(TEST)return true;try{if(CFG.mode==='gd'){await GD.grant();return true}return await FS.grant()}catch(e){toast(e.message,'error');return false}}
 async function chipClick(){const id=activeCompanyId,s=id&&ST[id];if(!s||!s.on){showTab('settings');showSettingsSubTab('sync');return}
- if(s.err==='access'){try{if(CFG.mode==='gd')await GD.grant();else if(!(await FS.grant()))return toast('Access to the folder was not allowed.')}catch(e){return toast(e.message)}}
+ if(s.err==='access'&&!(await access()))return toast('Access to the sync folder was not allowed.');
  if(s.conflicts&&s.conflicts.length)return conflicts(id);await syncCo(id);toast(stateOf()[1],stateOf()[0]==='bad'?'error':'success')}
 setInterval(paint,30000);
 // ---------- conflict review ----------
@@ -11953,68 +12093,247 @@ function conflicts(cid){const s=ST[cid];if(!s)return;const L=s.conflicts||[];con
  document.body.appendChild(m);m.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>m.remove());
  m.addEventListener('click',async e=>{const b=e.target.closest('[data-cf],[data-all]');if(!b)return;const c=comp(cid);
   if(b.dataset.all){s.conflicts=[]}else{const x=s.conflicts[+b.dataset.cf];if(b.dataset.a==='theirs'&&c){if(x.theirs===null)delAt(c,x.k);else setAt(c,x.k,x.theirs);normalize(c);saveToLocalStorage();refreshUI()}s.conflicts.splice(+b.dataset.cf,1)}
-  await putSt(cid);m.remove();paint();syncCo(cid);if(s.conflicts.length)conflicts(cid)})}
+  await putSt(cid);m.remove();paint();if(s.conflicts.length)conflicts(cid);else syncCo(cid)})}
+// ---------- small modal helper ----------
+function mdl(html,w){const m=document.createElement('div');m.className='modal-overlay aj-acm';m.style.zIndex='100002';m.innerHTML='<div class="modal" style="max-width:'+(w||560)+'px">'+html+'</div>';document.body.appendChild(m);m.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>m.remove());m.q=s=>m.querySelector(s);return m}
+function askText(title,note,label,type){return new Promise(res=>{const m=mdl('<h2 style="margin-top:0">'+esc(title)+'</h2>'+(note?'<p class="hr-note">'+note+'</p>':'')+'<form><div class="form-group"><label for="akT">'+esc(label)+'</label><input id="akT" type="'+(type||'text')+'" autocomplete="off"></div><div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button class="btn">OK</button></div></form>');
+ m.q('#akT').focus();m.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{m.remove();res(null)});m.q('form').onsubmit=e=>{e.preventDefault();const v=m.q('#akT').value;m.remove();res(v)}})}
 // ---------- Settings › Sync & Backup ----------
 const nb=$('setNav-auto')||$('setNav-health');if(nb)nb.insertAdjacentHTML('afterend','<button id="setNav-sync" onclick="showSettingsSubTab(\'sync\')">Sync &amp; Backup</button>');
 const tb=$('setTab-auto')||$('setTab-health');if(tb)tb.insertAdjacentHTML('afterend','<div id="setTab-sync" class="sub-tab-section"></div>');
 {const o=window.showSettingsSubTab;window.showSettingsSubTab=function(t){if(t==='sync'){document.querySelectorAll('#tab-settings .sub-tab-section').forEach(s=>s.classList.remove('active'));document.querySelectorAll('#tab-settings .sub-nav button').forEach(b=>b.classList.remove('active'));$('setTab-sync').classList.add('active');$('setNav-sync').classList.add('active');renderSet();return}return o.apply(this,arguments)}}
-const isAdmin=()=>{const u=window.currentUser;return !u||u.role==='admin'};
+const isAdmin=()=>{const u=window.currentUser;return !!u&&u.role==='admin'};
 async function storageLine(){try{const e=navigator.storage&&navigator.storage.estimate?await navigator.storage.estimate():null,p=navigator.storage&&navigator.storage.persisted?await navigator.storage.persisted():false;const mb=v=>(v/1048576).toFixed(v<1048576*10?1:0)+' MB';return e?'Using <b>'+mb(e.usage||0)+'</b> of about '+mb(e.quota||0)+' available to this app'+(p?' · protected from automatic clean-up ✓':''):''}catch(e){return ''}}
-async function renderSet(){const el=$('setTab-sync'),c=activeCompany&&activeCompany();if(!el||!c)return;const s=await st(c.id),[k,t]=stateOf(),mode=CFG.mode;
- const conn=mode==='fs'?FS.label():mode==='gd'?GD.label():'Not connected';
- el.innerHTML='<h3 style="margin-top:0">Sync &amp; Backup</h3><p class="hr-note">Keep this company the same on every computer and phone, through a shared Google Drive folder. Everything is saved on this device first, so it works offline; changes are exchanged every couple of minutes and a full backup is saved to the folder every day. Files in the folder are encrypted with the company’s sync passphrase.</p>'
- +'<div class="sy-step"><h4>This device</h4><div class="sy-row"><label style="font-weight:600">Name <input id="syDev" value="'+esc(devName())+'" maxlength="40" style="width:220px"></label><span class="bk-mut" id="syStore"></span></div></div>'
- +'<div class="sy-step"><h4>1. Connect the shared folder</h4><p class="hr-note" style="margin-top:0">Status: <b>'+esc(conn)+'</b></p>'
- +'<div class="sy-row">'+(canFS()?'<button class="btn btn-sm" id="syPick">'+(mode==='fs'?'Choose a different folder':'Choose the Google Drive folder on this computer')+'</button>':'')+(canGD()?'<button class="btn btn-sm btn-outline" id="syGd">'+(mode==='gd'?'Google Drive settings':'Sign in to Google Drive instead')+'</button>':'')+'</div>'
- +(!canFS()&&!canGD()?'<div class="rq-note" style="margin-top:.5rem">This browser can’t open a folder, and the app was opened from a file. On a phone, open the hosted copy of the app (see “Phones” below), then sign in to Google Drive.</div>':'')
- +'<details style="margin-top:.6rem"><summary style="cursor:pointer;font-weight:700">How to set up the folder</summary><ol class="hr-note" style="margin:.4rem 0 0 1.1rem;padding:0"><li>On the main computer, install <b>Google Drive for Desktop</b> and sign in.</li><li>In Google Drive, create a folder named <b>AJ ERP Sync</b> and share it (Editor) with your encoder and bookkeeper.</li><li>On their computers: install Google Drive for Desktop, open “Shared with me”, right-click the folder › <b>Organize › Add shortcut to My Drive</b> so it appears on their computer.</li><li>On each computer, use Chrome or Edge, press <b>Choose the Google Drive folder</b> and pick <b>AJ ERP Sync</b> (inside the Google Drive drive, usually G:).</li></ol></details>'
- +'<details style="margin-top:.4rem"><summary style="cursor:pointer;font-weight:700">Phones</summary><div class="hr-note" style="margin:.4rem 0 0">Phone browsers can’t open folders, so phones sign in to Google Drive directly. That needs the app opened from a web address (for example free hosting on GitHub Pages or Netlify; the page holds no data) and a free Google sign-in key (OAuth client ID). Then: <b>Sign in to Google Drive</b>, paste the client ID and the link of the shared folder.</div></details></div>'
+const IDLE_OPTS=[[5,'5 minutes'],[15,'15 minutes'],[30,'30 minutes'],[60,'1 hour'],[240,'4 hours'],[0,'Never']];
+const idleSel=id=>'<select id="'+id+'">'+IDLE_OPTS.map(o=>'<option value="'+o[0]+'"'+(idleMin()===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>';
+const bindIdle=el=>{if(el)el.onchange=e=>{try{localStorage.setItem('aj_idle_min',e.target.value)}catch(x){}toast('Saved for this device.','success')}};
+let rsBusy=false;
+async function renderSet(){const el=$('setTab-sync'),c=activeCompany&&activeCompany();if(!el||!c||rsBusy)return;rsBusy=true;try{const s=await st(c.id),[k,t]=stateOf(),mode=CFG.mode,K=s&&s.on?await key(c.id):null;
+ const conn=mode==='fs'?FS.label():mode==='gd'?GD.label():'Not connected';const adm=isAdmin();
+ let info=null;if(s&&s.on&&await T().ready().catch(()=>false))info=await readInfo(c.id);
+ let acc='';if(s&&s.on&&info&&info.v===2){const rows=[];for(const m of members(c)){const a=await aidCached(m.email);rows.push('<tr><td>'+esc(m.name||'')+'<br><small class="bk-mut">'+esc(m.email)+'</small></td><td>'+(info.keys&&info.keys[a]?'<span class="sy-ok">Has access</span>':'<span class="sy-warn">Waiting</span> <small class="bk-mut">until they open the app and continue with Google'+(adm?'':' and an Admin’s app syncs')+'</small>')+'</td></tr>')}
+  acc='<div class="sy-step"><h4>Who can open the synced copy</h4><p class="hr-note" style="margin-top:0">Everyone in Users &amp; Access with a Google email. Their app receives the company key automatically; nobody types a passphrase. When you remove someone or make them inactive, the key is replaced and their access to the Drive folder is taken away.</p><div class="hr-scroll"><table class="hr-tbl sy-tbl"><tbody>'+(rows.join('')||'<tr><td class="bk-mut">No one with a Google email yet.</td></tr>')+'</tbody></table></div>'+(adm?'<div class="sy-row" style="margin-top:.6rem"><button class="btn btn-outline btn-sm" id="syRekey">Replace the company key now</button><small class="bk-mut">Key version '+esc(info.epoch)+'</small></div>':'')+'</div>'}
+ el.innerHTML='<h3 style="margin-top:0">Sync &amp; Backup</h3><p class="hr-note">Keep this company the same on every computer and phone through a shared Google Drive folder. Everything is saved (encrypted) on this device first, so it works offline. Changes are exchanged every couple of minutes, and a full backup goes to the folder every day. Files in the folder are encrypted; only members’ accounts can open them.</p>'
+ +'<div class="sy-step"><h4>This device</h4><div class="sy-row"><label style="font-weight:600">Name <input id="syDev" value="'+esc(devName())+'" maxlength="40" style="width:200px"></label><label style="font-weight:600">Lock after '+idleSel('syIdle')+' of no use</label><span class="bk-mut" id="syStore"></span></div></div>'
+ +'<div class="sy-step"><h4>1. Shared folder</h4><p class="hr-note" style="margin-top:0">Status: <b>'+esc(conn)+'</b></p><div class="sy-row"><button class="btn btn-sm'+(mode?' btn-outline':'')+'" id="syGd">'+(mode==='gd'?'Change Google Drive folder':'Use a Google Drive folder')+'</button>'+(canFS()?'<button class="btn btn-sm btn-outline" id="syPick">'+(mode==='fs'?'Choose a different folder on this computer':'Use the Drive folder on this computer')+'</button>':'')+'</div></div>'
  +'<div class="sy-step"><h4>2. Sync this company ('+esc(c.name)+')</h4>'+(s&&s.on?'<p style="margin:.2rem 0"><span class="'+(k==='ok'?'sy-ok':k==='bad'?'sy-bad':'sy-warn')+'">'+esc(t)+'</span></p><p class="hr-note">Changes sent from this device: '+(s.seq||0)+' · last backup: '+(s.lastSnap?new Date(s.lastSnap).toLocaleString():'none')+'</p>'
    +'<div class="hr-note">Other devices: '+(Object.values(s.devs||{}).map(d=>esc(d.name)+' ('+new Date(d.last).toLocaleString()+')').join(', ')||'none seen yet')+'</div>'
-   +'<div class="sy-row" style="margin-top:.6rem"><button class="btn btn-sm" id="sySync">Sync now</button>'+(s.conflicts&&s.conflicts.length?'<button class="btn btn-sm btn-outline" id="syConf">Review '+s.conflicts.length+' change(s)</button>':'')+(s.stale?'<button class="btn btn-sm btn-outline" id="syRe">Bring this device up to date</button>':'')+'<button class="btn btn-sm btn-outline" id="syBk">Backups</button>'+(isAdmin()?'<button class="btn btn-sm btn-outline btn-danger" id="syOff">Stop syncing on this device</button>':'')+'</div>'
-  :(mode?'<p class="hr-note" style="margin-top:0">'+(isAdmin()?'Start syncing to put this company in the folder, or join if it is already there.':'Ask the admin for the sync passphrase to join.')+'</p><div class="sy-row">'+(isAdmin()?'<button class="btn btn-sm" id="syStart">Start syncing this company</button>':'')+'<button class="btn btn-sm btn-outline" id="syJoin">Join with passphrase</button></div>':'<p class="bk-mut">Connect the folder first.</p>'))+'</div>'
- +'<div class="sy-step"><h4>Good to know</h4><ul class="hr-note" style="margin:0 0 0 1.1rem;padding:0"><li>Pick a sync passphrase you can remember and give it only to your team. Without it nobody can open the files, including you on a new device.</li><li>Two people editing different records at the same time is fine. If both change the same record before syncing, this device keeps its version and lists the other one for you to review.</li><li>Every device that syncs gets the whole company, including the books. If an encoder must not have the books on their device, keep using encoder files for them (Settings › Users &amp; Access).</li></ul></div>';
- storageLine().then(h=>{const x=$('syStore');if(x)x.innerHTML=h});
+   +(K&&K.v===1||(s.v1)?'<div class="rq-note" style="margin-top:.6rem">This company still uses a sync passphrase.'+(adm?' <button class="btn btn-sm" id="syUp">Switch to account access (no passphrase)</button>':' Ask an Admin to switch it to account access.')+'</div>':'')
+   +'<div class="sy-row" style="margin-top:.6rem"><button class="btn btn-sm" id="sySync">Sync now</button>'+(s.conflicts&&s.conflicts.length?'<button class="btn btn-sm btn-outline" id="syConf">Review '+s.conflicts.length+' change(s)</button>':'')+(s.stale?'<button class="btn btn-sm btn-outline" id="syRe">Bring this device up to date</button>':'')+'<button class="btn btn-sm btn-outline" id="syBk">Backups</button>'+(adm?'<button class="btn btn-sm btn-outline btn-danger" id="syOff">Stop syncing on this device</button>':'')+'</div>'
+  :(mode?(adm?'<p class="hr-note" style="margin-top:0">Put this company in the shared folder. Everyone in Users &amp; Access with a Google email can then open it on their own devices.</p><div class="sy-row"><button class="btn btn-sm" id="syStart">Start syncing this company</button></div>':'<p class="hr-note" style="margin-top:0">An Admin starts syncing this company.</p>'):'<p class="bk-mut">Connect the folder first.</p>'))+'</div>'+acc
+ +'<div class="sy-step"><h4>Good to know</h4><ul class="hr-note" style="margin:0 0 0 1.1rem;padding:0"><li>To give someone access: Settings › Users &amp; Access › add them with their Google email. The app shares the folder with them; they open the app and continue with Google.</li><li>Two people editing different records at the same time is fine. If both change the same record before syncing, this device keeps its version and lists the other one for you to review.</li><li>Every device that syncs gets the whole company, including the books. For an encoder who must not have the books, use encoder files instead (Users &amp; Access › Encoder file).</li></ul></div>';
+ storageLine().then(h=>{const x=$('syStore');if(x)x.innerHTML=h});bindIdle($('syIdle'));
  const on=(id,f)=>{const b=$(id);if(b)b.onclick=f};
  $('syDev').onchange=e=>{try{localStorage.setItem('aj_dev_name',e.target.value.trim().slice(0,40)||devName())}catch(x){}};
- on('syPick',pickFolder);on('syGd',gdSetup);on('sySync',async()=>{await syncCo(c.id);toast(stateOf()[1])});on('syConf',()=>conflicts(c.id));on('syBk',()=>backups(c.id));
+ on('syPick',async()=>{await pickFolder();renderSet()});on('syGd',()=>gdSetup(()=>renderSet()));on('sySync',async()=>{await syncCo(c.id);toast(stateOf()[1])});on('syConf',()=>conflicts(c.id));on('syBk',()=>backups(c.id));
  on('syOff',async()=>{if(!confirm('Stop syncing this company on this device? The data stays here; other devices keep syncing.'))return;s.on=false;await putSt(c.id);paint();renderSet()});
- on('syStart',()=>passForm(true,c));on('syJoin',()=>passForm(false,c));
- on('syRe',async()=>{if(!confirm('Replace this device’s copy with the latest backup from the folder, then apply newer changes? A copy of the current data is kept on this device.'))return;const pass=prompt('Sync passphrase:');if(!pass)return;try{await joinSync(c.id,pass);switchCompany(c.id);toast('This device is up to date.','success')}catch(e){toast(e.message,'error')}})}
-async function pickFolder(){try{const h=await window.showDirectoryPicker({id:'ajsync',mode:'readwrite'});if((await h.requestPermission({mode:'readwrite'}))!=='granted')return toast('Access was not allowed.');CFG.root=h;CFG.mode='fs';await saveCfg();toast('Folder connected: '+h.name,'success');renderSet();paint()}catch(e){if(e.name!=='AbortError')toast(e.message,'error')}}
-function gdSetup(){const m=document.createElement('div');m.className='modal-overlay';m.innerHTML='<div class="modal" style="max-width:640px"><h2 style="margin-top:0">Google Drive sign-in</h2><p class="hr-note">For phones (or any browser that can’t open a folder). The app must be opened from its web address.</p><div class="form-group"><label>Google OAuth client ID</label><input id="gdC" class="sy-mono" value="'+esc(CFG.gdClient)+'" placeholder="1234-abc.apps.googleusercontent.com"></div><div class="form-group"><label>Link of the shared “AJ ERP Sync” folder</label><input id="gdF" value="'+esc(CFG.gdRoot?'https://drive.google.com/drive/folders/'+CFG.gdRoot:'')+'" placeholder="https://drive.google.com/drive/folders/…"></div>'
- +'<details><summary style="cursor:pointer;font-weight:700">How to get a client ID (once, about 10 minutes)</summary><ol class="hr-note" style="margin:.4rem 0 0 1.1rem;padding:0"><li>Go to console.cloud.google.com and create a project (free).</li><li>APIs &amp; Services › Library › enable <b>Google Drive API</b>.</li><li>OAuth consent screen › External › add your team’s Google emails as <b>test users</b>.</li><li>Credentials › Create credentials › OAuth client ID › <b>Web application</b> › add the app’s web address (e.g. https://yourname.github.io) under Authorized JavaScript origins.</li><li>Copy the client ID here. Google will show “unverified app” on sign-in; that is expected for your own private app.</li></ol></details>'
- +'<div style="text-align:right;margin-top:1rem"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="gdGo">Sign in and connect</button></div></div>';
- document.body.appendChild(m);m.querySelector('[data-x]').onclick=()=>m.remove();
- m.querySelector('#gdGo').onclick=async()=>{const cl=m.querySelector('#gdC').value.trim(),lk=m.querySelector('#gdF').value.trim(),fm=/folders\/([\w-]{10,})/.exec(lk)||/[?&]id=([\w-]{10,})/.exec(lk)||/^([\w-]{20,})$/.exec(lk);
-  if(!/\.apps\.googleusercontent\.com$/.test(cl))return toast('Paste the OAuth client ID (it ends with .apps.googleusercontent.com).');if(!fm)return toast('Paste the link of the shared folder.');
-  CFG.gdClient=cl;CFG.gdRoot=fm[1];CFG.mode='gd';GD.ids={};GD.files={};try{await GD.grant();await GD.listAll(CFG.gdRoot,true);await saveCfg();m.remove();toast('Connected to Google Drive.','success');renderSet();paint()}catch(e){toast(e.message,'error')}}}
-function passForm(start,c){const m=document.createElement('div');m.className='modal-overlay';m.innerHTML='<div class="modal" style="max-width:520px"><h2 style="margin-top:0">'+(start?'Start syncing':'Join with passphrase')+'</h2><p class="hr-note">'+(start?'Choose a sync passphrase for <b>'+esc(c.name)+'</b>. Every device needs it once. If it is lost, the files in the folder can’t be opened, so write it down.':'Enter the sync passphrase for <b>'+esc(c.name)+'</b>. This device’s copy will be replaced by the one in the folder (a copy is kept on this device).')+'</p><div class="form-group"><label>Passphrase'+(start?' (10+ characters)':'')+'</label><input type="password" id="spP" autocomplete="new-password"></div>'+(start?'<div class="form-group"><label>Repeat passphrase</label><input type="password" id="spP2" autocomplete="new-password"></div>':'')+'<div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="spGo">'+(start?'Start syncing':'Join')+'</button></div></div>';
- document.body.appendChild(m);m.querySelector('[data-x]').onclick=()=>m.remove();
- m.querySelector('#spGo').onclick=async()=>{const p=m.querySelector('#spP').value;if(start&&p.length<10)return toast('Use at least 10 characters.');if(start&&p!==m.querySelector('#spP2').value)return toast('The passphrases do not match.');if(!p)return;
-  const b=m.querySelector('#spGo');b.disabled=true;b.textContent='Working…';try{if(!(await T().ready())&&!(CFG.mode==='fs'?await FS.grant():await GD.grant()))throw new Error('No access to the folder.');
-   if(start){await startSync(c,p);toast('Syncing started. Join from the other devices with the same passphrase.','success')}else{const r=await joinSync(c.id,p);switchCompany(c.id);toast('Joined. '+r.name+' is now in sync on this device.','success')}m.remove();renderSet();paint()}catch(e){b.disabled=false;b.textContent=start?'Start syncing':'Join';toast(e.message,'error')}}}
-async function backups(cid){const k=await key(cid);let L=[];try{L=(await T().list(cid+'/backups')).filter(n=>/\.ajs$/.test(n)).sort((a,b)=>b.split('_').pop().localeCompare(a.split('_').pop()))}catch(e){return toast(e.message)}
- const m=document.createElement('div');m.className='modal-overlay';m.innerHTML='<div class="modal" style="max-width:640px"><h2 style="margin-top:0">Backups in the folder</h2><p class="hr-note">One full backup per device per day; the last 30 are kept. Restoring replaces the company on this device and sends the restored data to the other devices.</p>'
+ on('syStart',async e=>{const b=e.target;b.disabled=true;b.textContent='Starting…';try{if(!(await T().ready())&&!(await access()))throw new Error('No access to the folder.');await startSync(c);toast('Syncing started. People in Users & Access with a Google email can now open it.','success');for(const m of members(c))if(m.email!==ACC.email)try{if(connected()&&(TEST||GD.tokOk()))await DRVX.share(m.email,c.name)}catch(x){}}catch(x){toast(x.message,'error')}renderSet();paint()});
+ on('syUp',async()=>{try{if(!(await T().ready())&&!(await access()))return;try{await upgrade(c.id)}catch(e){if(!e.needPass)throw e;const p=await askText('Switch to account access','Enter the old sync passphrase one last time. After this, members open the company with their Google account.','Sync passphrase','password');if(!p)return;await upgrade(c.id,p)}toast('Done. No passphrase is needed any more.','success');syncCo(c.id);renderSet()}catch(x){toast(x.message,'error')}});
+ on('syRekey',async()=>{if(!confirm('Replace the company key now? Members keep access automatically; anyone removed can no longer read new changes.'))return;try{const i=await readInfo(c.id);await rotate(c.id,i);toast('Key replaced.','success');renderSet()}catch(x){toast(x.message,'error')}});
+ on('syRe',async()=>{if(!confirm('Replace this device’s copy with the latest backup from the folder, then apply newer changes? A copy of the current data is kept on this device.'))return;try{await openShared(c.id);switchCompany(c.id);toast('This device is up to date.','success')}catch(e){toast(e.message,'error')}})}finally{rsBusy=false}}
+async function pickFolder(){try{const h=await window.showDirectoryPicker({id:'ajsync',mode:'readwrite'});if((await h.requestPermission({mode:'readwrite'}))!=='granted')return toast('Access was not allowed.');CFG.root=h;CFG.mode='fs';CFG.rootKey='';await saveCfg();await ensureMarker();published='';await publishMe();toast('Folder connected: '+h.name,'success');paint()}catch(e){if(e.name!=='AbortError')toast(e.message,'error')}}
+async function useGdRoot(id,name){CFG.gdRoot=id;CFG.gdName=name||'';CFG.mode='gd';CFG.rootKey='';GD.ids={};GD.files={};await saveCfg();await ensureMarker();published='';await publishMe()}
+function gdSetup(done){const m=mdl('<h2 style="margin-top:0">Google Drive folder</h2><p class="hr-note">The shared folder where your companies sync. Everyone you add in Users &amp; Access gets access to it automatically.</p>'
+ +'<div class="sy-step"><h4>New folder</h4><p class="hr-note" style="margin-top:0">Creates <b>AJ ERP Sync</b> in your My Drive.</p><button class="btn btn-sm" id="gdNew">Create the folder</button></div>'
+ +'<div class="sy-step"><h4>Existing folder</h4><div class="form-group"><label for="gdF">Link of the folder</label><input id="gdF" value="'+esc(CFG.gdRoot?'https://drive.google.com/drive/folders/'+CFG.gdRoot:'')+'" placeholder="https://drive.google.com/drive/folders/…"></div><button class="btn btn-sm btn-outline" id="gdGo">Use this folder</button></div>'
+ +'<div style="text-align:right"><button class="btn btn-outline" data-x>Close</button></div>',600);
+ const ensureTok=async()=>{if(TEST)return true;if(!GD.tokOk())await GD.grant();return true};
+ m.q('#gdNew').onclick=async()=>{try{await ensureTok();const f=await(await GD.api('POST','https://www.googleapis.com/drive/v3/files',JSON.stringify({name:'AJ ERP Sync',mimeType:'application/vnd.google-apps.folder'}),'application/json')).json();await useGdRoot(f.id,'AJ ERP Sync');m.remove();toast('Folder created and connected.','success');paint();if(done)done()}catch(e){toast(e.message,'error')}};
+ m.q('#gdGo').onclick=async()=>{const lk=m.q('#gdF').value.trim(),fm=/folders\/([\w-]{10,})/.exec(lk)||/[?&]id=([\w-]{10,})/.exec(lk)||/^([\w-]{20,})$/.exec(lk);if(!fm)return toast('Paste the link of the folder.');
+  try{await ensureTok();const f=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files/'+fm[1]+'?fields=id,name,mimeType&supportsAllDrives=true')).json();if(f.mimeType!=='application/vnd.google-apps.folder')throw new Error('That link is not a folder.');await useGdRoot(f.id,f.name);m.remove();toast('Connected to “'+f.name+'”.','success');paint();if(done)done()}catch(e){toast(e.message,'error')}}}
+async function backups(cid){const K=await key(cid);let L=[];try{L=(await T().list(cid+'/backups')).filter(n=>/\.ajs$/.test(n)).sort((a,b)=>b.split('_').pop().localeCompare(a.split('_').pop()))}catch(e){return toast(e.message)}
+ const m=mdl('<h2 style="margin-top:0">Backups in the folder</h2><p class="hr-note">One full backup per device per day; the last 30 are kept. Restoring replaces the company on this device and sends the restored data to the other devices.</p>'
  +(L.length?'<div class="hr-scroll" style="max-height:50vh"><table class="hr-tbl"><thead><tr><th>Saved</th><th>From device</th><th></th></tr></thead><tbody>'+L.slice(0,90).map(n=>{const m2=/^(.+)_(\d{8})-(\d{4})\.ajs$/.exec(n)||[];const dv=(ST[cid]&&ST[cid].devs&&ST[cid].devs[m2[1]]||{}).name||(m2[1]===DEV?devName()+' (this device)':m2[1]);return '<tr><td>'+(m2[2]?m2[2].slice(0,4)+'-'+m2[2].slice(4,6)+'-'+m2[2].slice(6)+' '+m2[3].slice(0,2)+':'+m2[3].slice(2):esc(n))+'</td><td>'+esc(dv)+'</td><td><button class="btn btn-outline btn-sm" data-rs="'+esc(n)+'">Restore</button></td></tr>'}).join('')+'</tbody></table></div>':'<p class="bk-mut">No backups yet.</p>')
- +'<div style="text-align:right;margin-top:1rem"><button class="btn btn-outline" data-x>Close</button></div></div>';document.body.appendChild(m);m.querySelector('[data-x]').onclick=()=>m.remove();
+ +'<div style="text-align:right;margin-top:1rem"><button class="btn btn-outline" data-x>Close</button></div>',640);
  m.addEventListener('click',async e=>{const b=e.target.closest('[data-rs]');if(!b)return;if(!confirm('Restore '+b.dataset.rs+'? Everything changed after it on every device is replaced by this backup. A copy of the current data is kept on this device.'))return;
-  try{const snap=await unseal(k,await T().read(cid+'/backups',b.dataset.rs)),cur=comp(cid);await kset('prerestore:'+cid,clone(cur));const nc=snap.company;normalize(nc);companies[companies.indexOf(cur)]=nc;saveToLocalStorage();switchCompany(cid);await syncCo(cid);m.remove();toast('Restored. The other devices receive it on their next sync.','success')}catch(x){toast(x.message,'error')}})}
-// ---------- login screen: open a company from the sync folder ----------
-const lf=$('btnOpenEncPkg');if(lf)lf.insertAdjacentHTML('afterend','<div style="margin-top:.5rem"><button class="btn btn-outline btn-sm" type="button" id="btnSyncOpen">Open from Google Drive sync</button></div>');
-const so=$('btnSyncOpen');if(so)so.onclick=openFromDrive;
-async function openFromDrive(){await loadCfg();const m=document.createElement('div');m.className='modal-overlay';m.style.zIndex='100001';m.innerHTML='<div class="modal" style="max-width:560px"><h2 style="margin-top:0">Open from Google Drive sync</h2><p class="hr-note">For a new computer or phone joining companies that are already syncing.</p><div class="sy-row">'+(canFS()?'<button class="btn btn-sm" id="ofPick">Choose the sync folder</button>':'')+(canGD()?'<button class="btn btn-sm btn-outline" id="ofGd">Sign in to Google Drive</button>':'')+'</div>'+(!canFS()&&!canGD()?'<div class="rq-note" style="margin-top:.6rem">On a phone, open the app from its web address to sign in to Google Drive.</div>':'')+'<div id="ofList" style="margin-top:1rem"></div><div style="text-align:right;margin-top:1rem"><button class="btn btn-outline" data-x>Close</button></div></div>';
- document.body.appendChild(m);m.querySelector('[data-x]').onclick=()=>m.remove();
- const list=async()=>{const box=m.querySelector('#ofList');box.innerHTML='<p class="bk-mut">Looking in the folder…</p>';try{const ds=await T().dirs('');const infos=[];for(const d of ds){const i=await readInfo(d);if(i)infos.push(i)}
-  box.innerHTML=infos.length?infos.map(i=>'<div class="sy-step sy-row" style="justify-content:space-between"><div><b>'+esc(i.name)+'</b><br><small class="bk-mut">started '+esc(String(i.created||'').slice(0,10))+(comp(i.id)?' · already on this device':'')+'</small></div><button class="btn btn-sm" data-jo="'+esc(i.id)+'">Open</button></div>').join(''):'<p class="bk-mut">No synced companies in this folder.</p>'}catch(e){box.innerHTML='<p class="rq-note">'+esc(e.message)+'</p>'}};
- if(CFG.mode&&await T().ready())list();
- const p=m.querySelector('#ofPick');if(p)p.onclick=async()=>{await pickFolder();if(CFG.mode==='fs')list()};
- const g=m.querySelector('#ofGd');if(g)g.onclick=()=>{gdSetup();const iv=setInterval(async()=>{if(CFG.mode==='gd'&&await GD.ready()){clearInterval(iv);list()}},800)};
- m.querySelector('#ofList').addEventListener('click',async e=>{const b=e.target.closest('[data-jo]');if(!b)return;const pass=prompt('Sync passphrase:');if(!pass)return;b.disabled=true;b.textContent='Opening…';
-  try{const r=await joinSync(b.dataset.jo,pass);renderLoginCompanySelector();const s=$('loginCompanySelect');if(s){s.value=b.dataset.jo;handleLoginCompanySelectChange()}m.remove();toast(r.name+' is on this device now. Sign in with your username and password.','success')}catch(x){b.disabled=false;b.textContent='Open';toast(x.message,'error')}})}
+  try{const snap=await unsealAny(K.all,await T().read(cid+'/backups',b.dataset.rs)),cur=comp(cid);await vset('prerestore:'+cid,clone(cur));const nc=snap.company;normalize(nc);companies[companies.indexOf(cur)]=nc;saveToLocalStorage();switchCompany(cid);await syncCo(cid);m.remove();toast('Restored. The other devices receive it on their next sync.','success')}catch(x){toast(x.message,'error')}})}
+
+// =====================================================================================
+// ---------- the sign-in screen and the company list ----------
+// =====================================================================================
+const GICON='<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+document.head.insertAdjacentHTML('beforeend','<style>'
+ +'#loginScreen.aj-acct>.login-card:not(#ajGate){display:none!important}'
+ +'#ajGate{width:min(100%,460px);max-height:calc(100dvh - 2rem);overflow:auto;position:relative;z-index:2}#ajGate.wide{width:min(100%,640px)!important;max-width:640px!important}#ajGate small{letter-spacing:normal}'
+ +'#ajGate .ag-head{text-align:center;margin:.2rem 0 1.4rem}#ajGate .ag-head h2{margin:.5rem 0 0}#ajGate .ag-head p{margin:.35rem 0 0;color:var(--text-muted);font-size:.9rem}'
+ +'#ajGate .ag-g{width:100%;justify-content:center;gap:10px;padding:11px;font-size:1rem;background:#fff!important;color:#1f1f1f!important;border:1px solid #dadce0!important;box-shadow:0 1px 2px rgba(0,0,0,.12)}#ajGate .ag-g:hover{background:#f7f8f8!important}'
+ +'#ajGate .ag-acc{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--border-color);border-radius:12px;background:transparent;color:inherit;cursor:pointer;margin-bottom:8px;font:inherit}#ajGate .ag-acc:hover{border-color:var(--accent-primary)}'
+ +'#ajGate .ag-av{width:38px;height:38px;border-radius:50%;flex:0 0 38px;display:grid;place-items:center;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--accent-primary,#016351),var(--aj-6,#089c7d));overflow:hidden}#ajGate .ag-av img{width:100%;height:100%;object-fit:cover}'
+ +'#ajGate .ag-acc b,#ajGate .ag-co b{display:block;line-height:1.25}#ajGate .ag-acc small,#ajGate .ag-co small{color:var(--text-muted)}'
+ +'#ajGate .ag-sep{display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:.8rem;margin:1rem 0}#ajGate .ag-sep:before,#ajGate .ag-sep:after{content:"";flex:1;border-top:1px solid var(--border-color)}'
+ +'#ajGate .ag-link{background:none;border:0;color:var(--accent-primary);font-weight:600;cursor:pointer;padding:4px;font:inherit;font-size:.86rem}'
+ +'#ajGate .ag-me{display:flex;align-items:center;gap:12px;margin-bottom:1rem}#ajGate .ag-me>div{flex:1;min-width:0}#ajGate .ag-me b{display:block}#ajGate .ag-me small{color:var(--text-muted);word-break:break-all}'
+ +'#ajGate h4{margin:1.1rem 0 .5rem;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}'
+ +'#ajGate .ag-co{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--border-color);border-radius:14px;background:color-mix(in srgb,var(--bg-card,#fff) 70%,transparent);color:inherit;cursor:pointer;margin-bottom:8px;font:inherit}#ajGate button.ag-co:hover{border-color:var(--accent-primary);transform:translateY(-1px)}#ajGate .ag-co>span:not(.ag-pill):not(.ag-ini){flex:1;min-width:0}'
+ +'#ajGate .ag-co .ag-ini{width:40px;height:40px;border-radius:11px;flex:0 0 40px;display:grid;place-items:center;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--accent-primary,#016351),var(--aj-6,#089c7d));overflow:hidden}#ajGate .ag-co .ag-ini img{width:100%;height:100%;object-fit:contain;background:#fff}'
+ +'#ajGate .ag-pill{flex:0 0 auto;font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:999px;background:color-mix(in srgb,currentColor 12%,transparent);border:1px solid color-mix(in srgb,currentColor 22%,transparent);color:inherit;white-space:nowrap}'
+ +'#ajGate .ag-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:.8rem}#ajGate .ag-foot{margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--border-color);font-size:.84rem;color:var(--text-muted);display:grid;gap:.5rem}#ajGate .ag-foot select{padding:4px 8px}'
+ +'#ajGate .ag-err{color:var(--danger,#dc2626);font-size:.86rem;min-height:1.2em;margin:.4rem 0 0}#ajGate input.ag-pin{font-size:1.3rem;letter-spacing:.3em;text-align:center}'
+ +'#ajGate .ag-note{font-size:.84rem;color:var(--text-muted);line-height:1.5}'
+ +'</style>');
+const ls=$('loginScreen');let card=null;
+if(ls){ls.classList.add('aj-acct');card=document.createElement('div');card.className='login-card';card.id='ajGate';ls.appendChild(card)}
+let gateState='',gateArg=null,busyG=false;
+const ini=s=>esc(String(s||'?').trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase());
+const av=(name,pic)=>'<span class="ag-av">'+(pic?'<img src="'+esc(pic)+'" alt="" referrerpolicy="no-referrer" onerror="this.remove()">':'')+(pic?'':ini(name))+'</span>';
+const head=(t,sub)=>'<div class="ag-head"><svg class="logo login-logo"><use href="#logo-mark"/></svg><h2 class="login-title">AJ ERP <span class="bn-light">System</span></h2>'+(t?'<p><b>'+esc(t)+'</b></p>':'')+(sub?'<p>'+sub+'</p>':'')+'</div>';
+function showGate(){if(!ls)return;ls.classList.remove('hidden')}
+async function gate(state,arg){gateState=state;gateArg=arg;showGate();return renderGate()}
+async function renderGate(){if(!card)return;const s=gateState;card.classList.toggle('wide',s==='hub'||s==='claim');
+ if(s==='start')return rStart();if(s==='pass')return rPass();if(s==='newpass')return rNewPass();if(s==='claim')return rClaim();if(s==='hub')return rHub();if(s==='setup')return rSetup();if(s==='nofile')return rNoFile()}
+function setErr(t){const e=card.querySelector('.ag-err');if(e)e.textContent=t||''}
+function busyBtn(b,t){if(!b)return()=>{};const o=b.innerHTML;b.disabled=true;b.textContent=t;return()=>{b.disabled=false;b.innerHTML=o}}
+// first screen
+async function rStart(){const L=await accts(),online=navigator.onLine!==false;
+ card.innerHTML=head('',L.length?'Choose your account':'Sign in to open your companies.')
+ +(L.length?L.map(a=>'<button type="button" class="ag-acc" data-aid="'+esc(a.aid)+'">'+av(a.name,a.pic)+'<span><b>'+esc(a.name)+'</b><small>'+esc(a.email)+'</small></span></button>').join('')+'<div class="ag-sep">or</div>':'')
+ +'<button type="button" class="btn ag-g" id="agG">'+GICON+'<span>Continue with Google</span></button>'
+ +'<p class="ag-err"></p><p class="ag-note" style="text-align:center;margin:.6rem 0 0">'+(online?'Use the Google account your Admin added in Users &amp; Access.':'You are offline. Choose your account above and use this device’s passcode.')+'</p>'
+ +'<div class="ag-foot"><span>Google sign-in key: <b>'+(clientId()?'set':'not set')+'</b> <button type="button" class="ag-link" id="agSet">'+(clientId()?'Change':'Set up')+'</button></span></div>';
+ card.querySelectorAll('[data-aid]').forEach(b=>b.onclick=()=>{const a=L.find(x=>x.aid===b.dataset.aid);gate('pass',a)});
+ card.querySelector('#agG').onclick=e=>google_(null,e.currentTarget);card.querySelector('#agSet').onclick=()=>gate('setup')}
+function rSetup(){card.innerHTML=head('Google sign-in key','Needed once per device (or paste it into the app file so nobody has to).')
+ +'<div class="form-group"><label for="agCid">Google OAuth client ID</label><input id="agCid" class="sy-mono" value="'+esc(clientId())+'" placeholder="1234-abc.apps.googleusercontent.com"></div>'
+ +'<details class="ag-note"><summary style="cursor:pointer;font-weight:700">Where to get it</summary><ol style="margin:.4rem 0 0 1.1rem;padding:0"><li>console.cloud.google.com › your project › <b>Google Auth Platform › Clients</b> (or APIs &amp; Services › Credentials).</li><li>Open the Web client and copy the <b>Client ID</b>.</li><li>Under <b>Audience › Test users</b>, add every Gmail that will use the app.</li></ol></details>'
+ +'<p class="ag-err"></p><div class="ag-acts" style="justify-content:flex-end"><button type="button" class="btn btn-outline" id="agBk">Back</button><button type="button" class="btn" id="agSv">Save</button></div>';
+ card.querySelector('#agBk').onclick=()=>gate('start');card.querySelector('#agSv').onclick=async()=>{const v=card.querySelector('#agCid').value.trim();if(!/\.apps\.googleusercontent\.com$/.test(v))return setErr('Paste the client ID (it ends with .apps.googleusercontent.com).');CFG.gdClient=v;await saveCfg();gate('start')}}
+function rNoFile(){card.innerHTML=head('Open the app from its web address','Google sign-in only works when the app is opened from its web address (for example your GitHub Pages link), not from a file on this computer.')
+ +'<p class="ag-note">If your companies are saved in this copy, download them here, then open the web address, continue with Google and choose <b>Import from a backup file</b> on the company list.</p><div class="ag-acts"><button type="button" class="btn" id="agDl">Download my companies</button></div><p class="ag-err"></p>';
+ card.querySelector('#agDl').onclick=async()=>{const L=await legacyList();if(!L.length)return setErr('No companies are saved in this copy.');downloadJSON(L,'AJ-ERP_all-companies_'+td()+'.json')}}
+// Google
+async function google_(hint,btn){if(busyG)return;if(!clientId())return gate('setup');busyG=true;const done=busyBtn(btn,'Signing in…');setErr('');
+ try{const u=await IDPX.signIn(hint);const aid=await aidOf(u.email);let rec=await ADX.get();
+  if(rec&&rec.email&&rec.email!==u.email)throw new Error('The account data in Google Drive belongs to '+rec.email+'.');
+  if(!rec||!rec.ak){const p=await genPair();rec={app:'AJ ERP System',v:1,email:u.email,ak:b64e(rnd(32)),priv:p.priv,pub:p.pub,created:new Date().toISOString()};await ADX.put(rec)}
+  const sec={ak:rec.ak,priv:rec.priv,pub:rec.pub},keys=await openSecret(sec);
+  const L=await accts();const dev=L.find(x=>x.aid===aid);const acc={aid,email:u.email,name:u.name,pic:u.pic,vk:keys.vk,priv:keys.priv,pub:keys.pub};
+  if(!dev||!dev.pin){busyG=false;return gate('newpass',{acc,sec})}
+  Object.assign(dev,{email:u.email,name:u.name,pic:u.pic,lastG:Date.now(),fails:0});await putAcct(dev);ACC=acc;await afterUnlock()}
+ catch(e){console.error(e);setErr(e.message);done()}finally{busyG=false}}
+// passcode
+function rPass(){const a=gateArg;if(!a)return gate('start');const online=navigator.onLine!==false,old=online&&Date.now()-(a.lastG||0)>7*864e5,locked=(a.fails||0)>=5;
+ const why=sessionStorage.getItem('aj_lock_why');try{sessionStorage.removeItem('aj_lock_why')}catch(e){}
+ card.innerHTML=head('',why==='idle'?'Locked after a while with no use.':'')+'<div class="ag-me">'+av(a.name,a.pic)+'<div><b>'+esc(a.name)+'</b><small>'+esc(a.email)+'</small></div></div>'
+ +(old||locked?'<p class="ag-note">'+(locked?'Too many wrong passcodes on this device.':'Google sign-in is needed at least once a week.')+' Continue with Google to unlock.</p>'
+   :'<form id="agPF"><div class="form-group"><label for="agPin">Device passcode</label><input id="agPin" class="ag-pin" type="password" inputmode="numeric" autocomplete="current-password"></div><button class="btn" style="width:100%;justify-content:center;padding:10px">Unlock</button></form><div class="ag-sep">or</div>')
+ +'<button type="button" class="btn ag-g" id="agG">'+GICON+'<span>Continue with Google</span></button><p class="ag-err"></p><div style="text-align:center"><button type="button" class="ag-link" id="agOther">Use another account</button></div>';
+ card.querySelector('#agG').onclick=e=>google_(a.email,e.currentTarget);card.querySelector('#agOther').onclick=()=>gate('start');
+ const f=card.querySelector('#agPF');if(f){const i=card.querySelector('#agPin');setTimeout(()=>{try{i.focus()}catch(e){}},60);f.onsubmit=async e=>{e.preventDefault();if(busyG)return;busyG=true;const done=busyBtn(f.querySelector('button'),'Unlocking…');setErr('');
+  try{const L=await accts(),dev=L.find(x=>x.aid===a.aid);if(!dev)throw new Error('This account is no longer on this device.');let sec;
+   try{sec=await pinOpen(i.value,dev.pin)}catch(x){dev.fails=(dev.fails||0)+1;await putAcct(dev);gateArg=dev;if(dev.fails>=5){busyG=false;return renderGate()}throw new Error('Wrong passcode.'+(dev.fails>=3?' '+(5-dev.fails)+' tries left.':''))}
+   dev.fails=0;await putAcct(dev);const k=await openSecret(sec);ACC={aid:dev.aid,email:dev.email,name:dev.name,pic:dev.pic,vk:k.vk,priv:k.priv,pub:k.pub};await afterUnlock()}
+  catch(x){setErr(x.message);i.value='';i.focus();done()}finally{busyG=false}}}}
+function rNewPass(){const{acc}=gateArg||{};if(!acc)return gate('start');
+ card.innerHTML=head('Create a passcode for this device','You will use it to unlock quickly and when there is no internet. Google sign-in is still needed at least once a week.')
+ +'<div class="ag-me">'+av(acc.name,acc.pic)+'<div><b>'+esc(acc.name)+'</b><small>'+esc(acc.email)+'</small></div></div>'
+ +'<form id="agNP"><div class="form-group"><label for="agP1">Passcode (at least 6 digits or characters)</label><input id="agP1" class="ag-pin" type="password" inputmode="numeric" autocomplete="new-password"></div><div class="form-group"><label for="agP2">Repeat it</label><input id="agP2" class="ag-pin" type="password" inputmode="numeric" autocomplete="new-password"></div><button class="btn" style="width:100%;justify-content:center;padding:10px">Save passcode</button></form><p class="ag-err"></p>'
+ +'<p class="ag-note">Don’t use your phone’s unlock code or a birthday. Each device has its own passcode.</p>';
+ setTimeout(()=>{try{card.querySelector('#agP1').focus()}catch(e){}},60);
+ card.querySelector('#agNP').onsubmit=async e=>{e.preventDefault();const a=card.querySelector('#agP1').value,b=card.querySelector('#agP2').value;if(a.length<6)return setErr('Use at least 6 digits or characters.');if(/^(\d)\1+$/.test(a)||'0123456789012'.includes(a)||'9876543210987'.includes(a))return setErr('That passcode is too easy to guess.');if(a!==b)return setErr('The two entries do not match.');
+  const done=busyBtn(e.target.querySelector('button'),'Saving…');try{const pin=await pinBox(a,gateArg.sec);await putAcct({aid:acc.aid,email:acc.email,name:acc.name,pic:acc.pic,pin,lastG:Date.now(),fails:0,added:new Date().toISOString()});ACC=acc;await afterUnlock()}catch(x){setErr(x.message);done()}}}
+// after unlocking: load the vault, move old data in, then the company list (or straight back into the last company)
+async function afterUnlock(){window.AJLOCKED=false;lastAct=Date.now();Object.keys(LASTH).forEach(k=>delete LASTH[k]);
+ const list=await loadVault();window.__ajLoaded=list;loadFromLocalStorage();try{renderLoginCompanySelector()}catch(e){}
+ await loadCfg();if(!CFG.mode&&GD.tokOk()&&!TEST)autoRoot();else if(connected())(async()=>{try{if(await T().ready()){await ensureMarker();await publishMe()}}catch(e){}})();
+ const leg=(await legacyList()).filter(c=>!comp(c.id));if(leg.length)return gate('claim',{list:leg});
+ let ok=false;try{ok=window.AJSESSION&&AJSESSION.restore()}catch(e){console.error(e)}
+ if(ok){ls.classList.add('hidden');gateState='';setTimeout(cycle,1500)}else{gate('hub');setTimeout(cycle,1500)}}
+async function autoRoot(){try{const r=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files?q='+GD.q("name='"+MARK+"' and trashed=false")+'&fields=files(id,parents)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=20')).json();
+ const roots=[...new Set((r.files||[]).map(f=>f.parents&&f.parents[0]).filter(Boolean))];if(roots.length===1){const f=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files/'+roots[0]+'?fields=id,name&supportsAllDrives=true')).json();await useGdRoot(f.id,f.name);if(gateState==='hub')renderGate()}
+ else if(roots.length>1){ROOTS=[];for(const id of roots){try{const f=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files/'+id+'?fields=id,name,owners(emailAddress)&supportsAllDrives=true')).json();ROOTS.push(f)}catch(e){}}if(gateState==='hub')renderGate()}}catch(e){console.error(e)}}
+let ROOTS=[];
+// old data on this device (from before accounts): move each company into the account after proving you may
+async function rClaim(){const L=gateArg.list;card.innerHTML=head('Move your companies into your account','These companies were saved on this device before accounts. Move each one into your account to encrypt it. For a protected company, confirm with its Admin username and password once.')
+ +L.map(c=>{const us=Array.isArray(c.users)?c.users:[];const how=c.workspace==='encoder'?'Encoder workspace · confirm with your encoder login':us.length?'Confirm with an Admin login':c.passwordHash?'Confirm with the company password':'Not protected';return '<div class="ag-co"><span class="ag-ini">'+ini(c.name)+'</span><span><b>'+esc(c.name)+'</b><small>'+esc(how)+'</small></span><button type="button" class="btn btn-sm" data-cl="'+esc(c.id)+'">Move in</button></div>'}).join('')
+ +'<p class="ag-err"></p><div class="ag-foot"><span>Before moving, you can keep a plain backup file of all of them: <button type="button" class="ag-link" id="agDl">Download backup</button></span><span><button type="button" class="ag-link" id="agLater">Leave the rest for now</button> · <button type="button" class="ag-link" id="agDel" style="color:var(--danger,#dc2626)">Delete the rest from this device</button></span></div>';
+ card.querySelector('#agDl').onclick=()=>downloadJSON(L,'AJ-ERP_backup-before-accounts_'+td()+'.json');
+ card.querySelector('#agLater').onclick=()=>{toast('The rest stay on this device, unencrypted, until someone moves them in.');gate('hub')};
+ card.querySelector('#agDel').onclick=async()=>{if(!confirm('Delete the '+L.length+' remaining unencrypted compan'+(L.length===1?'y':'ies')+' from this device? Companies already moved in are not affected. This cannot be undone unless you have a backup file.'))return;const all=await legacyList();await setLegacy(all.filter(c=>!L.some(x=>x.id===c.id)));gate('hub')};
+ card.querySelectorAll('[data-cl]').forEach(b=>b.onclick=()=>claim(L.find(c=>c.id===b.dataset.cl)))}
+async function verifyOwn(c,title){const us=Array.isArray(c.users)?c.users:[];
+ if(us.length){const m=mdl('<h2 style="margin-top:0">'+esc(title||c.name)+'</h2><p class="hr-note">Sign in once with '+(c.workspace==='encoder'?'your encoder login':'an <b>Admin</b> login of this company')+'.</p><form><div class="form-group"><label for="cvU">Username</label><input id="cvU" autocapitalize="none" autocomplete="username"></div><div class="form-group"><label for="cvP">Password</label><input id="cvP" type="password" autocomplete="current-password"></div><p class="ag-err" style="color:var(--danger,#dc2626)"></p><div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button class="btn">Confirm</button></div></form>',460);
+  return new Promise(res=>{m.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{m.remove();res(null)});let tries=0;m.q('form').onsubmit=async e=>{e.preventDefault();const un=m.q('#cvU').value.trim().toLowerCase(),pw=m.q('#cvP').value;if(tries>=5)await new Promise(r=>setTimeout(r,1500*Math.min(tries-4,6)));
+   const u=us.find(x=>String(x.username||'').toLowerCase()===un&&x.active!==false&&(c.workspace==='encoder'||x.role==='admin'));if(!u||!(await window.RQAPI.checkPw(u,pw))){tries++;m.q('.ag-err').textContent='That username and password do not match'+(c.workspace==='encoder'?'.':' an active Admin.');return}m.remove();res(u)}})}
+ if(c.passwordHash){const p=await askText(c.name,'Enter the company password once.','Company password','password');if(p==null)return null;if((await hashPassword(p))!==c.passwordHash){toast('Incorrect company password.','error');return null}return{}}
+ return confirm('“'+c.name+'” is not protected by any password. Move it into your account?')?{}:null}
+async function claim(c){if(!c)return;const u=await verifyOwn(c);if(!u)return;const x=clone(c);if(!Array.isArray(x.users))x.users=[];
+ const mine=x.users.find(y=>String(y.email||'').toLowerCase()===ACC.email);
+ if(u.id){const t=x.users.find(y=>y.id===u.id);if(t&&!mine)t.email=ACC.email}
+ else if(!mine){x.passwordHash=null;if(!x.users.some(y=>y.role==='admin'))x.users.unshift({id:'u_'+rid(),name:ACC.name,username:ACC.email,email:ACC.email,role:'admin',active:true});else x.users.push({id:'u_'+rid(),name:ACC.name,username:ACC.email,email:ACC.email,role:'admin',active:true})}
+ normalize(x);companies.push(x);
+ try{const s=await kget('syncs:'+c.id);if(s){s.v1=true;await vset('syncs:'+c.id,s);const b=await kget('syncb:'+c.id);if(b)await vset('syncb:'+c.id,b);await kdel('syncs:'+c.id);await kdel('syncb:'+c.id)}}catch(e){console.error(e)}
+ pending=true;await flushNow();const all=await legacyList();await setLegacy(all.filter(y=>y.id!==c.id));
+ const rest=gateArg.list.filter(y=>y.id!==c.id);toast(c.name+' is now in your account.','success');if(rest.length)gate('claim',{list:rest});else gate('hub')}
+// the company list
+const roleName=r=>({admin:'Admin',bookkeeper:'Bookkeeper',accountant:'Accountant',encoder:'Encoder',custom:'Custom'}[r]||r);
+function coRole(c){if(c.workspace==='encoder')return'Encoder workspace';const u=myUser(c);if(u)return u.role==='custom'&&u.title?u.title:roleName(u.role);if(!(c.users||[]).length)return'Admin';return'Sign in with username'}
+const coIni=c=>'<span class="ag-ini">'+(c.logo&&/^data:image\//.test(c.logo)?'<img src="'+esc(c.logo)+'" alt="">':ini(c.name))+'</span>';
+async function rHub(){if(!ACC)return gate('start');const L=companies.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+ card.innerHTML='<div class="ag-me">'+av(ACC.name,ACC.pic)+'<div><b>'+esc(ACC.name)+'</b><small>'+esc(ACC.email)+'</small></div><button type="button" class="btn btn-outline btn-sm" id="agLock">Lock</button></div>'
+ +'<h4>Your companies</h4>'+(L.length?L.map(c=>'<button type="button" class="ag-co" data-co="'+esc(c.id)+'">'+coIni(c)+'<span><b>'+esc(c.name)+'</b><small>'+esc(c.tin?'TIN '+c.tin:c.workspace?'Data entry':'')+'</small></span><span class="ag-pill">'+esc(coRole(c))+'</span></button>').join(''):'<p class="ag-note">No companies on this device yet. Create one, or open one that was shared with you.</p>')
+ +'<div id="agShared"></div>'
+ +'<div class="ag-acts"><button type="button" class="btn btn-sm" id="agNew">+ Create company</button><button type="button" class="btn btn-outline btn-sm" id="agPkg">Open a file from your admin</button><button type="button" class="btn btn-outline btn-sm" id="agImp">Import from a backup file</button></div>'
+ +'<div class="ag-foot"><span>Sync folder: <b>'+esc(CFG.mode==='fs'?FS.label():CFG.mode==='gd'?GD.label():'not connected')+'</b> <button type="button" class="ag-link" id="agFold">'+(CFG.mode?'Change':'Set up')+'</button></span><span>Lock this device after '+idleSel('agIdle')+' of no use</span><span><button type="button" class="ag-link" id="agSw">Switch account</button> · <button type="button" class="ag-link" id="agRm" style="color:var(--danger,#dc2626)">Remove my account from this device</button></span></div>';
+ card.querySelectorAll('[data-co]').forEach(b=>b.onclick=()=>enter(b.dataset.co));
+ card.querySelector('#agLock').onclick=()=>lock();card.querySelector('#agSw').onclick=()=>lock('switch');
+ card.querySelector('#agNew').onclick=()=>openCreateCompanyModal();
+ card.querySelector('#agPkg').onclick=()=>pickJSON(t=>{try{ROLEMOD.loadPackage(t,false)}catch(e){toast(e.message)}setTimeout(()=>{if(gateState==='hub')renderGate()},300)});
+ card.querySelector('#agImp').onclick=()=>pickJSON(importBackup);
+ card.querySelector('#agFold').onclick=()=>folderMenu();bindIdle(card.querySelector('#agIdle'));
+ card.querySelector('#agRm').onclick=removeAccount;
+ renderShared()}
+function pickJSON(cb){const i=document.createElement('input');i.type='file';i.accept='.json,application/json';i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>cb(String(r.result));r.readAsText(f)};i.click()}
+function folderMenu(){const m=mdl('<h2 style="margin-top:0">Sync folder</h2><p class="hr-note">The shared Google Drive folder where synced companies live. Everyone you add with a Google email gets access to it.</p><div class="sy-row">'+(canGD()?'<button class="btn btn-sm" id="fmG">Use a Google Drive folder</button>':'')+(canFS()?'<button class="btn btn-sm btn-outline" id="fmF">Use the Drive folder on this computer</button>':'')+'</div>'+(ROOTS.length>1?'<h4 style="margin:1rem 0 .4rem">Folders shared with you</h4>'+ROOTS.map(f=>'<button class="ag-acc" data-rt="'+esc(f.id)+'" style="display:flex;gap:8px;align-items:center;width:100%;padding:8px 10px;border:1px solid var(--border-color);border-radius:10px;background:none;color:inherit;margin-bottom:6px;cursor:pointer"><b>'+esc(f.name)+'</b><small class="bk-mut">'+esc(((f.owners||[])[0]||{}).emailAddress||'')+'</small></button>').join(''):'')+'<div style="text-align:right;margin-top:1rem"><button class="btn btn-outline" data-x>Close</button></div>',560);
+ const g=m.q('#fmG');if(g)g.onclick=()=>{m.remove();gdSetup(()=>renderGate())};const f=m.q('#fmF');if(f)f.onclick=async()=>{m.remove();await pickFolder();renderGate()};
+ m.querySelectorAll('[data-rt]').forEach(b=>b.onclick=async()=>{const r=ROOTS.find(x=>x.id===b.dataset.rt);await useGdRoot(r.id,r.name);ROOTS=[];m.remove();renderGate()})}
+let shBusy=false;
+async function renderShared(){const box=$('agShared');if(!box||!ACC||shBusy)return;
+ if(!connected()){box.innerHTML=ROOTS.length>1?'<p class="ag-note" style="margin-top:.6rem">Several sync folders were shared with you. <button type="button" class="ag-link" id="agPickRoot">Choose one</button></p>':'';const p=$('agPickRoot');if(p)p.onclick=folderMenu;return}
+ let ready=false;try{ready=await T().ready()}catch(e){}
+ if(!ready){box.innerHTML='<h4>Shared with you</h4><p class="ag-note">'+(CFG.mode==='gd'?'Sign in to Google to see companies shared with you.':'Allow access to the sync folder to see companies shared with you.')+' <button type="button" class="ag-link" id="agConn">'+(CFG.mode==='gd'?'Continue with Google':'Allow access')+'</button></p>';$('agConn').onclick=async()=>{if(await access())renderShared()};return}
+ shBusy=true;try{await publishMe();const out=[];for(const d of await T().dirs('')){if(d[0]==='_'||comp(d))continue;const i=await readInfo(d);if(!i||!i.id)continue;if(i.v===2){if((i.members||[]).includes(ACC.email))out.push({id:d,name:i.name,ok:!!(i.keys&&i.keys[ACC.aid])})}else out.push({id:d,name:i.name,v1:true})}
+  box.innerHTML=out.length?'<h4>Shared with you</h4>'+out.map(x=>'<div class="ag-co"><span class="ag-ini">'+ini(x.name)+'</span><span><b>'+esc(x.name)+'</b><small>'+(x.v1?'Uses a sync passphrase':x.ok?'Ready to open on this device':'Waiting for approval. This happens automatically the next time an Admin’s app syncs.')+'</small></span>'+(x.ok||x.v1?'<button type="button" class="btn btn-sm" data-op="'+esc(x.id)+'"'+(x.v1?' data-v1="1"':'')+'>Open</button>':'<button type="button" class="btn btn-outline btn-sm" data-chk>Check again</button>')+'</div>').join(''):'';
+  box.querySelectorAll('[data-chk]').forEach(b=>b.onclick=()=>renderShared());
+  box.querySelectorAll('[data-op]').forEach(b=>b.onclick=async()=>{const done=busyBtn(b,'Opening…');try{if(b.dataset.v1){const p=await askText('Sync passphrase','This company was set up with a passphrase. Ask an Admin for it, or ask them to switch it to account access in Settings › Sync & Backup.','Passphrase','password');if(!p){done();return}await joinV1(b.dataset.op,p)}else await openShared(b.dataset.op);toast('Opened on this device.','success');await enter(b.dataset.op)}catch(e){toast(e.message,'error');done()}})}
+ catch(e){box.innerHTML='<p class="ag-note">'+esc(e.message)+'</p>'}finally{shBusy=false}}
+async function importBackup(text){let d;try{d=JSON.parse(text)}catch(e){return toast('That file is not a backup.')}const arr=(Array.isArray(d)?d:[d]).filter(x=>x&&x.id&&Array.isArray(x.chartOfAccounts));if(!arr.length)return toast('No companies found in that file.');
+ const fresh=arr.filter(x=>!comp(x.id));if(!fresh.length)return toast('Those companies are already in your account.');gate('claim',{list:fresh})}
+// entering a company
+async function enter(cid){const c=comp(cid);if(!c)return;let u=myUser(c);
+ if(!u&&!c.workspace&&!(c.users||[]).length){c.passwordHash=null;c.users=[{id:'u_'+rid(),name:ACC.name,username:ACC.email,email:ACC.email,role:'admin',active:true}];u=c.users[0];saveToLocalStorage()}
+ if(!u){const v=await verifyOwn(c,'Sign in to '+c.name);if(!v||!v.id)return;u=(c.users||[]).find(x=>x.id===v.id);
+  if(u&&!c.workspace&&!u.email&&!(c.users||[]).some(x=>String(x.email||'').toLowerCase()===ACC.email)&&confirm('Link this login to your Google account ('+ACC.email+')? Next time it opens without a username and password.')){u.email=ACC.email;saveToLocalStorage()}}
+ if(!u||u.active===false)return toast('Your access to this company is inactive. Ask an Admin.');
+ gateState='';ROLEMOD.enterAs(c,u)}
+async function removeAccount(){if(!ACC)return;const n=companies.length;if(!confirm('Remove your account from this device?\n\nThe '+n+' compan'+(n===1?'y':'ies')+' saved here for '+ACC.email+' will be deleted from this device. Companies that sync stay in Google Drive and can be opened again by signing in.'))return;
+ if(prompt('Type REMOVE to confirm')!=='REMOVE')return;const aid=ACC.aid;await flushNow();ACC=null;
+ try{for(const k of await kkeys())if(String(k).startsWith('v:'+aid+':'))await kdel(k)}catch(e){}const L=(await accts()).filter(a=>a.aid!==aid);await kset('accts',L);try{sessionStorage.clear()}catch(e){}location.reload()}
+// lock: save, forget the keys and reload so nothing stays in memory
+async function lock(why){if(!ACC){gate('start');return}const aid=ACC.aid;await flushNow();ACC=null;GD.tok='';try{if(why==='switch'){sessionStorage.removeItem('aj_session');sessionStorage.removeItem('aj_lock_aid')}else{sessionStorage.setItem('aj_lock_aid',aid);if(why==='idle')sessionStorage.setItem('aj_lock_why','idle')}}catch(e){}location.reload()}
+let lastAct=Date.now();['pointerdown','keydown','wheel','touchstart'].forEach(ev=>addEventListener(ev,()=>{lastAct=Date.now()},{passive:true,capture:true}));
+setInterval(()=>{const m=idleMin();if(ACC&&m&&Date.now()-lastAct>m*60000)lock('idle')},15000);
+// company list after "Log off" / "Switch company"; "Sign out" locks
+{const o=window.logOff;window.logOff=function(){const r=o.apply(this,arguments);if(!activeCompanyId&&ACC){gate('hub')}return r}}
+{const o=window.saveNewCompany;window.saveNewCompany=async function(e){const n=companies.length;const r=await o.apply(this,arguments);if(companies.length>n&&ACC){const c=companies[companies.length-1];gateState='';setTimeout(()=>enter(c.id),60)}return r}}
+// the header: Sign out (lock)
+{const lo=document.querySelector('header .header-right button[onclick="logOff()"]');if(lo){lo.setAttribute('onclick','AJACCT.lock()');lo.title='Sign out (lock)';lo.lastChild&&(lo.lastChild.textContent=' Sign out')}}
 // ---------- start-up ----------
-loadCfg().then(paint);
-window.AJSYNC={syncCo,startSync,joinSync,flatC,setAt,delAt,H,st:cid=>ST[cid],useTransport:t=>{TEST=t},key,kget,kset,flush:()=>{pending=true;return flush()},DEV,setCfg:c=>Object.assign(CFG,c),conflicts,FS};
+const oOnload=window.onload;
+window.onload=async function(){const args=arguments;try{await db();IDB_OK=true}catch(e){IDB_OK=false}
+ window.AJLOCKED=true;window.__ajLoaded=[];
+ try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+ const r=oOnload?oOnload.apply(this,args):undefined;
+ try{await boot()}catch(e){console.error(e)}return r};
+async function boot(){await loadCfg();paint();
+ if(!IDB_OK){showGate();card.innerHTML=head('Storage is blocked','This browser is not letting the app save data (a private window, or site data is blocked). Open the app in a normal window.');return}
+ if(window.AJ_TEST_HOLD)return;
+ if(!canGD())return gate('nofile');
+ const L=await accts();let pre=null;try{pre=sessionStorage.getItem('aj_lock_aid');sessionStorage.removeItem('aj_lock_aid')}catch(e){}
+ const a=pre&&L.find(x=>x.aid===pre)||(L.length===1?L[0]:null);if(a)return gate('pass',a);return gate('start')}
+if('serviceWorker' in navigator&&location.protocol==='https:'){addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+window.AJACCT={lock,me:()=>ACC&&{email:ACC.email,name:ACC.name,pic:ACC.pic},emails,membersChanged,gate,enter};
+window.AJSYNC={syncCo,startSync,openShared,joinV1,upgrade,rotate,readInfo,flatC,setAt,delAt,H,st:cid=>ST[cid],useTransport:t=>{TEST=t},key,kget,kset,kkeys,flush:()=>flushNow(),DEV,setCfg:c=>Object.assign(CFG,c),conflicts,FS,GD,
+ useIdp:(i,a,d)=>{IDPX=i;ADX=a;if(d)DRVX=d},boot,cycle,afterUnlockForTest:async(acc)=>{ACC=acc;await afterUnlock()},acc:()=>ACC,legacyList,gateState:()=>gateState,devSet:c=>{try{localStorage.setItem('aj_dev_id',c)}catch(e){}}};
 })();
 
 </script>
