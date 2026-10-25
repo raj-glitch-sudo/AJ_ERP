@@ -5348,6 +5348,482 @@ window.HRMOD={calc,periodLabel,regHtml,slipsHtml,docHtml,cleanHr,runSums};
 })();
 
 
+// ===== Banking module: check calendar, check register, bank transactions and bank accounts =====
+(function(){
+const $=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml;
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const MONTHS=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+const WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const c100=v=>{const n=parseFloat(v);return Number.isFinite(n)&&n>0?Math.round(n*100):0};
+const n2=c=>(c/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const sn2=c=>(c<0?'-':'')+n2(Math.abs(c));
+const r2=n=>Math.round((parseFloat(n)||0)*100)/100;
+const td=()=>localDateStr(new Date());
+const fd=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+const DT=/^\d{4}-\d{2}-\d{2}$/;
+const ST=['OUTSTANDING','CLEARED','CANCELLED'];
+const TYPES=['Cash Deposit','Check Deposit','Fund Transfer','Withdrawal','Bank Charge','Interest Earned'];
+const IN_T=['Cash Deposit','Check Deposit','Interest Earned'],OUT_T=['Withdrawal','Bank Charge'];
+const nameCmp=(a,b)=>String(a==null?'':a).localeCompare(String(b==null?'':b),undefined,{numeric:true,sensitivity:'base'});
+const nk=s=>String(s==null?'':s).replace(/[^0-9a-z]/gi,'').toLowerCase();
+const B=()=>{const c=C();if(!c.bank||typeof c.bank!=='object')c.bank={};const b=c.bank;['accounts','checks','txns'].forEach(k=>{if(!Array.isArray(b[k]))b[k]=[]});
+ if(!b.settings||typeof b.settings!=='object')b.settings={};if(b.settings.postOn!=='issued')b.settings.postOn='due';if(!b.seq||typeof b.seq!=='object')b.seq={txn:0};return b};
+const accOf=id=>B().accounts.find(a=>a.id===id);
+const label=a=>a?((a.bank||'Bank')+(a.branch?' '+a.branch:'')+' – '+a.number):'(no account)';
+const coa=()=>C().chartOfAccounts,okCode=code=>coa().some(a=>a.code===code&&!a.isContra);
+const glName=code=>{const a=coa().find(x=>x.code===code);return a?a.code+' – '+a.title:''};
+const apCode=()=>(coa().find(a=>a.roleTag==='ap'&&!a.isContra)||{}).code||null;
+let posted=new Set();
+
+// ---------- journal posting (rebuilt from the banking records every time they change) ----------
+// Check:      Dr Accounts Payable (or the account chosen on the check) / Cr Cash in Bank, dated on the check date (or date issued, per setting)
+// Deposits:   Dr Cash in Bank / Cr Cash on Hand (or chosen)     Withdrawal: Dr Cash on Hand / Cr Cash in Bank
+// Transfer:   Dr receiving bank / Cr sending bank               Bank charge / interest: expense or income account
+// Only bank accounts linked to a ledger account post, and only from their "post from" date. Monitor-only accounts never touch the books.
+const postGl=(a,date)=>a&&a.gl&&okCode(a.gl)&&date&&(!a.postFrom||date>=a.postFrom)?a.gl:null;
+function cashOnHand(){const linked=new Set(B().accounts.map(a=>a.gl).filter(Boolean));const cs=coa().filter(a=>a.roleTag==='cash'&&!a.isContra&&!linked.has(a.code));return (cs.find(a=>/hand|petty|undeposit|fund/i.test(a.title))||cs[0]||{}).code||null}
+function defCounter(t){
+ const find=(cat,rx)=>(coa().find(a=>a.category===cat&&!a.isContra&&rx.test(a.title))||{}).code||null;
+ if(t.type==='Bank Charge')return find('Expense',/bank|service charge/i);
+ if(t.type==='Interest Earned')return find('Revenue',/interest/i);
+ if(t.type==='Fund Transfer'){const gA=postGl(accOf(t.acct),t.date),gS=postGl(accOf(t.source),t.date);
+  if(gA&&!gS)return find('Equity',/capital|contribut/i)||find('Equity',/./);if(gS&&!gA)return find('Equity',/drawing|withdraw/i)||find('Equity',/./);return null}
+ return cashOnHand();
+}
+const chkDate=k=>B().settings.postOn==='issued'?(k.issued||k.due):k.due;
+function chkEntry(k){
+ if(k.status==='CANCELLED'||!(k.amount>0))return null;
+ const date=chkDate(k),g=postGl(accOf(k.acct),date);if(!g)return null;
+ const dr=okCode(k.debit)?k.debit:apCode();if(!dr||dr===g)return null;
+ const amt=r2(k.amount);
+ return{id:'entry_bank_chk_'+k.id,date,ref:'CHK-'+k.number,desc:'Check '+k.number+(k.payee?' – '+k.payee:'')+(k.particulars?' – '+k.particulars:''),lines:[{accountCode:dr,debit:amt,credit:0},{accountCode:g,debit:0,credit:amt}],fileAttachment:null,src:'bank',bankKind:'chk',bankId:k.id};
+}
+function txnEntry(t){
+ const amt=r2(t.amount);if(!(amt>0)||!DT.test(t.date||''))return null;
+ const gA=postGl(accOf(t.acct),t.date),gS=t.type==='Fund Transfer'?postGl(accOf(t.source),t.date):null;
+ if(!gA&&!gS)return null;
+ const ctr=okCode(t.counter)?t.counter:defCounter(t);let dr=null,cr=null;
+ if(IN_T.includes(t.type)){dr=gA;cr=ctr}else if(OUT_T.includes(t.type)){dr=ctr;cr=gA}
+ else if(gA&&gS){dr=gA;cr=gS}else if(gA){dr=gA;cr=ctr}else{dr=ctr;cr=gS}
+ if(!dr||!cr||dr===cr)return null;
+ const a=accOf(t.acct),s=accOf(t.source);
+ return{id:'entry_bank_txn_'+t.id,date:t.date,ref:String(t.ref||t.type).slice(0,40),desc:t.type+(t.type==='Fund Transfer'?' – '+(s?label(s):'outside account')+' to '+label(a):' – '+label(a))+(t.notes?' – '+t.notes:''),
+  lines:[{accountCode:dr,debit:amt,credit:0},{accountCode:cr,debit:0,credit:amt}],fileAttachment:null,src:'bank',bankKind:'txn',bankId:t.id};
+}
+function sync(){
+ const c=C();if(!c)return;const b=B(),out=[];
+ b.checks.forEach(k=>{const e=chkEntry(k);if(e)out.push(e)});b.txns.forEach(t=>{const e=txnEntry(t);if(e)out.push(e)});
+ c.journalEntries=c.journalEntries.filter(e=>e.src!=='bank').concat(out);posted=new Set(out.map(e=>e.bankId));
+}
+function refreshBooks(){try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}}
+function commit(){sync();saveToLocalStorage();refreshBooks()}
+function booksBadge(id,acctId,cancelled){
+ if(cancelled)return '<span class="bk-mut">–</span>';
+ if(posted.has(id))return '<span class="badge badge-vat">Posted</span>';
+ const a=accOf(acctId);
+ return a&&a.gl?'<span class="badge badge-credit" title="Dated before the account\'s posting start date, or no account to post against">Not posted</span>':'<span class="bk-mut" title="This bank account is not linked to the books">Monitor only</span>';
+}
+
+// ---------- helpers ----------
+function modal(html,w){
+ document.querySelectorAll('.bk-modal.hidden').forEach(x=>x.remove());
+ const m=document.createElement('div');m.className='modal-overlay bk-modal';
+ m.innerHTML='<div class="modal" style="max-width:'+(w||720)+'px">'+html+'</div>';
+ m.addEventListener('mousedown',e=>{if(e.target===m)m.remove()});document.body.appendChild(m);
+ const x=m.querySelector('[data-x]');if(x)x.onclick=()=>m.remove();return m;
+}
+function fillSel(sel,opts,keep){const cur=keep!==undefined?keep:sel.value;sel.innerHTML=opts.map(o=>'<option value="'+esc(o[0])+'">'+esc(o[1])+'</option>').join('');sel.value=opts.some(o=>o[0]===cur)?cur:opts[0][0]}
+const acctOpts=all=>(all?[['ALL','All accounts']]:[]).concat([...B().accounts].sort((a,b)=>nameCmp(label(a),label(b))).map(a=>[a.id,label(a)]));
+function download(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+text],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
+const csvCell=v=>{let s=String(v==null?'':v);if(/^[=+\-@\t\r]/.test(s)&&!/^-?\d+(\.\d+)?$/.test(s))s="'"+s;return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+const toCsv=rows=>rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+function parseCsv(t){const rows=[];let r=[],f='',q=false;t=String(t).replace(/^﻿/,'');
+ for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}else if(c==='"')q=true;else if(c===','){r.push(f);f=''}else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;r.push(f);f='';if(r.some(x=>x.trim()!==''))rows.push(r);r=[]}else f+=c}
+ r.push(f);if(r.some(x=>x.trim()!==''))rows.push(r);return rows}
+function parseDate(s){s=String(s||'').trim();if(!s)return '';if(DT.test(s))return s;
+ const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(m&&+m[1]>=1&&+m[1]<=12&&+m[2]>=1&&+m[2]<=31)return m[3]+'-'+String(m[1]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0');
+ if(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d+$/.test(s))return '';const d=new Date(s);return isNaN(d)||d.getFullYear()<1990||d.getFullYear()>2100?'':localDateStr(d)}
+const num=s=>parseFloat(String(s==null?'':s).replace(/[^0-9.\-]/g,''))||0;
+const payees=()=>{const s=new Map();((C().inv&&C().inv.suppliers)||[]).forEach(x=>{if(x&&x.name&&x.active!==false)s.set(nk(x.name),x.name)});B().checks.forEach(k=>{if(k.payee&&!s.has(nk(k.payee)))s.set(nk(k.payee),k.payee)});return [...s.values()].sort(nameCmp)};
+function nextNo(acctId){
+ const ks=B().checks.filter(k=>k.acct===acctId&&/^\d+$/.test(k.number)).sort((a,b)=>(a.txn||0)-(b.txn||0)||nameCmp(a.number,b.number));
+ if(!ks.length)return '';const l=ks[ks.length-1].number;return String(+l+1).padStart(l.length,'0');
+}
+const isOverdue=k=>k.status==='OUTSTANDING'&&k.due&&k.due<td();
+const stBadge=k=>k.status==='CLEARED'?'<span class="badge badge-vat">CLEARED</span>':k.status==='CANCELLED'?'<span class="badge badge-contra">CANCELLED</span>':isOverdue(k)?'<span class="badge badge-credit" title="Due date has passed and the check has not cleared">OUTSTANDING</span>':'<span class="badge badge-debit">OUTSTANDING</span>';
+
+// ---------- styles, sidebar, pages ----------
+document.body.querySelector(':scope>svg').insertAdjacentHTML('beforeend','<symbol id="i-bank" viewBox="0 0 24 24"><path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></symbol>');
+document.head.insertAdjacentHTML('beforeend','<style>'
+ +'.bk-top{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;justify-content:space-between;margin-bottom:1rem}.bk-top .hr-bar{margin:0}'
+ +'.bk-nav{display:flex;gap:6px;align-items:center}.bk-nav .bk-title{font-family:Fraunces,Georgia,serif;font-size:1.25rem;font-weight:600;min-width:170px;text-align:center}'
+ +'.bk-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:1rem}'
+ +'.bk-kpi{border:1px solid var(--border-color);border-radius:12px;padding:10px 14px;background:var(--bg-card)}.bk-kpi span{font-size:.8rem;color:var(--text-muted);font-weight:600}.bk-kpi b{display:block;font-size:1.3rem;font-variant-numeric:tabular-nums;margin-top:2px}.bk-kpi small{color:var(--text-muted)}.bk-kpi.warn b{color:var(--ember)}'
+ +'.bk-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--border-color);border:1px solid var(--border-color);border-radius:12px;overflow:hidden}'
+ +'.bk-wd{background:var(--bg-card);text-align:center;font-weight:700;font-size:.75rem;padding:7px 4px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em}'
+ +'.bk-day{background:var(--bg-card);min-height:120px;display:flex;flex-direction:column;cursor:pointer;min-width:0}.bk-day:hover{background:rgba(128,150,190,.07)}'
+ +'.bk-day.off{background:rgba(128,150,190,.07)}.bk-day.off>*{opacity:.55}'
+ +'.bk-dn{font-weight:700;font-size:.78rem;padding:4px 8px;background:rgba(229,48,63,.12);color:#b4232f}body.dark-mode .bk-dn{color:#ff8a94}.bk-day.today .bk-dn{background:var(--ember);color:#fff}'
+ +'.bk-items{flex:1;padding:4px;display:flex;flex-direction:column;gap:1px}'
+ +'.bk-chk{display:flex;justify-content:space-between;gap:6px;border:0;background:none;padding:2px 5px;border-radius:5px;font:inherit;font-size:.76rem;color:var(--text-main);cursor:pointer;text-align:left;font-variant-numeric:tabular-nums;width:100%}'
+ +'.bk-chk:hover{background:rgba(128,150,190,.18)}.bk-chk .no{font-weight:600}.bk-chk.cl{color:#13805a}.bk-chk.cl .no::after{content:" ✓"}body.dark-mode .bk-chk.cl{color:#5fd1a0}.bk-chk.od{color:var(--ember)}'
+ +'.bk-dt{border-top:1px solid var(--border-color);padding:4px 8px;text-align:right;font-weight:700;font-size:.8rem;font-variant-numeric:tabular-nums}.bk-dt.z{color:var(--text-muted);font-weight:400}'
+ +'.bk-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.78rem;color:var(--text-muted);margin:.6rem 0 0}.bk-legend i{font-style:normal;font-weight:700}.bk-legend .cl{color:#13805a}.bk-legend .od{color:var(--ember)}'
+ +'.bk-mut{color:var(--text-muted);font-size:.85rem}'
+ +'.bk-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}'
+ +'.bk-card{border:1px solid var(--border-color);border-radius:14px;padding:14px 16px;background:var(--bg-card)}.bk-card h3{margin:0;font-size:1.05rem}.bk-card .sub{color:var(--text-muted);font-size:.85rem;margin:.15rem 0 .7rem}'
+ +'.bk-fig{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:.88rem}.bk-fig b{font-variant-numeric:tabular-nums;text-align:right}.bk-fig .tot{border-top:1px solid var(--border-color);padding-top:4px;font-weight:700}'
+ +'.bk-tbl td.wrap{white-space:normal;min-width:180px}.bk-tbl select.bk-st{padding:3px 6px;font-size:.78rem}'
+ +'@media(max-width:768px){.bk-grid{grid-template-columns:1fr}.bk-wd,.bk-day.off,.bk-day.empty{display:none}.bk-day{min-height:0}.bk-dn::after{content:" • " attr(data-wd)}}'
+ +'</style>');
+
+const par=document.createElement('li');par.id='nav-bank-parent';par.tabIndex=0;par.setAttribute('role','button');par.title='Banking';
+par.innerHTML='<span class="nav-icon"><svg class="i"><use href="#i-bank"/></svg></span><span class="nav-text">Banking</span><span class="chevron-icon" id="bkChevron" style="font-size:0.75rem;"><svg class="i"><use href="#i-chev"/></svg></span>';
+const sub=document.createElement('ul');sub.className='sub-menu';sub.id='bankSubMenu';sub.style.display='none';
+[['cal','Check Calendar'],['chk','Check Register'],['txn','Bank Transactions'],['acc','Bank Accounts']].forEach(n=>{
+ const li=document.createElement('li');li.id='nav-sub-bk-'+n[0];li.textContent=n[1];li.tabIndex=0;li.setAttribute('role','button');
+ li.onclick=()=>showTab('bk-'+n[0]);li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();li.click()}};sub.appendChild(li)});
+function toggleBk(force){
+ if(document.body.classList.contains('collapsed')&&window.innerWidth>768)document.body.classList.remove('collapsed');
+ const open=typeof force==='boolean'?force:sub.style.display==='none';sub.style.display=open?'block':'none';$('bkChevron').classList.toggle('open',open);
+}
+par.onclick=()=>toggleBk();par.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();par.click()}};
+const anchor=$('hrSubMenu')||$('reportsSubMenu');anchor.insertAdjacentElement('afterend',par);par.insertAdjacentElement('afterend',sub);
+
+const yrSel=id=>'<select id="'+id+'"></select>';
+document.querySelector('main.main-content').insertAdjacentHTML('beforeend',
+ '<div id="tab-bk-cal" class="tab-section"><div class="card"><div class="bk-top"><div class="bk-nav"><button class="btn btn-outline btn-sm" id="bkPrev" aria-label="Previous month">&#8249;</button><div class="bk-title" id="bkTitle"></div><button class="btn btn-outline btn-sm" id="bkNext" aria-label="Next month">&#8250;</button><button class="btn btn-outline btn-sm" id="bkToday">This month</button></div>'
+ +'<div class="hr-bar"><div class="form-group"><label for="bkCMon">Month</label><select id="bkCMon">'+MONTHS.map((m,i)=>'<option value="'+i+'">'+m+'</option>').join('')+'</select></div><div class="form-group" style="min-width:90px"><label for="bkCYr">Year</label><input type="number" id="bkCYr" min="2000" max="2100" style="width:100px"></div><div class="form-group"><label for="bkCAcct">Bank account</label><select id="bkCAcct"></select></div><button class="btn" id="bkCNew" type="button">+ New Check</button></div></div>'
+ +'<div class="bk-kpis" id="bkKpis"></div><div id="bkCal"></div><div class="bk-legend"><span><i>10732</i> outstanding</span><span class="cl"><i>10732 ✓</i> cleared</span><span class="od"><i>10732</i> past due, not yet cleared</span><span>Click a check to open it, or an empty part of a day to write a check due that day. Cancelled checks are not shown.</span></div></div></div>'
+ +'<div id="tab-bk-chk" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Check Register</h2><div class="hr-acts"><button class="btn btn-outline" data-act="imp">Import CSV</button><button class="btn btn-outline" data-act="csv">Export CSV</button><button class="btn" data-act="new">+ New Check</button></div></div>'
+ +'<div class="hr-bar"><div class="form-group grow"><label for="bkKQ">Search</label><input type="search" id="bkKQ" placeholder="Check no., payee or particulars"></div><div class="form-group"><label for="bkKAcct">Bank account</label><select id="bkKAcct"></select></div><div class="form-group"><label for="bkKSt">Status</label><select id="bkKSt"><option value="ALL">All</option><option value="OUTSTANDING">Outstanding</option><option value="OVERDUE">Outstanding, past due</option><option value="CLEARED">Cleared</option><option value="CANCELLED">Cancelled</option></select></div><div class="form-group"><label for="bkKYr">Due year</label>'+yrSel('bkKYr')+'</div><div class="form-group"><label for="bkKMon">Due month</label><select id="bkKMon"><option value="ALL">All</option>'+MONTHS.map((m,i)=>'<option value="'+(i+1)+'">'+m+'</option>').join('')+'</select></div></div>'
+ +'<p class="hr-note" id="bkKInfo"></p><div class="hr-scroll"><table class="hr-tbl bk-tbl"><thead><tr><th>Txn #</th><th>Date Issued</th><th>Check No.</th><th>Bank Account</th><th>Particulars</th><th>Payee / Supplier</th><th class="number">Amount</th><th>Due Date</th><th>Status</th><th>Books</th><th></th></tr></thead><tbody id="bkKBody"></tbody><tfoot id="bkKFoot"></tfoot></table></div></div></div>'
+ +'<div id="tab-bk-txn" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Bank Transactions</h2><div class="hr-acts"><button class="btn btn-outline" data-act="imp">Import CSV</button><button class="btn btn-outline" data-act="csv">Export CSV</button><button class="btn" data-act="new">+ New Transaction</button></div></div>'
+ +'<div class="hr-bar"><div class="form-group"><label for="bkTAcct">Bank account</label><select id="bkTAcct"></select></div><div class="form-group"><label for="bkTType">Type</label><select id="bkTType"><option value="ALL">All</option>'+TYPES.map(t=>'<option>'+t+'</option>').join('')+'</select></div><div class="form-group"><label for="bkTYr">Year</label>'+yrSel('bkTYr')+'</div><div class="form-group"><label for="bkTMon">Month</label><select id="bkTMon"><option value="ALL">All</option>'+MONTHS.map((m,i)=>'<option value="'+(i+1)+'">'+m+'</option>').join('')+'</select></div></div>'
+ +'<p class="hr-note" id="bkTInfo"></p><div class="hr-scroll"><table class="hr-tbl bk-tbl"><thead><tr><th>Date</th><th>Bank Account</th><th>Account Name</th><th>Type</th><th>From Account (transfers)</th><th class="number">Amount</th><th>Reference / Notes</th><th>Books</th><th></th></tr></thead><tbody id="bkTBody"></tbody><tfoot id="bkTFoot"></tfoot></table></div></div></div>'
+ +'<div id="tab-bk-acc" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Bank Accounts</h2><div class="hr-acts"><button class="btn" data-act="new">+ Add Bank Account</button></div></div><p class="hr-note">Balances as of today. Link an account to its Cash in Bank ledger account so checks and deposits post to the books automatically; leave it as "monitor only" to track it here without touching the books (for example a personal account).</p><div class="bk-cards" id="bkACards"></div>'
+ +'<div class="card" style="margin-top:1rem;box-shadow:none;border:1px solid var(--border-color)"><h3 style="margin-top:0;font-size:1rem">Posting checks to the books</h3><div class="form-group" style="max-width:520px"><label for="bkPostOn">Record a check payment on its</label><select id="bkPostOn"><option value="due">Check date (due date): post-dated checks stay in Accounts Payable until their date</option><option value="issued">Date issued: cash goes down as soon as the check is released</option></select></div><p class="hr-note" style="margin:0">Checks debit Accounts Payable unless you choose another account on the check. Cancelled checks never post.</p></div></div></div>');
+
+// ---------- Check Calendar ----------
+let cal={y:new Date().getFullYear(),m:new Date().getMonth(),acct:'ALL'};
+function renderCal(){
+ const b=B(),y=cal.y,m=cal.m,today=td();
+ fillSel($('bkCAcct'),acctOpts(true),cal.acct);cal.acct=$('bkCAcct').value;
+ $('bkCMon').value=m;$('bkCYr').value=y;$('bkTitle').textContent=MONTHS[m].charAt(0)+MONTHS[m].slice(1).toLowerCase()+' '+y;
+ const ks=b.checks.filter(k=>k.status!=='CANCELLED'&&k.due&&(cal.acct==='ALL'||k.acct===cal.acct));
+ const by=new Map();ks.forEach(k=>{if(!by.has(k.due))by.set(k.due,[]);by.get(k.due).push(k)});
+ const mk=y+'-'+String(m+1).padStart(2,'0'),inM=ks.filter(k=>k.due.slice(0,7)===mk);
+ const sum=a=>a.reduce((t,k)=>t+c100(k.amount),0),cl=inM.filter(k=>k.status==='CLEARED'),os=inM.filter(k=>k.status==='OUTSTANDING'),od=os.filter(isOverdue);
+ const K=(t,v,n,w)=>'<div class="bk-kpi'+(w?' warn':'')+'"><span>'+t+'</span><b>'+n2(v)+'</b><small>'+n+' check'+(n===1?'':'s')+'</small></div>';
+ $('bkKpis').innerHTML=K('Monthly dues',sum(inM),inM.length)+K('Cleared checks',sum(cl),cl.length)+K('Outstanding checks',sum(os),os.length)+(od.length?K('Past due, not cleared',sum(od),od.length,true):'');
+ if(!b.accounts.length){$('bkCal').innerHTML='<div class="hrp-empty" style="padding:2rem;text-align:center;color:var(--text-muted)">No bank accounts yet. <button class="btn btn-sm" data-go="acc">Add a bank account</button> or <button class="btn btn-outline btn-sm" data-go="imp">import your check log</button>.</div>';return}
+ const first=new Date(y,m,1),start=new Date(y,m,1-first.getDay()),lastD=new Date(y,m+1,0),end=new Date(y,m,lastD.getDate()+(6-lastD.getDay()));
+ let h=WD.map(w=>'<div class="bk-wd">'+w+'</div>').join('');
+ for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+  const ds=localDateStr(d),list=(by.get(ds)||[]).sort((a,b)=>nameCmp(a.number,b.number)),tot=sum(list),off=d.getMonth()!==m;
+  h+='<div class="bk-day'+(off?' off':'')+(ds===today?' today':'')+(list.length?'':' empty')+'" data-date="'+ds+'"><div class="bk-dn" data-wd="'+WD[d.getDay()]+', '+MONTHS[d.getMonth()].slice(0,3)+'">'+d.getDate()+'</div><div class="bk-items">'
+   +list.map(k=>'<button type="button" class="bk-chk'+(k.status==='CLEARED'?' cl':isOverdue(k)?' od':'')+'" data-id="'+esc(k.id)+'" title="'+esc((k.payee||'')+(k.particulars?' – '+k.particulars:'')+' • '+label(accOf(k.acct))+' • '+k.status)+'"><span class="no">'+esc(k.number)+'</span><span>'+n2(c100(k.amount))+'</span></button>').join('')
+   +'</div><div class="bk-dt'+(tot?'':' z')+'">'+n2(tot)+'</div></div>';
+ }
+ $('bkCal').innerHTML='<div class="bk-grid">'+h+'</div>';
+}
+$('bkCal').addEventListener('click',e=>{
+ const g=e.target.closest('[data-go]');if(g){if(g.dataset.go==='acc')openAcct();else openImp('chk');return}
+ const k=e.target.closest('.bk-chk');if(k)return openCheck(k.dataset.id);
+ const d=e.target.closest('.bk-day');if(d)openCheck(null,{due:d.dataset.date,acct:cal.acct!=='ALL'?cal.acct:undefined});
+});
+const go=n=>{cal.m+=n;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}renderCal()};
+$('bkPrev').onclick=()=>go(-1);$('bkNext').onclick=()=>go(1);$('bkToday').onclick=()=>{const n=new Date();cal.y=n.getFullYear();cal.m=n.getMonth();renderCal()};
+$('bkCMon').onchange=e=>{cal.m=+e.target.value;renderCal()};$('bkCYr').onchange=e=>{const v=parseInt(e.target.value,10);if(v>=2000&&v<=2100){cal.y=v;renderCal()}};
+$('bkCAcct').onchange=e=>{cal.acct=e.target.value;renderCal()};$('bkCNew').onclick=()=>openCheck(null,{acct:cal.acct!=='ALL'?cal.acct:undefined});
+
+// ---------- Check form ----------
+let lastAcct=null;
+function openCheck(id,pre){
+ const b=B(),k=id?b.checks.find(x=>x.id===id):null;pre=pre||{};
+ if(!b.accounts.length){toast('Add your bank account first.');return openAcct(null,()=>openCheck(id,pre))}
+ const acct0=k?k.acct:(pre.acct&&accOf(pre.acct)?pre.acct:(lastAcct&&accOf(lastAcct)?lastAcct:b.accounts[0].id));
+ const v=k||{txn:(b.seq.txn||0)+1,issued:td(),number:nextNo(acct0),acct:acct0,particulars:'',payee:'',amount:'',due:pre.due||td(),status:'OUTSTANDING',cleared:'',debit:null};
+ const parts=[...new Set(b.checks.map(x=>x.particulars).filter(Boolean))].sort(nameCmp).slice(0,200);
+ const debitOpts=()=>coa().filter(a=>!a.isContra&&a.roleTag!=='cash').sort((a,b)=>a.code-b.code).map(a=>'<option value="'+a.code+'"'+(a.code===(k&&okCode(k.debit)?k.debit:apCode())?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('');
+ const m=modal('<h2 style="margin-top:0">'+(k?'Check '+esc(k.number):'New Check')+' <span class="bk-mut" style="font-size:.9rem">Txn #'+(v.txn||'')+'</span></h2><form novalidate><div class="grid-2">'
+  +'<div class="form-group"><label for="bkfAcct">Bank account *</label><select id="bkfAcct">'+acctOpts(false).map(o=>'<option value="'+esc(o[0])+'"'+(o[0]===v.acct?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></div>'
+  +'<div class="form-group"><label for="bkfNo">Check number *</label><input id="bkfNo" value="'+esc(v.number)+'" inputmode="numeric" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="bkfIss">Date issued</label><input type="date" id="bkfIss" value="'+esc(v.issued)+'"></div>'
+  +'<div class="form-group"><label for="bkfDue">Check date / due date *</label><input type="date" id="bkfDue" value="'+esc(v.due)+'"></div>'
+  +'<div class="form-group"><label for="bkfPay">Payee / supplier</label><input id="bkfPay" list="bkfPayL" value="'+esc(v.payee)+'" autocomplete="off"><datalist id="bkfPayL">'+payees().map(p=>'<option value="'+esc(p)+'">').join('')+'</datalist></div>'
+  +'<div class="form-group"><label for="bkfPart">Particulars</label><input id="bkfPart" list="bkfPartL" value="'+esc(v.particulars)+'" placeholder="e.g. To Pay Groceries" autocomplete="off"><datalist id="bkfPartL">'+parts.map(p=>'<option value="'+esc(p)+'">').join('')+'</datalist></div>'
+  +'<div class="form-group"><label for="bkfAmt">Amount *</label><input type="number" id="bkfAmt" min="0" step="0.01" inputmode="decimal" value="'+(v.amount||'')+'"></div>'
+  +'<div class="form-group"><label for="bkfSt">Status</label><select id="bkfSt">'+ST.map(s=>'<option'+(s===v.status?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
+  +'<div class="form-group" id="bkfClW"><label for="bkfCl">Date cleared</label><input type="date" id="bkfCl" value="'+esc(v.cleared||'')+'"></div>'
+  +'<div class="form-group" id="bkfDrW"><label for="bkfDr">Debit account (books)</label><select id="bkfDr">'+debitOpts()+'</select><small class="bk-mut" id="bkfDrN"></small></div>'
+  +'</div><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:.5rem"><span>'+(k?'<button type="button" class="btn btn-danger btn-outline" id="bkfDel">Delete</button>':'')+'</span><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">Save Check</button></span></div></form>',760);
+ const q=s=>m.querySelector(s),noTouched={v:!!k};
+ q('#bkfNo').addEventListener('input',()=>noTouched.v=true);
+ const upd=()=>{const a=accOf(q('#bkfAcct').value),cl=q('#bkfSt').value==='CLEARED';q('#bkfClW').style.display=cl?'':'none';
+  q('#bkfDrW').style.display=a&&a.gl?'':'none';q('#bkfDrN').textContent=a&&a.gl?'Posts on the '+(B().settings.postOn==='issued'?'date issued':'check date')+': Dr this account / Cr '+glName(a.gl)+(a.postFrom?' (from '+fd(a.postFrom)+')':''):''};
+ q('#bkfAcct').onchange=()=>{if(!noTouched.v)q('#bkfNo').value=nextNo(q('#bkfAcct').value);upd()};q('#bkfSt').onchange=()=>{if(q('#bkfSt').value==='CLEARED'&&!q('#bkfCl').value)q('#bkfCl').value=td();upd()};upd();
+ if(k)q('#bkfDel').onclick=()=>{if(!confirm('Delete check '+k.number+'? To keep a record that the check number was voided, set its status to CANCELLED instead.'))return;b.checks=b.checks.filter(x=>x.id!==k.id);commit();m.remove();rerender();toast('Check deleted.','success')};
+ q('form').onsubmit=ev=>{ev.preventDefault();
+  const rec={acct:q('#bkfAcct').value,number:q('#bkfNo').value.trim(),issued:q('#bkfIss').value,due:q('#bkfDue').value,payee:q('#bkfPay').value.trim(),particulars:q('#bkfPart').value.trim(),amount:r2(q('#bkfAmt').value),status:q('#bkfSt').value};
+  rec.cleared=rec.status==='CLEARED'?(q('#bkfCl').value||td()):'';
+  if(!accOf(rec.acct))return toast('Choose the bank account.');
+  if(!rec.number)return toast('Enter the check number.');
+  if(b.checks.some(x=>x.id!==id&&x.acct===rec.acct&&x.number===rec.number))return toast('Check '+rec.number+' is already recorded for this account.');
+  if(rec.status!=='CANCELLED'){if(!(rec.amount>0))return toast('Enter the check amount.');if(!DT.test(rec.due))return toast('Enter the check date / due date.')}
+  if(rec.issued&&!DT.test(rec.issued))rec.issued='';
+  const a=accOf(rec.acct);rec.debit=a&&a.gl?(+q('#bkfDr').value||null):(k?k.debit:null);
+  if(k)Object.assign(k,rec);else{b.seq.txn=(b.seq.txn||0)+1;b.checks.push(Object.assign({id:'chk_'+uid(),txn:b.seq.txn},rec))}
+  lastAcct=rec.acct;commit();m.remove();rerender();toast('Check '+rec.number+' saved.','success');
+ };
+ setTimeout(()=>q(k?'#bkfAmt':'#bkfPay').focus(),30);
+}
+
+// ---------- Check Register ----------
+let kf={q:'',acct:'ALL',st:'ALL',yr:'ALL',mon:'ALL'};
+function renderChecks(){
+ const b=B();sync();
+ fillSel($('bkKAcct'),acctOpts(true),kf.acct);kf.acct=$('bkKAcct').value;
+ const yrs=[...new Set(b.checks.map(k=>(k.due||k.issued||'').slice(0,4)).filter(Boolean))].sort().reverse();
+ fillSel($('bkKYr'),[['ALL','All']].concat(yrs.map(y=>[y,y])),kf.yr);kf.yr=$('bkKYr').value;$('bkKSt').value=kf.st;$('bkKMon').value=kf.mon;
+ const q=kf.q.trim().toLowerCase();
+ const list=b.checks.filter(k=>(kf.acct==='ALL'||k.acct===kf.acct)&&(kf.st==='ALL'||(kf.st==='OVERDUE'?isOverdue(k):k.status===kf.st))&&(kf.yr==='ALL'||(k.due||k.issued||'').slice(0,4)===kf.yr)&&(kf.mon==='ALL'||+((k.due||'').slice(5,7))===+kf.mon)&&(!q||(k.number+' '+k.payee+' '+k.particulars).toLowerCase().includes(q)))
+  .sort((a,b)=>(b.txn||0)-(a.txn||0)||String(b.issued).localeCompare(String(a.issued)));
+ const live=list.filter(k=>k.status!=='CANCELLED'),sum=a=>a.reduce((t,k)=>t+c100(k.amount),0);
+ $('bkKInfo').textContent=list.length+' check'+(list.length===1?'':'s')+(b.checks.length!==list.length?' of '+b.checks.length:'')+'. Change a status right in the list; CLEARED records today as the clearing date.';
+ $('bkKBody').innerHTML=list.map(k=>'<tr'+(k.status==='CANCELLED'?' class="hr-off"':'')+'><td>'+(k.txn||'')+'</td><td>'+esc(fd(k.issued))+'</td><td><b>'+esc(k.number)+'</b></td><td>'+esc(label(accOf(k.acct)))+'</td><td class="wrap">'+esc(k.particulars)+'</td><td class="wrap">'+esc(k.payee)+'</td><td class="number">'+(k.amount?n2(c100(k.amount)):'')+'</td><td'+(isOverdue(k)?' style="color:var(--ember);font-weight:600"':'')+'>'+esc(fd(k.due))+'</td>'
+  +'<td><select class="bk-st" data-act="st" data-id="'+esc(k.id)+'" aria-label="Status of check '+esc(k.number)+'">'+ST.map(s=>'<option'+(s===k.status?' selected':'')+'>'+s+'</option>').join('')+'</select>'+(k.status==='CLEARED'&&k.cleared?'<br><small class="bk-mut">'+esc(fd(k.cleared))+'</small>':'')+'</td>'
+  +'<td>'+booksBadge(k.id,k.acct,k.status==='CANCELLED')+'</td><td><button class="btn btn-outline btn-sm" data-act="edit" data-id="'+esc(k.id)+'">Edit</button></td></tr>').join('')
+  ||'<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">'+(b.checks.length?'No checks match these filters.':'No checks yet. Press "+ New Check", or import your Check Transaction Log as CSV.')+'</td></tr>';
+ const os=live.filter(k=>k.status==='OUTSTANDING'),cl=live.filter(k=>k.status==='CLEARED');
+ $('bkKFoot').innerHTML=list.length?'<tr><td colspan="6">TOTAL '+live.length+' check'+(live.length===1?'':'s')+' • Cleared '+n2(sum(cl))+' • Outstanding '+n2(sum(os))+'</td><td class="number">'+n2(sum(live))+'</td><td colspan="4"></td></tr>':'';
+}
+const tabK=$('tab-bk-chk');
+tabK.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t||t.tagName==='SELECT')return;const a=t.dataset.act;if(a==='new')openCheck();else if(a==='edit')openCheck(t.dataset.id);else if(a==='imp')openImp('chk');else if(a==='csv')exportChecks()});
+tabK.addEventListener('change',e=>{const t=e.target;
+ if(t.dataset.act==='st'){const k=B().checks.find(x=>x.id===t.dataset.id);if(!k)return;const v=t.value;
+  if(v==='CANCELLED'&&!confirm('Cancel check '+k.number+'?'+(posted.has(k.id)?' Its journal entry will be removed from the books.':'')))return renderChecks();
+  if(v!=='CANCELLED'&&!(k.amount>0)){toast('Enter the amount first: open the check with Edit.');return renderChecks()}
+  k.status=v;k.cleared=v==='CLEARED'?(k.cleared||td()):'';commit();renderChecks();return}
+ const map={bkKAcct:'acct',bkKSt:'st',bkKYr:'yr',bkKMon:'mon'};if(map[t.id]){kf[map[t.id]]=t.value;renderChecks()}});
+$('bkKQ').addEventListener('input',e=>{kf.q=e.target.value;renderChecks()});
+function exportChecks(){
+ const b=B();if(!b.checks.length)return toast('There are no checks to export.');
+ const rows=[['Transaction #','Date Issued','Check Number','Bank','Account Number','Particulars','Supplier Code','Amount','Due Date','Status','Date Cleared']];
+ [...b.checks].sort((a,b)=>(a.txn||0)-(b.txn||0)).forEach(k=>{const a=accOf(k.acct)||{};rows.push([k.txn||'',k.issued,k.number,(a.bank||'')+(a.branch?' '+a.branch:''),a.number||'',k.particulars,k.payee,k.amount?r2(k.amount).toFixed(2):'',k.due,k.status,k.cleared||''])});
+ download('check-register-'+td()+'.csv',toCsv(rows));
+}
+
+// ---------- Bank Transactions ----------
+let tf={acct:'ALL',type:'ALL',yr:'ALL',mon:'ALL'};
+const signFor=(t,acctId)=>t.type==='Fund Transfer'?(t.acct===acctId?1:t.source===acctId?-1:0):(t.acct!==acctId?0:IN_T.includes(t.type)?1:-1);
+function renderTxns(){
+ const b=B();sync();
+ fillSel($('bkTAcct'),acctOpts(true),tf.acct);tf.acct=$('bkTAcct').value;
+ const yrs=[...new Set(b.txns.map(t=>(t.date||'').slice(0,4)).filter(Boolean))].sort().reverse();
+ fillSel($('bkTYr'),[['ALL','All']].concat(yrs.map(y=>[y,y])),tf.yr);tf.yr=$('bkTYr').value;$('bkTType').value=tf.type;$('bkTMon').value=tf.mon;
+ const list=b.txns.filter(t=>(tf.acct==='ALL'||t.acct===tf.acct||t.source===tf.acct)&&(tf.type==='ALL'||t.type===tf.type)&&(tf.yr==='ALL'||(t.date||'').slice(0,4)===tf.yr)&&(tf.mon==='ALL'||+((t.date||'').slice(5,7))===+tf.mon))
+  .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+ $('bkTInfo').textContent=list.length+' transaction'+(list.length===1?'':'s')+(b.txns.length!==list.length?' of '+b.txns.length:'')+'.';
+ let tin=0,tout=0;
+ $('bkTBody').innerHTML=list.map(t=>{const a=accOf(t.acct),s=accOf(t.source),amt=c100(t.amount);
+  if(tf.acct==='ALL'){if(t.type==='Fund Transfer'){}else if(IN_T.includes(t.type))tin+=amt;else tout+=amt}else{const sg=signFor(t,tf.acct);if(sg>0)tin+=amt;else if(sg<0)tout+=amt}
+  return '<tr><td>'+esc(fd(t.date))+'</td><td>'+esc(label(a))+'</td><td class="wrap">'+esc((a&&a.name)||'')+'</td><td><span class="badge '+(IN_T.includes(t.type)?'badge-vat':t.type==='Fund Transfer'?'badge-debit':'badge-credit')+'">'+esc(t.type)+'</span></td><td>'+(s?esc(label(s)):'')+'</td><td class="number">'+n2(amt)+'</td><td class="wrap">'+esc([t.ref,t.notes].filter(Boolean).join(' – '))+'</td><td>'+booksBadge(t.id,t.type==='Fund Transfer'&&!(a&&a.gl)?t.source:t.acct,false)+'</td><td><button class="btn btn-outline btn-sm" data-act="edit" data-id="'+esc(t.id)+'">Edit</button></td></tr>'}).join('')
+  ||'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">'+(b.txns.length?'No transactions match these filters.':'No transactions yet. Press "+ New Transaction", or import your Bank Transaction Log as CSV.')+'</td></tr>';
+ $('bkTFoot').innerHTML=list.length?'<tr><td colspan="9">Money in '+n2(tin)+' • Money out '+n2(tout)+(tf.acct==='ALL'?' • transfers between accounts not counted':'')+'</td></tr>':'';
+}
+const tabT=$('tab-bk-txn');
+tabT.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t)return;const a=t.dataset.act;if(a==='new')openTxn();else if(a==='edit')openTxn(t.dataset.id);else if(a==='imp')openImp('txn');else if(a==='csv')exportTxns()});
+tabT.addEventListener('change',e=>{const map={bkTAcct:'acct',bkTType:'type',bkTYr:'yr',bkTMon:'mon'};if(map[e.target.id]){tf[map[e.target.id]]=e.target.value;renderTxns()}});
+function exportTxns(){
+ const b=B();if(!b.txns.length)return toast('There are no transactions to export.');
+ const rows=[['Date','Recipient Bank','Account Number','Account Name','Type','Source Bank Account (For Transfers)','Amount','Reference','Notes']];
+ [...b.txns].sort((a,b)=>String(a.date).localeCompare(String(b.date))).forEach(t=>{const a=accOf(t.acct)||{},s=accOf(t.source);rows.push([t.date,(a.bank||'')+(a.branch?' '+a.branch:''),a.number||'',a.name||'',t.type,s?s.number:'',r2(t.amount).toFixed(2),t.ref||'',t.notes||''])});
+ download('bank-transactions-'+td()+'.csv',toCsv(rows));
+}
+function openTxn(id){
+ const b=B(),t=id?b.txns.find(x=>x.id===id):null;
+ if(!b.accounts.length){toast('Add your bank account first.');return openAcct(null,()=>openTxn(id))}
+ const v=t||{date:td(),type:'Cash Deposit',acct:lastAcct&&accOf(lastAcct)?lastAcct:b.accounts[0].id,source:'',amount:'',ref:'',notes:'',counter:null};
+ const aOpts=(cur,blank)=>(blank?'<option value="">'+blank+'</option>':'')+acctOpts(false).map(o=>'<option value="'+esc(o[0])+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>').join('');
+ const m=modal('<h2 style="margin-top:0">'+(t?'Edit Transaction':'New Bank Transaction')+'</h2><form novalidate><div class="grid-2">'
+  +'<div class="form-group"><label for="bktDate">Date *</label><input type="date" id="bktDate" value="'+esc(v.date)+'"></div>'
+  +'<div class="form-group"><label for="bktType">Type *</label><select id="bktType">'+TYPES.map(x=>'<option'+(x===v.type?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'
+  +'<div class="form-group"><label for="bktAcct" id="bktAcctL">Bank account *</label><select id="bktAcct">'+aOpts(v.acct)+'</select></div>'
+  +'<div class="form-group" id="bktSrcW"><label for="bktSrc">From account</label><select id="bktSrc">'+aOpts(v.source,'Outside account (not listed)')+'</select></div>'
+  +'<div class="form-group"><label for="bktAmt">Amount *</label><input type="number" id="bktAmt" min="0" step="0.01" inputmode="decimal" value="'+(v.amount||'')+'"></div>'
+  +'<div class="form-group"><label for="bktRef">Reference no.</label><input id="bktRef" value="'+esc(v.ref||'')+'" placeholder="Deposit slip or transfer reference" autocomplete="off"></div>'
+  +'<div class="form-group" style="grid-column:1/-1"><label for="bktNotes">Notes</label><input id="bktNotes" value="'+esc(v.notes||'')+'" autocomplete="off"></div>'
+  +'<div class="form-group" id="bktCtrW" style="grid-column:1/-1"><label for="bktCtr" id="bktCtrL"></label><select id="bktCtr"></select><small class="bk-mut" id="bktCtrN"></small></div>'
+  +'</div><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:.5rem"><span>'+(t?'<button type="button" class="btn btn-danger btn-outline" id="bktDel">Delete</button>':'')+'</span><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">Save</button></span></div></form>',760);
+ const q=s=>m.querySelector(s);
+ const upd=()=>{
+  const ty=q('#bktType').value,tr=ty==='Fund Transfer',draftT={type:ty,acct:q('#bktAcct').value,source:tr?q('#bktSrc').value:'',date:q('#bktDate').value};
+  q('#bktSrcW').style.display=tr?'':'none';q('#bktAcctL').textContent=tr?'To account *':'Bank account *';
+  const gA=postGl(accOf(draftT.acct),draftT.date),gS=tr?postGl(accOf(draftT.source),draftT.date):null;
+  const need=(gA||gS)&&!(tr&&gA&&gS);q('#bktCtrW').style.display=need?'':'none';if(!need)return;
+  const lbl=IN_T.includes(ty)?(ty==='Interest Earned'?'Income account (credit)':'Where the money came from (credit)'):OUT_T.includes(ty)?(ty==='Bank Charge'?'Expense account (debit)':'Where the money went (debit)'):(gA?'Where the money came from (credit)':'Where the money went (debit)');
+  q('#bktCtrL').textContent=lbl;
+  const def=t&&okCode(t.counter)&&t.type===ty?t.counter:defCounter(draftT),cur=q('#bktCtr').dataset.touched?+q('#bktCtr').value:def;
+  const own=new Set([gA,gS].filter(Boolean));
+  q('#bktCtr').innerHTML='<option value="">Choose an account</option>'+coa().filter(a=>!a.isContra&&!own.has(a.code)).sort((a,b)=>a.code-b.code).map(a=>'<option value="'+a.code+'"'+(a.code===cur?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('');
+  q('#bktCtrN').textContent='Posts to the books: '+(IN_T.includes(ty)||(tr&&gA)?'Dr '+glName(gA)+' / Cr this account':'Dr this account / Cr '+glName(gA||gS));
+ };
+ ['#bktType','#bktAcct','#bktSrc','#bktDate'].forEach(s=>q(s).addEventListener('change',upd));q('#bktCtr').addEventListener('change',()=>q('#bktCtr').dataset.touched='1');upd();
+ if(t)q('#bktDel').onclick=()=>{if(!confirm('Delete this '+t.type.toLowerCase()+' of '+n2(c100(t.amount))+'?'))return;b.txns=b.txns.filter(x=>x.id!==t.id);commit();m.remove();rerender();toast('Transaction deleted.','success')};
+ q('form').onsubmit=ev=>{ev.preventDefault();
+  const ty=q('#bktType').value,rec={date:q('#bktDate').value,type:ty,acct:q('#bktAcct').value,source:ty==='Fund Transfer'?q('#bktSrc').value:'',amount:r2(q('#bktAmt').value),ref:q('#bktRef').value.trim(),notes:q('#bktNotes').value.trim()};
+  if(!DT.test(rec.date))return toast('Enter the date.');if(!accOf(rec.acct))return toast('Choose the bank account.');if(!(rec.amount>0))return toast('Enter the amount.');
+  if(rec.source&&rec.source===rec.acct)return toast('The from and to accounts must be different.');
+  rec.counter=q('#bktCtrW').style.display!=='none'?(+q('#bktCtr').value||null):(t?t.counter:null);
+  if(q('#bktCtrW').style.display!=='none'&&!rec.counter&&!confirm('No account was chosen for the other side, so this will not post to the books. Save anyway?'))return;
+  if(t)Object.assign(t,rec);else b.txns.push(Object.assign({id:'btx_'+uid()},rec));
+  lastAcct=rec.acct;commit();m.remove();rerender();toast('Transaction saved.','success');
+ };
+}
+
+// ---------- Bank Accounts ----------
+function acctFigures(a){
+ const c=C(),b=B(),today=td(),ks=b.checks.filter(k=>k.acct===a.id&&k.status!=='CANCELLED'&&k.amount>0);
+ let book;
+ if(a.gl&&okCode(a.gl)){const x=computeAccountBalances(c.journalEntries,today).get(a.gl)||{drCents:0,crCents:0};book=x.drCents-x.crCents}
+ else{const from=a.openingDate||'0000-01-01';book=c100(a.opening);
+  b.txns.forEach(t=>{if(t.date>=from&&t.date<=today)book+=signFor(t,a.id)*c100(t.amount)});
+  ks.forEach(k=>{if(k.due&&k.due>=from&&k.due<=today)book-=c100(k.amount)})}
+ const inBook=k=>a.gl?(posted.has(k.id)&&chkDate(k)<=today):(k.due&&k.due<=today);
+ const unc=ks.filter(k=>k.status!=='CLEARED'),P=unc.filter(inBook),F=unc.filter(k=>!inBook(k)&&(a.gl?chkDate(k)>today:true));
+ const s=l=>l.reduce((t,k)=>t+c100(k.amount),0),wk=new Date();wk.setDate(wk.getDate()+7);const w=localDateStr(wk);
+ const soon=unc.filter(k=>k.due>=today&&k.due<=w);
+ return{book,P:s(P),Pn:P.length,F:s(F),Fn:F.length,soon:s(soon),soonN:soon.length};
+}
+function renderAccts(){
+ const b=B();sync();$('bkPostOn').value=b.settings.postOn;
+ $('bkACards').innerHTML=b.accounts.length?[...b.accounts].sort((x,y)=>nameCmp(label(x),label(y))).map(a=>{const f=acctFigures(a);
+  return '<div class="bk-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><h3>'+esc((a.bank||'Bank')+(a.branch?' '+a.branch:''))+'</h3><div class="sub">'+esc(a.number)+(a.type?' • '+esc(a.type):'')+(a.name?'<br>'+esc(a.name):'')+'</div></div><button class="btn btn-outline btn-sm" data-act="edit" data-id="'+esc(a.id)+'">Edit</button></div>'
+  +'<div class="bk-fig"><span>'+(a.gl?'Book balance (ledger '+esc(glName(a.gl))+')':'Balance from this module')+'</span><b>'+sn2(f.book)+'</b>'
+  +'<span>Add: issued checks not yet cleared ('+f.Pn+')</span><b>'+n2(f.P)+'</b><span class="tot">Expected bank balance</span><b class="tot">'+sn2(f.book+f.P)+'</b>'
+  +'<span>Less: upcoming post-dated checks ('+f.Fn+')</span><b>'+n2(f.F)+'</b><span class="tot">Balance after all issued checks</span><b class="tot"'+(f.book-f.F<0?' style="color:var(--ember)"':'')+'>'+sn2(f.book-f.F)+'</b>'
+  +'<span>Checks due in the next 7 days ('+f.soonN+')</span><b>'+n2(f.soon)+'</b></div>'
+  +'<p class="hr-note" style="margin:.7rem 0 0">'+(a.gl?'Posts to the books'+(a.postFrom?' from '+esc(fd(a.postFrom)):''):'Monitor only, not in this company\'s books'+(a.opening?' • opening '+n2(c100(a.opening))+' on '+esc(fd(a.openingDate)):''))+'</p></div>'}).join('')
+  :'<p class="bk-mut">No bank accounts yet. Add one, or import your Check Transaction Log or Bank Transaction Log (Check Register or Bank Transactions > Import CSV); accounts are created from the account numbers in the file.</p>';
+}
+$('tab-bk-acc').addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t)return;if(t.dataset.act==='new')openAcct();else if(t.dataset.act==='edit')openAcct(t.dataset.id)});
+$('bkPostOn').onchange=e=>{B().settings.postOn=e.target.value==='issued'?'issued':'due';commit();renderAccts();toast('Check posting date updated; check entries in the journal were re-dated.','success')};
+function openAcct(id,after){
+ const b=B(),a=id?accOf(id):null,v=a||{bank:'',branch:'',number:'',name:String(C().name||'').toUpperCase(),type:'Checking',gl:null,postFrom:td(),opening:'',openingDate:td()};
+ const assets=coa().filter(x=>x.category==='Asset'&&!x.isContra).sort((x,y)=>(y.roleTag==='cash')-(x.roleTag==='cash')||x.code-y.code);
+ const used=new Set(b.accounts.filter(x=>x.id!==id&&x.gl).map(x=>x.gl));
+ const m=modal('<h2 style="margin-top:0">'+(a?'Edit Bank Account':'Add Bank Account')+'</h2><form novalidate><div class="grid-2">'
+  +'<div class="form-group"><label for="bkaBank">Bank *</label><input id="bkaBank" value="'+esc(v.bank)+'" placeholder="e.g. BDO" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="bkaBr">Branch</label><input id="bkaBr" value="'+esc(v.branch)+'" placeholder="e.g. Guindulman" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="bkaNo">Account number *</label><input id="bkaNo" value="'+esc(v.number)+'" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="bkaType">Account type</label><select id="bkaType">'+['Checking','Savings','Current','Time Deposit','E-wallet'].map(x=>'<option'+(x===v.type?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'
+  +'<div class="form-group" style="grid-column:1/-1"><label for="bkaName">Account name</label><input id="bkaName" value="'+esc(v.name)+'" autocomplete="off"></div>'
+  +'<div class="form-group" style="grid-column:1/-1"><label for="bkaGl">In the books</label><select id="bkaGl"><option value="">Monitor only (not in this company\'s books)</option>'+assets.map(x=>'<option value="'+x.code+'"'+(x.code===v.gl?' selected':'')+(used.has(x.code)?' disabled':'')+'>'+esc(x.code+' – '+x.title)+(used.has(x.code)?' (linked to another bank account)':'')+'</option>').join('')+'<option value="new">+ New ledger account: Cash in Bank for this account</option></select></div>'
+  +'<div class="form-group" id="bkaPfW"><label for="bkaPf">Post to the books from</label><input type="date" id="bkaPf" value="'+esc(v.postFrom||'')+'"><small class="bk-mut">Checks and transactions dated before this stay out of the journal, so payments you already recorded are not counted twice.</small></div>'
+  +'<div class="form-group" id="bkaOpW"><label for="bkaOp">Opening balance</label><input type="number" id="bkaOp" step="0.01" value="'+(v.opening||'')+'"></div>'
+  +'<div class="form-group" id="bkaOdW"><label for="bkaOd">Opening balance date</label><input type="date" id="bkaOd" value="'+esc(v.openingDate||'')+'"></div>'
+  +'</div><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:.5rem"><span>'+(a?'<button type="button" class="btn btn-danger btn-outline" id="bkaDel">Delete</button>':'')+'</span><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">Save Account</button></span></div></form>',720);
+ const q=s=>m.querySelector(s),upd=()=>{const g=q('#bkaGl').value;q('#bkaPfW').style.display=g?'':'none';q('#bkaOpW').style.display=g?'none':'';q('#bkaOdW').style.display=g?'none':''};q('#bkaGl').onchange=upd;upd();
+ if(a)q('#bkaDel').onclick=()=>{const n=b.checks.filter(k=>k.acct===a.id).length+b.txns.filter(t=>t.acct===a.id||t.source===a.id).length;if(n)return toast('This account has '+n+' check(s) or transaction(s). Delete or move those first.');if(!confirm('Delete '+label(a)+'?'))return;b.accounts=b.accounts.filter(x=>x.id!==a.id);commit();m.remove();rerender()};
+ q('form').onsubmit=ev=>{ev.preventDefault();
+  const rec={bank:q('#bkaBank').value.trim().toUpperCase(),branch:q('#bkaBr').value.trim().toUpperCase(),number:q('#bkaNo').value.trim(),type:q('#bkaType').value,name:q('#bkaName').value.trim().toUpperCase()};
+  if(!rec.bank)return toast('Enter the bank name.');if(!rec.number)return toast('Enter the account number.');
+  if(b.accounts.some(x=>x.id!==id&&nk(x.number)===nk(rec.number)))return toast('Account '+rec.number+' is already listed.');
+  let g=q('#bkaGl').value;
+  if(g==='new'){const ch=coa();let n=1020;while(ch.some(x=>x.code===n))n++;const na=acct(n,'Cash in Bank – '+rec.bank+(rec.branch?' '+rec.branch:'')+' ('+rec.number.replace(/\s/g,'').slice(-4)+')','Asset','Current Asset','Debit',{roleTag:'cash'});ch.push(na);ch.sort((x,y)=>x.code-y.code);g=n}
+  rec.gl=g?+g:null;rec.postFrom=rec.gl?(DT.test(q('#bkaPf').value)?q('#bkaPf').value:td()):(a?a.postFrom:'');
+  rec.opening=rec.gl?(a?a.opening:''):(q('#bkaOp').value===''?'':r2(q('#bkaOp').value));rec.openingDate=rec.gl?(a?a.openingDate:''):(DT.test(q('#bkaOd').value)?q('#bkaOd').value:'');
+  const before=posted.size;
+  if(a)Object.assign(a,rec);else b.accounts.push(Object.assign({id:'bacc_'+uid()},rec));
+  commit();m.remove();rerender();const diff=posted.size-before;
+  toast('Bank account saved.'+(diff>0?' '+diff+' check(s)/transaction(s) posted to the books.':''),'success');if(after)after();
+ };
+}
+
+// ---------- CSV import (from the Check Transaction Log and Bank Transaction Log sheets) ----------
+function findOrMakeAcct(numStr,bank,name,made,names){
+ const b=B(),key=nk(numStr);if(!key)return null;
+ let a=b.accounts.find(x=>nk(x.number)===key)||made.find(x=>nk(x.number)===key);
+ if(!a){const nb=String(bank||'').trim().toUpperCase();a={id:'bacc_'+uid(),bank:nb||'BANK',branch:'',number:String(numStr).trim(),type:'Checking',name:String(name||'').trim().toUpperCase(),gl:null,postFrom:'',opening:'',openingDate:''};made.push(a)}
+ else if(!a.name&&name&&names)names[a.id]=String(name).trim().toUpperCase();
+ return a;
+}
+function openImp(kind){
+ let plan=null,names={};
+ const m=modal('<h2 style="margin-top:0">Import from CSV</h2><div class="form-group"><label for="bkiK">What are you importing?</label><select id="bkiK"><option value="chk"'+(kind==='chk'?' selected':'')+'>Checks (Check Transaction Log)</option><option value="txn"'+(kind==='txn'?' selected':'')+'>Deposits and transfers (Bank Transaction Log)</option></select></div>'
+  +'<p class="hr-note" id="bkiHelp"></p><div class="form-group"><label for="bkiF">CSV file</label><input type="file" id="bkiF" accept=".csv,text/csv"></div><div id="bkiOut"></div>'
+  +'<p class="hr-note">New bank accounts found in the file are added as "monitor only". Link them to the books later under Bank Accounts and choose the date to start posting from.</p>'
+  +'<div style="text-align:right;margin-top:1rem"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="bkiGo" disabled>Import</button></div>',780);
+ const q=s=>m.querySelector(s);
+ const help=()=>{q('#bkiHelp').textContent=q('#bkiK').value==='chk'?'In Google Sheets open the Check Transaction Log tab, then File > Download > Comma-separated values. Columns used: Transaction #, Date Issued, Check Number, Bank, Account Number, Particulars, Supplier Code, Amount, Due Date, Status.':'Open the Bank Transaction Log tab, then File > Download > Comma-separated values. Columns used: Date, Recipient Bank, Account Number, Account Name, Type, Source Bank Account (For Transfers), Amount.';plan=null;q('#bkiGo').disabled=true;q('#bkiOut').innerHTML='';q('#bkiF').value=''};
+ q('#bkiK').onchange=help;help();
+ q('#bkiF').onchange=ev=>{const f=ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{plan=null;q('#bkiGo').disabled=true;
+  const rows=parseCsv(rd.result),out=q('#bkiOut');
+  let hi=rows.findIndex(r=>r.some(x=>/amount/i.test(x)));if(hi<0){out.innerHTML='<p style="color:var(--ember)">Could not find the header row (no "Amount" column).</p>';return}
+  const hd=rows[hi].map(nk),ix=(...ks)=>{for(const k of ks){const i=hd.indexOf(k);if(i>=0)return i}return -1},val=(r,i)=>i>=0?String(r[i]==null?'':r[i]).trim():'';
+  const made=[],ok=[],bad=[],b=B();names={};
+  if(q('#bkiK').value==='chk'){
+   const I={txn:ix('transaction','transactionno','txn','transactionnumber'),iss:ix('dateissued','issued','date'),no:ix('checknumber','checkno','check'),bank:ix('bank'),num:ix('accountnumber','accountno'),part:ix('particulars'),pay:ix('suppliercode','supplier','payee'),amt:ix('amount'),due:ix('duedate','checkdate'),st:ix('status'),cl:ix('datecleared')};
+   if(I.no<0||I.amt<0){out.innerHTML='<p style="color:var(--ember)">Missing columns: Check Number and Amount are required.</p>';return}
+   const have=new Set(b.checks.map(k=>k.acct+'|'+k.number));let lastA=null;
+   rows.slice(hi+1).forEach((r,i)=>{const line=hi+i+2,no=val(r,I.no);if(!no)return;
+    const stRaw=val(r,I.st).toUpperCase(),st=/CANCEL|VOID/.test(stRaw)?'CANCELLED':/CLEAR/.test(stRaw)?'CLEARED':'OUTSTANDING';
+    let a=val(r,I.num)?findOrMakeAcct(val(r,I.num),val(r,I.bank),'',made):lastA;
+    if(!a)return bad.push('Row '+line+': check '+no+' has no account number');lastA=a;
+    const iss=parseDate(val(r,I.iss)),due=parseDate(val(r,I.due))||iss,amt=r2(num(val(r,I.amt)));
+    if(st!=='CANCELLED'&&!(amt>0))return bad.push('Row '+line+': check '+no+' has no amount');
+    if(st!=='CANCELLED'&&!due)return bad.push('Row '+line+': check '+no+' has an unreadable due date ("'+val(r,I.due)+'")');
+    if(have.has(a.id+'|'+no))return bad.push('Row '+line+': check '+no+' is already recorded');have.add(a.id+'|'+no);
+    ok.push({id:'chk_'+uid()+i,txn:parseInt(val(r,I.txn),10)||0,issued:iss,number:no,acct:a.id,particulars:val(r,I.part),payee:val(r,I.pay),amount:st==='CANCELLED'&&!amt?0:amt,due,status:st,cleared:st==='CLEARED'?(parseDate(val(r,I.cl))||''):'',debit:null});
+   });
+  }else{
+   const I={date:ix('date'),bank:ix('recipientbank','bank'),num:ix('accountnumber','accountno'),name:ix('accountname'),type:ix('type'),src:ix('sourcebankaccountfortransfers','sourcebankaccount','source','from'),amt:ix('amount'),ref:ix('reference','referenceno'),notes:ix('notes','remarks')};
+   if(I.date<0||I.num<0||I.amt<0){out.innerHTML='<p style="color:var(--ember)">Missing columns: Date, Account Number and Amount are required.</p>';return}
+   const key=t=>[t.date,t.acct,t.type,t.source||'',r2(t.amount)].join('|'),cnt=new Map();b.txns.forEach(t=>cnt.set(key(t),(cnt.get(key(t))||0)+1));
+   rows.slice(hi+1).forEach((r,i)=>{const line=hi+i+2,amt=r2(num(val(r,I.amt)));if(!val(r,I.num)&&!amt)return;
+    const date=parseDate(val(r,I.date));if(!date)return bad.push('Row '+line+': unreadable date "'+val(r,I.date)+'"');if(!(amt>0))return bad.push('Row '+line+': no amount');
+    const a=findOrMakeAcct(val(r,I.num),val(r,I.bank),val(r,I.name),made,names);if(!a)return bad.push('Row '+line+': no account number');
+    const tr=val(r,I.type).toLowerCase(),type=/transfer/.test(tr)?'Fund Transfer':/withdraw/.test(tr)?'Withdrawal':/charge|fee/.test(tr)?'Bank Charge':/interest/.test(tr)?'Interest Earned':/check|cheque/.test(tr)?'Check Deposit':'Cash Deposit';
+    let s=null;const sv=val(r,I.src);if(sv&&type==='Fund Transfer'){const all=b.accounts.concat(made);s=all.find(x=>nk(x.number).length>=6&&nk(sv).includes(nk(x.number)))||(/\d{6,}/.test(sv.replace(/\D/g,''))?findOrMakeAcct(sv.replace(/[^\d-]/g,''),sv.replace(/[\d-]/g,'').trim(),'',made):null)}
+    const t={id:'btx_'+uid()+i,date,type,acct:a.id,source:s&&s.id!==a.id?s.id:'',amount:amt,ref:val(r,I.ref),notes:val(r,I.notes),counter:null};
+    const kk=key(t);if(cnt.get(kk)){cnt.set(kk,cnt.get(kk)-1);return bad.push('Row '+line+': same as a transaction already recorded ('+type+' '+n2(c100(amt))+' on '+fd(date)+')')}
+    ok.push(t);
+   });
+  }
+  plan={kind:q('#bkiK').value,ok,made};q('#bkiGo').disabled=!ok.length;
+  out.innerHTML='<p><b>'+ok.length+'</b> ready to import'+(made.length?', <b>'+made.length+'</b> new bank account'+(made.length===1?'':'s')+' ('+made.map(x=>esc(label(x))).join('; ')+')':'')+(bad.length?', <b>'+bad.length+'</b> skipped':'')+'.</p>'+(bad.length?'<ul class="hr-note">'+bad.slice(0,8).map(x=>'<li>'+esc(x)+'</li>').join('')+(bad.length>8?'<li>and '+(bad.length-8)+' more</li>':'')+'</ul>':'');
+ };rd.readAsText(f)};
+ q('#bkiGo').onclick=()=>{if(!plan||!plan.ok.length)return;const b=B();
+  plan.made.forEach(a=>b.accounts.push(a));b.accounts.forEach(a=>{if(names[a.id]&&!a.name)a.name=names[a.id]});
+  if(plan.kind==='chk'){plan.ok.forEach(k=>{if(!k.txn||b.checks.some(x=>x.txn===k.txn))k.txn=++b.seq.txn;b.seq.txn=Math.max(b.seq.txn||0,k.txn);b.checks.push(k)})}else plan.ok.forEach(t=>b.txns.push(t));
+  const n=plan.ok.length;commit();m.remove();rerender();toast('Imported; '+n+' '+(plan.kind==='chk'?'check':'transaction')+(n===1?'':'s')+' added.','success')};
+}
+
+// ---------- page wiring ----------
+function enter(p){if(p==='cal')renderCal();else if(p==='chk')renderChecks();else if(p==='txn')renderTxns();else if(p==='acc')renderAccts()}
+function rerender(){const a=document.querySelector('.tab-section.active');if(a&&/^tab-bk-/.test(a.id))enter(a.id.slice(7))}
+const wrap=(n,f)=>{const o=window[n];window[n]=function(){const r=o.apply(this,arguments);f();return r}};
+wrap('showTab',()=>{const a=document.querySelector('.tab-section.active');if(!a||!/^tab-bk-/.test(a.id))return;const p=a.id.slice(7);par.classList.add('active');toggleBk(true);const it=$('nav-sub-bk-'+p);if(it)it.classList.add('active');enter(p)});
+wrap('switchCompany',()=>{const n=new Date();cal={y:n.getFullYear(),m:n.getMonth(),acct:'ALL'};kf={q:'',acct:'ALL',st:'ALL',yr:'ALL',mon:'ALL'};tf={acct:'ALL',type:'ALL',yr:'ALL',mon:'ALL'};lastAcct=null;$('bkKQ').value='';posted=new Set();if(C()&&C().bank)sync();rerender()});
+['deleteJournalEntry','openJournalModal'].forEach(n=>{const o=window[n];window[n]=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);if(e&&e.src==='bank')return toast('This entry came from Banking ('+e.ref+'). Edit, cancel or delete the '+(e.bankKind==='chk'?'check':'transaction')+' in Banking instead.');return o.apply(this,arguments)}});
+
+// keep Banking data when a company backup is imported
+const cleanBank=d=>{
+ const S=(v,n)=>String(v==null?'':v).slice(0,n||160),N=v=>{const x=parseFloat(v);return Number.isFinite(x)&&x>0?Math.round(x*100)/100:0},D=v=>DT.test(v||'')?v:'',I=v=>{const x=parseInt(v,10);return Number.isInteger(x)?x:null};
+ const accounts=(Array.isArray(d.accounts)?d.accounts:[]).filter(a=>a&&typeof a==='object'&&a.number).map(a=>({id:safeId(a.id)||'bacc_'+uid(),bank:S(a.bank,80),branch:S(a.branch,80),number:S(a.number,40),type:S(a.type,30),name:S(a.name),gl:I(a.gl),postFrom:D(a.postFrom),opening:a.opening===''||a.opening==null?'':Math.round((parseFloat(a.opening)||0)*100)/100,openingDate:D(a.openingDate)}));
+ const ids=new Set(accounts.map(a=>a.id));
+ const checks=(Array.isArray(d.checks)?d.checks:[]).filter(k=>k&&typeof k==='object'&&ids.has(safeId(k.acct))).map(k=>({id:safeId(k.id)||'chk_'+uid(),txn:I(k.txn)||0,issued:D(k.issued),number:S(k.number,30),acct:safeId(k.acct),particulars:S(k.particulars),payee:S(k.payee),amount:N(k.amount),due:D(k.due),status:ST.includes(k.status)?k.status:'OUTSTANDING',cleared:D(k.cleared),debit:I(k.debit)}));
+ const txns=(Array.isArray(d.txns)?d.txns:[]).filter(t=>t&&typeof t==='object'&&ids.has(safeId(t.acct))&&DT.test(t.date||'')).map(t=>({id:safeId(t.id)||'btx_'+uid(),date:t.date,type:TYPES.includes(t.type)?t.type:'Cash Deposit',acct:safeId(t.acct),source:ids.has(safeId(t.source))?safeId(t.source):'',amount:N(t.amount),ref:S(t.ref,60),notes:S(t.notes),counter:I(t.counter)}));
+ return{accounts,checks,txns,settings:{postOn:d.settings&&d.settings.postOn==='issued'?'issued':'due'},seq:{txn:Math.max(0,...checks.map(k=>k.txn))}};
+};
+const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d);if(d.bank&&typeof d.bank==='object')o.bank=cleanBank(d.bank);
+ o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='bank'){e.src='bank';e.bankKind=x.bankKind==='txn'?'txn':'chk';e.bankId=safeId(x.bankId)}});return o};
+
+window.BANKMOD={sync,acctFigures:id=>acctFigures(accOf(id)),cleanBank};
+})();
+
+
 // ===== Movable sidebar menu: press and hold an item for 5 seconds, then drag it into place =====
 (function(){
  const KEY = 'accounting_navorder', HOLD_MS = 5000;

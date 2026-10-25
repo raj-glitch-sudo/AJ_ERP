@@ -5440,9 +5440,14 @@ const toCsv=rows=>rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
 function parseCsv(t){const rows=[];let r=[],f='',q=false;t=String(t).replace(/^﻿/,'');
  for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}else if(c==='"')q=true;else if(c===','){r.push(f);f=''}else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;r.push(f);f='';if(r.some(x=>x.trim()!==''))rows.push(r);r=[]}else f+=c}
  r.push(f);if(r.some(x=>x.trim()!==''))rows.push(r);return rows}
-function parseDate(s){s=String(s||'').trim();if(!s)return '';if(DT.test(s))return s;
- const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(m&&+m[1]>=1&&+m[1]<=12&&+m[2]>=1&&+m[2]<=31)return m[3]+'-'+String(m[1]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0');
- if(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d+$/.test(s))return '';const d=new Date(s);return isNaN(d)||d.getFullYear()<1990||d.getFullYear()>2100?'':localDateStr(d)}
+const mkDate=(y,m,d)=>{if(y<1990||y>2100||m<1||m>12||d<1||d>31)return '';const t=new Date(y,m-1,d);return t.getMonth()===m-1&&t.getDate()===d?localDateStr(t):''};
+// Accepts 7/2/26, 07/02/2026, 2026-07-02, 2026/7/2, Jul 2, 2026 and 2-Jul-26. Month comes first (as Google Sheets writes it) unless the first number is over 12.
+function parseDate(s){s=String(s||'').trim().replace(/\s+\d{1,2}:\d{2}(:\d{2})?(\s*[ap]m)?$/i,'');if(!s)return '';
+ let m=s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);if(m)return mkDate(+m[1],+m[2],+m[3]);
+ m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);
+ if(m){let a=+m[1],b=+m[2],y=+m[3];if(m[3].length===2)y+=2000;return a>12&&b<=12?mkDate(y,b,a):mkDate(y,a,b)}
+ m=s.match(/^(\d{1,2})[\s\-]([A-Za-z]{3,9})[\s\-,]+(\d{2}|\d{4})$/);if(m){const mo=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[2].slice(0,3).toLowerCase())+1;let y=+m[3];if(m[3].length===2)y+=2000;return mo?mkDate(y,mo,+m[1]):''}
+ if(/^[\d\/\-.\s]+$/.test(s))return '';const d=new Date(s);return isNaN(d)?'':mkDate(d.getFullYear(),d.getMonth()+1,d.getDate())}
 const num=s=>parseFloat(String(s==null?'':s).replace(/[^0-9.\-]/g,''))||0;
 const payees=()=>{const s=new Map();((C().inv&&C().inv.suppliers)||[]).forEach(x=>{if(x&&x.name&&x.active!==false)s.set(nk(x.name),x.name)});B().checks.forEach(k=>{if(k.payee&&!s.has(nk(k.payee)))s.set(nk(k.payee),k.payee)});return [...s.values()].sort(nameCmp)};
 function nextNo(acctId){
@@ -5790,9 +5795,10 @@ function openAcct(id,after){
 
 // ---------- CSV import (from the Check Transaction Log and Bank Transaction Log sheets) ----------
 function findOrMakeAcct(numStr,bank,name,made,names){
- const b=B(),key=nk(numStr);if(!key)return null;
+ const b=B(),key=nk(numStr);if(!key||!/\d{3,}/.test(String(numStr)))return null;
  let a=b.accounts.find(x=>nk(x.number)===key)||made.find(x=>nk(x.number)===key);
- if(!a){const nb=String(bank||'').trim().toUpperCase();a={id:'bacc_'+uid(),bank:nb||'BANK',branch:'',number:String(numStr).trim(),type:'Checking',name:String(name||'').trim().toUpperCase(),gl:null,postFrom:'',opening:'',openingDate:''};made.push(a)}
+ const nb=String(bank||'').trim().toUpperCase();if(a&&a.bank==='BANK'&&nb&&made.includes(a))a.bank=nb;
+ if(!a){a={id:'bacc_'+uid(),bank:nb||'BANK',branch:'',number:String(numStr).trim(),type:'Checking',name:String(name||'').trim().toUpperCase(),gl:null,postFrom:'',opening:'',openingDate:''};made.push(a)}
  else if(!a.name&&name&&names)names[a.id]=String(name).trim().toUpperCase();
  return a;
 }
@@ -5819,8 +5825,8 @@ function openImp(kind){
    if(I.no<0||I.amt<0){out.innerHTML='<p style="color:var(--ember)">Missing columns: Check Number and Amount are required.</p>';return}
    const have=new Set(b.checks.map(k=>k.acct+'|'+k.number));let lastA=null;
    rows.slice(hi+1).forEach((r,i)=>{const line=hi+i+2,no=val(r,I.no);if(!no||r.some(x=>/^\s*example\b/i.test(String(x))))return;
-    const stRaw=val(r,I.st).toUpperCase(),st=/CANCEL|VOID/.test(stRaw)?'CANCELLED':/CLEAR/.test(stRaw)?'CLEARED':'OUTSTANDING';
-    let a=val(r,I.num)?findOrMakeAcct(val(r,I.num),val(r,I.bank),'',made):lastA;
+    const stRaw=val(r,I.st).toUpperCase(),anyCancel=r.some(x=>/^\s*(cancel|void)/i.test(String(x))),st=anyCancel||/CANCEL|VOID/.test(stRaw)?'CANCELLED':/CLEAR/.test(stRaw)?'CLEARED':'OUTSTANDING';
+    let a=findOrMakeAcct(val(r,I.num),val(r,I.bank),'',made)||lastA;
     if(!a)return bad.push('Row '+line+': check '+no+' has no account number');lastA=a;
     const iss=parseDate(val(r,I.iss)),due=parseDate(val(r,I.due))||iss,amt=r2(num(val(r,I.amt)));
     if(st!=='CANCELLED'&&!(amt>0))return bad.push('Row '+line+': check '+no+' has no amount');
@@ -5843,7 +5849,8 @@ function openImp(kind){
    });
   }
   plan={kind:q('#bkiK').value,ok,made};q('#bkiGo').disabled=!ok.length;
-  out.innerHTML='<p><b>'+ok.length+'</b> ready to import'+(made.length?', <b>'+made.length+'</b> new bank account'+(made.length===1?'':'s')+' ('+made.map(x=>esc(label(x))).join('; ')+')':'')+(bad.length?', <b>'+bad.length+'</b> skipped':'')+'.</p>'+(bad.length?'<ul class="hr-note">'+bad.slice(0,8).map(x=>'<li>'+esc(x)+'</li>').join('')+(bad.length>8?'<li>and '+(bad.length-8)+' more</li>':'')+'</ul>':'');
+  out.innerHTML='<p><b>'+ok.length+'</b> ready to import'+(made.length?', <b>'+made.length+'</b> new bank account'+(made.length===1?'':'s')+' ('+made.map(x=>esc(label(x))).join('; ')+')':'')+(bad.length?', <b>'+bad.length+'</b> skipped':'')+'.</p>'+(bad.length?(()=>{const g=new Map();bad.forEach(x=>{const why=x.replace(/^Row \d+: /,'').replace(/^check \S+ /,'').replace(/\s*\("[^"]*"\)/,'').replace(/\s*\([^)]*\d[^)]*\)/,'').trim();g.set(why,(g.get(why)||0)+1)});
+   return '<p class="hr-note" style="margin:.2rem 0">Skipped, by reason: '+[...g].map(([w,n])=>'<b>'+n+'</b> '+esc(w)).join('; ')+'</p><ul class="hr-note">'+bad.slice(0,8).map(x=>'<li>'+esc(x)+'</li>').join('')+(bad.length>8?'<li>and '+(bad.length-8)+' more</li>':'')+'</ul>'})():'');
  };rd.readAsText(f)};
  q('#bkiGo').onclick=()=>{if(!plan||!plan.ok.length)return;const b=B();
   plan.made.forEach(a=>b.accounts.push(a));b.accounts.forEach(a=>{if(names[a.id]&&!a.name)a.name=names[a.id]});
