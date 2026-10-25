@@ -4177,6 +4177,7 @@ body.dark-mode .login-logo{--lm-edge:color-mix(in srgb,var(--aj-6) 40%,transpare
         }
 
         function saveToLocalStorage() {
+            if (window.AJSTORE) return window.AJSTORE.save();
             try {
                 localStorage.setItem('accounting_companies', JSON.stringify(companies));
             } catch (e) {
@@ -4185,9 +4186,10 @@ body.dark-mode .login-logo{--lm-edge:color-mix(in srgb,var(--aj-6) 40%,transpare
         }
 
         function loadFromLocalStorage() {
-            const stored = localStorage.getItem('accounting_companies');
-            if (stored) {
-                try { companies = JSON.parse(stored); } catch(e) { companies = []; }
+            const pre = window.__ajLoaded; window.__ajLoaded = null;
+            const stored = pre ? null : localStorage.getItem('accounting_companies');
+            if (pre || stored) {
+                if (pre) companies = pre; else { try { companies = JSON.parse(stored); } catch(e) { companies = []; } }
                 companies.forEach(c => { 
                     if (c.coaSetupDone === undefined) c.coaSetupDone = true;
                     if (!['accrual', 'cash', 'both'].includes(c.basis)) c.basis = 'accrual';
@@ -11768,6 +11770,251 @@ document.addEventListener('click',later,true);
 setTimeout(scan,300);
 setTimeout(()=>{const x=document.getElementById('mcPrefSel');if(x)x.value=PREF()},0);
 window.MOBUI={scan,setPref};
+})();
+
+
+// ===== Storage (IndexedDB) and Google Drive sync =====
+// Data lives in the browser's IndexedDB (hundreds of MB or more) instead of localStorage (about 5 MB).
+// Sync: each device writes small encrypted "change files" into a shared Google Drive folder and reads everyone else's.
+// Two ways to reach the folder: Google Drive for Desktop + a folder picked in Chrome/Edge (computers), or Google sign-in (phones, hosted app).
+(function(){
+const $=id=>document.getElementById(id),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// ---------- IndexedDB key-value store ----------
+let dbp=null;
+function db(){if(dbp)return dbp;dbp=new Promise((res,rej)=>{if(!window.indexedDB)return rej(new Error('no idb'));const r=indexedDB.open('aj_erp',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});dbp.catch(()=>{dbp=null});return dbp}
+const kv=(mode,f)=>db().then(d=>new Promise((res,rej)=>{const t=d.transaction('kv',mode),s=t.objectStore('kv');let out;const rq=f(s);if(rq)rq.onsuccess=()=>{out=rq.result};t.oncomplete=()=>res(out);t.onerror=t.onabort=()=>rej(t.error)}));
+const kget=k=>kv('readonly',s=>s.get(k)),kset=(k,v)=>kv('readwrite',s=>s.put(v,k)),kdel=k=>kv('readwrite',s=>s.delete(k));
+// ---------- loading: IndexedDB first, migrating the old localStorage copy once ----------
+let IDB_OK=false;
+const oOnload=window.onload;
+window.onload=async function(){const args=arguments;let list=null;
+ try{list=await kget('companies');IDB_OK=true}catch(e){IDB_OK=false}
+ try{const ls=localStorage.getItem('accounting_companies');
+  if(ls&&(!Array.isArray(list)||localStorage.getItem('aj_ls_newer'))){const arr=JSON.parse(ls);if(IDB_OK){await kset('companies',arr);localStorage.removeItem('accounting_companies');localStorage.removeItem('aj_ls_newer');try{localStorage.setItem('aj_migrated',new Date().toISOString())}catch(e){}}list=arr}}catch(e){console.error(e)}
+ window.__ajLoaded=Array.isArray(list)?list:null;
+ try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+ return oOnload?oOnload.apply(this,args):undefined};
+// ---------- saving: every change is written to IndexedDB right away (writes are coalesced) ----------
+let writing=false,pending=false,lastErr=null;
+async function flush(){if(writing)return;writing=true;try{while(pending){pending=false;
+  if(IDB_OK){try{await kset('companies',companies);lastErr=null;continue}catch(e){lastErr=e;IDB_OK=false}}
+  try{localStorage.setItem('accounting_companies',JSON.stringify(companies));localStorage.setItem('aj_ls_newer','1')}catch(e){if(confirm('Storage is full – your latest changes are NOT saved and will be lost on reload.\n\nDownload an emergency backup of all companies now?'))downloadJSON(companies,'EMERGENCY_BACKUP_'+localDateStr(new Date())+'.json')}}}finally{writing=false}}
+window.AJSTORE={save(){pending=true;Promise.resolve().then(flush);try{SY.dirty()}catch(e){}}};
+addEventListener('pagehide',()=>{pending=true;flush()});document.addEventListener('visibilitychange',()=>{if(document.hidden){pending=true;flush()}});
+// ---------- small helpers ----------
+const SEP='\u001f',td=()=>localDateStr(new Date());
+const stab=v=>v===null||typeof v!=='object'?(v===undefined?'null':JSON.stringify(v)):Array.isArray(v)?'['+v.map(stab).join(',')+']':'{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stab(v[k])).join(',')+'}';
+function hsh(s){let a=0xdeadbeef,b=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);a=Math.imul(a^c,2654435761);b=Math.imul(b^c,1597334677)}a=Math.imul(a^(a>>>16),2246822507)^Math.imul(b^(b>>>13),3266489909);b=Math.imul(b^(b>>>16),2246822507)^Math.imul(a^(a>>>13),3266489909);return(b>>>0).toString(36)+'.'+(a>>>0).toString(36)+'.'+s.length.toString(36)}
+const H=v=>hsh(stab(v)),clone=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
+const idOf=x=>x&&typeof x==='object'&&!Array.isArray(x)?(typeof x.id==='string'||typeof x.id==='number'?'i:'+x.id:(typeof x.code==='number'||typeof x.code==='string')?'c:'+x.code:null):null;
+function isColl(a){const s=new Set();for(const x of a){const k=idOf(x);if(!k||s.has(k))return false;s.add(k)}return true}
+// A company becomes a flat map of "records": every record in a list that has an id (journal entries, invoices, tenants…)
+// and every single setting. Two devices can then edit different records at the same time without overwriting each other.
+const LOCAL=new Set(['pkgAt']);
+function flat(o,pre,out){for(const k of Object.keys(o)){const v=o[k];if(v===undefined||(!pre&&LOCAL.has(k)))continue;const p=pre?pre+SEP+k:k;
+ if(Array.isArray(v)){if(v.length&&isColl(v))v.forEach(x=>out.set(p+SEP+'#'+idOf(x),x));else out.set(p,v)}
+ else if(v&&typeof v==='object'){if(Object.keys(v).length)flat(v,p,out);else out.set(p,v)}else out.set(p,v)}return out}
+const flatC=c=>flat(c,'',new Map());
+function findEl(a,seg){const k=seg.slice(1);return Array.isArray(a)?a.find(x=>idOf(x)===k):null}
+function setAt(root,key,val){const S=key.split(SEP);let o=root;for(let i=0;i<S.length-1;i++){const s=S[i],arr=S[i+1][0]==='#';let c=o[s];if(arr?!Array.isArray(c)||(c.length&&!isColl(c)):(!c||typeof c!=='object'||Array.isArray(c))){c=arr?[]:{};o[s]=c}o=c}
+ const l=S[S.length-1],v=clone(val);if(l[0]==='#'){const el=findEl(o,l);if(el&&v&&typeof v==='object'){Object.keys(el).forEach(k=>delete el[k]);Object.assign(el,v);return el}if(el){o[o.indexOf(el)]=v;return v}o.push(v);return v}o[l]=v;return v}
+function delAt(root,key){const S=key.split(SEP);let o=root;for(let i=0;i<S.length-1;i++){o=o&&o[S[i]];if(!o||typeof o!=='object')return false}const l=S[S.length-1];
+ if(l[0]==='#'){if(!Array.isArray(o))return false;const el=findEl(o,l);if(el)o.splice(o.indexOf(el),1);return true}
+ const cur=o[l];if(cur&&typeof cur==='object'&&(Array.isArray(cur)?cur.length&&isColl(cur):Object.keys(cur).length))return false;delete o[l];return true}
+// ---------- encryption (AES-GCM, key from the company sync passphrase) ----------
+const te=new TextEncoder(),tdc=new TextDecoder();
+const b64e=u=>{let s='';u.forEach(b=>s+=String.fromCharCode(b));return btoa(s)},b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function gz(u,on){const S=on?new CompressionStream('gzip'):new DecompressionStream('gzip');return new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(S)).arrayBuffer())}
+async function keyFor(pass,salt){const b=await crypto.subtle.importKey('raw',te.encode(pass),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt:b64d(salt),iterations:210000,hash:'SHA-256'},b,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function seal(key,obj){let d=te.encode(JSON.stringify(obj)),z=0;if(window.CompressionStream){try{d=await gz(d,true);z=1}catch(e){}}const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,d));
+ const out=new Uint8Array(5+12+ct.length);out.set(te.encode('AJS1'),0);out[4]=z;out.set(iv,5);out.set(ct,17);return out}
+async function unseal(key,u){if(u.length<18||tdc.decode(u.slice(0,4))!=='AJS1')throw new Error('Not an AJ ERP sync file');let d=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(5,17)},key,u.slice(17)));if(u[4])d=await gz(d,false);return JSON.parse(tdc.decode(d))}
+// ---------- this device ----------
+const DEV=(()=>{try{let d=localStorage.getItem('aj_dev_id');if(!d){d='d'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);localStorage.setItem('aj_dev_id',d)}return d}catch(e){return 'd'+Math.random().toString(36).slice(2,10)}})();
+const devName=()=>{try{return localStorage.getItem('aj_dev_name')||((/Android|iPhone|iPad/i.test(navigator.userAgent)?'Phone':'Computer')+' '+DEV.slice(-4))}catch(e){return 'Device'}};
+// ---------- transports ----------
+let CFG={mode:'',root:null,gdRoot:'',gdClient:''};
+const canFS=()=>typeof window.showDirectoryPicker==='function';
+const canGD=()=>/^https:$/.test(location.protocol)||/^localhost$|^127\./.test(location.hostname);
+const FS={name:'fs',
+ async dir(path,create){let d=CFG.root;for(const n of path.split('/').filter(Boolean))d=await d.getDirectoryHandle(n,{create:!!create});return d},
+ async list(path){try{const d=await this.dir(path,false),o=[];for await(const [n,h] of d.entries())if(h.kind==='file')o.push(n);return o}catch(e){return []}},
+ async dirs(path){try{const d=await this.dir(path,false),o=[];for await(const [n,h] of d.entries())if(h.kind==='directory')o.push(n);return o}catch(e){return []}},
+ async read(path,name){const d=await this.dir(path,false),f=await(await d.getFileHandle(name)).getFile();return new Uint8Array(await f.arrayBuffer())},
+ async write(path,name,u){const d=await this.dir(path,true),h=await d.getFileHandle(name,{create:true}),w=await h.createWritable();await w.write(u);await w.close()},
+ async del(path,name){try{const d=await this.dir(path,false);await d.removeEntry(name)}catch(e){}},
+ async ready(){if(!CFG.root)return false;try{return(await CFG.root.queryPermission({mode:'readwrite'}))==='granted'}catch(e){return false}},
+ async grant(){if(!CFG.root)return false;try{return(await CFG.root.requestPermission({mode:'readwrite'}))==='granted'}catch(e){return false}},
+ label:()=>CFG.root?'Folder “'+CFG.root.name+'” on this computer':'No folder chosen'};
+const GD={name:'gd',tok:'',exp:0,ids:{},files:{},
+ loadGis(){return window.google&&google.accounts&&google.accounts.oauth2?Promise.resolve():new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=res;s.onerror=()=>rej(new Error('Could not load Google sign-in. Check the internet connection.'));document.head.appendChild(s)})},
+ async grant(){if(!CFG.gdClient)throw new Error('Enter the Google client ID first (Settings › Sync & Backup).');await this.loadGis();return new Promise((res,rej)=>{const tc=google.accounts.oauth2.initTokenClient({client_id:CFG.gdClient,scope:'https://www.googleapis.com/auth/drive',callback:r=>{if(r&&r.access_token){this.tok=r.access_token;this.exp=Date.now()+(+r.expires_in||3600)*1000;res(true)}else rej(new Error(r&&r.error||'Google sign-in was cancelled.'))},error_callback:e=>rej(new Error(e&&e.message||'Google sign-in was cancelled.'))});tc.requestAccessToken({prompt:''})})},
+ async ready(){return !!this.tok&&Date.now()<this.exp-60000&&!!CFG.gdRoot},
+ async api(method,url,body,type){const r=await fetch(url,{method,headers:Object.assign({Authorization:'Bearer '+this.tok},type?{'Content-Type':type}:{}),body});if(r.status===401){this.tok='';throw new Error('Google sign-in expired. Tap the sync button to sign in again.')}if(!r.ok)throw new Error('Google Drive error '+r.status+': '+(await r.text()).slice(0,160));return r},
+ q:s=>encodeURIComponent(s),
+ async folder(path,create){let id=CFG.gdRoot,acc='';for(const n of path.split('/').filter(Boolean)){acc+='/'+n;if(this.ids[acc]){id=this.ids[acc];continue}
+   const r=await(await this.api('GET','https://www.googleapis.com/drive/v3/files?q='+this.q("name='"+n.replace(/'/g,"\\'")+"' and '"+id+"' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false")+'&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true')).json();
+   let f=r.files&&r.files[0];if(!f){if(!create)return null;f=await(await this.api('POST','https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',JSON.stringify({name:n,mimeType:'application/vnd.google-apps.folder',parents:[id]}),'application/json')).json()}id=this.ids[acc]=f.id}return id},
+ async listAll(fid,folders){const out=[];let pt='';do{const r=await(await this.api('GET','https://www.googleapis.com/drive/v3/files?q='+this.q("'"+fid+"' in parents and trashed=false and mimeType"+(folders?'=':'!=')+"'application/vnd.google-apps.folder'")+'&fields=nextPageToken,files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true'+(pt?'&pageToken='+pt:''))).json();(r.files||[]).forEach(f=>out.push(f));pt=r.nextPageToken}while(pt);return out},
+ async list(path){const fid=await this.folder(path,false);if(!fid)return[];const L=await this.listAll(fid);const m=this.files[path]={};L.forEach(f=>m[f.name]=f.id);return Object.keys(m)},
+ async dirs(path){const fid=await this.folder(path,false);if(!fid)return[];return(await this.listAll(fid,true)).map(f=>{this.ids[(path?'/'+path:'')+'/'+f.name]=f.id;return f.name})},
+ async read(path,name){if(!(this.files[path]&&this.files[path][name]))await this.list(path);const id=this.files[path]&&this.files[path][name];if(!id)throw new Error('missing');return new Uint8Array(await(await this.api('GET','https://www.googleapis.com/drive/v3/files/'+id+'?alt=media&supportsAllDrives=true')).arrayBuffer())},
+ async write(path,name,u){const fid=await this.folder(path,true);const id=this.files[path]&&this.files[path][name];
+  if(id){await this.api('PATCH','https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media&supportsAllDrives=true',u,'application/octet-stream');return}
+  const b='aj'+Math.random().toString(36).slice(2),meta=JSON.stringify({name,parents:[fid]});const body=new Blob(['--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+meta+'\r\n--'+b+'\r\nContent-Type: application/octet-stream\r\n\r\n',u,'\r\n--'+b+'--']);
+  const f=await(await this.api('POST','https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id',body,'multipart/related; boundary='+b)).json();(this.files[path]=this.files[path]||{})[name]=f.id},
+ async del(path,name){const id=this.files[path]&&this.files[path][name];if(id){try{await this.api('DELETE','https://www.googleapis.com/drive/v3/files/'+id+'?supportsAllDrives=true')}catch(e){}delete this.files[path][name]}},
+ label:()=>CFG.gdRoot?'Google Drive folder (signed in with Google)':'No Drive folder linked'};
+let TEST=null;const T=()=>TEST||(CFG.mode==='gd'?GD:FS);
+async function loadCfg(){try{const c=await kget('synccfg');if(c)CFG=Object.assign(CFG,c)}catch(e){}}
+async function saveCfg(){try{await kset('synccfg',{mode:CFG.mode,root:CFG.root,gdRoot:CFG.gdRoot,gdClient:CFG.gdClient})}catch(e){console.error(e)}}
+// ---------- per-company sync state (kept on this device only) ----------
+const ST={},KEY={},BASE={};
+async function st(cid){if(!ST[cid]){ST[cid]=(await kget('syncs:'+cid).catch(()=>null))||null}return ST[cid]}
+async function putSt(cid){await kset('syncs:'+cid,ST[cid])}
+async function base(cid){if(!BASE[cid])BASE[cid]=(await kget('syncb:'+cid).catch(()=>null))||{};return BASE[cid]}
+async function putBase(cid){await kset('syncb:'+cid,BASE[cid])}
+async function key(cid){if(!KEY[cid])KEY[cid]=(await kget('synck:'+cid).catch(()=>null))||null;return KEY[cid]}
+const comp=cid=>companies.find(c=>c.id===cid);
+const pad=(n,w)=>String(n).padStart(w,'0'),stamp=()=>{const d=new Date();return d.getFullYear()+pad(d.getMonth()+1,2)+pad(d.getDate(),2)+'-'+pad(d.getHours(),2)+pad(d.getMinutes(),2)};
+function baseOf(c){const b={};flatC(c).forEach((v,k)=>b[k]=H(v));return b}
+function normalize(c){try{if(!Array.isArray(c.serviceLines)){const m=deriveServiceLines(c);c.serviceLines=m.serviceLines;c.otherLine=m.otherLine}backfillContraLinks(c);rebuildAllBeginningBalances(c)}catch(e){console.error(e)}}
+// ---------- start / join ----------
+async function readInfo(cid){try{return JSON.parse(tdc.decode(await T().read(cid,'info.json')))}catch(e){return null}}
+async function latestSnap(cid,k){const L=(await T().list(cid+'/backups')).filter(n=>/\.ajs$/.test(n)).sort((a,b)=>a.split('_').pop().localeCompare(b.split('_').pop()));for(let i=L.length-1;i>=0;i--){try{return Object.assign(await unseal(k,await T().read(cid+'/backups',L[i])),{file:L[i]})}catch(e){}}return null}
+async function startSync(c,pass){const cid=c.id;if(await readInfo(cid))throw new Error('This company is already in the sync folder. Use “Join” with its passphrase instead.');
+ const salt=b64e(crypto.getRandomValues(new Uint8Array(16))),k=await keyFor(pass,salt);
+ await T().write(cid,'info.json',te.encode(JSON.stringify({app:'AJ ERP System',v:1,id:cid,name:c.name,salt,check:b64e(await seal(k,{ok:'ajerp'})),created:new Date().toISOString(),by:devName()})));
+ KEY[cid]=k;await kset('synck:'+cid,k);ST[cid]={on:true,seq:0,applied:{},devs:{},conflicts:[],sent:[],lastSnap:0,lastSync:0};BASE[cid]=baseOf(c);
+ await snapshot(cid,true);await putSt(cid);await putBase(cid);return true}
+async function unlock(cid,pass){const info=await readInfo(cid);if(!info)throw new Error('That company is not in the sync folder.');const k=await keyFor(pass,info.salt);try{const ok=await unseal(k,b64d(info.check));if(ok.ok!=='ajerp')throw 0}catch(e){throw new Error('Wrong passphrase.')}return{k,info}}
+async function joinSync(cid,pass){const{k,info}=await unlock(cid,pass),snap=await latestSnap(cid,k);if(!snap)throw new Error('No backup of this company was found in the folder yet. Ask the person who started syncing to open the app and press “Sync now”.');
+ const ex=comp(cid);if(ex){try{await kset('prejoin:'+cid,clone(ex))}catch(e){}companies.splice(companies.indexOf(ex),1)}
+ const c=snap.company;normalize(c);companies.push(c);KEY[cid]=k;await kset('synck:'+cid,k);
+ const ap=Object.assign({},snap.applied||{});delete ap[DEV];ST[cid]={on:true,seq:0,applied:ap,devs:{},conflicts:[],sent:[],lastSnap:Date.now(),lastSync:0};BASE[cid]=baseOf(c);await putSt(cid);await putBase(cid);
+ pending=true;await flush();await syncCo(cid);return{name:info.name,replaced:!!ex}}
+// ---------- one sync round for a company: pull everyone else's changes, then push ours ----------
+const busy={};
+async function syncCo(cid,why){if(busy[cid])return busy[cid];return busy[cid]=(async()=>{try{const s=await st(cid);if(!s||!s.on)return;const k=await key(cid);if(!k)throw new Error('This device does not have the sync passphrase yet.');if(!(await T().ready()))throw Object.assign(new Error('needs-access'),{access:true});
+  await pull(cid,s,k);await push(cid,s,k);if(Date.now()-(s.lastSnap||0)>20*3600e3)await snapshot(cid);s.lastSync=Date.now();s.err='';await putSt(cid)}
+ catch(e){const s=ST[cid];if(s){s.err=e.access?'access':e.message;try{await putSt(cid)}catch(x){}}if(!e.access)console.error(e)}finally{busy[cid]=null;paint()}})()}
+async function pull(cid,s,k){const names=await T().list(cid+'/changes'),by={};
+ names.forEach(n=>{const m=/^([\w-]+)_(\d+)\.ajc$/.exec(n);if(m&&m[1]!==DEV)(by[m[1]]=by[m[1]]||[]).push(+m[2])});
+ const got=[];s.waiting=[];for(const d of Object.keys(by)){const seqs=by[d].sort((a,b)=>a-b);let a=s.applied[d]||0;
+  if(seqs.length&&seqs[0]>a+1&&!seqs.includes(a+1)&&seqs.every(x=>x>a+1)){s.stale=d;continue}
+  for(const q of seqs){if(q<=a)continue;if(q!==a+1){s.waiting.push(d);break}let p;try{p=await unseal(k,await T().read(cid+'/changes',d+'_'+pad(q,6)+'.ajc'))}catch(e){s.waiting.push(d);break}got.push(p);a=q}}
+ if(!got.length)return;got.sort((x,y)=>x.ts-y.ts||String(x.dev).localeCompare(y.dev)||x.seq-y.seq);
+ const c=comp(cid);if(!c)return;const B=await base(cid),L=flatC(c),lh=new Map(),cur=k2=>{if(!lh.has(k2))lh.set(k2,L.has(k2)?H(L.get(k2)):null);return lh.get(k2)};let n=0;
+ for(const p of got){for(const ch of p.ch.slice().sort((x,y)=>(x[1]===null?0:1)-(y[1]===null?0:1))){const kk=ch[0],h=ch[1],b=B[kk]==null?null:B[kk],mine=cur(kk);
+   if(mine===b||(b===null&&!kk.includes(SEP+'#'))){if(h===null){if(delAt(c,kk)){L.delete(kk);lh.set(kk,null)}delete B[kk]}else{const ref=setAt(c,kk,ch[2]);L.set(kk,ref);lh.set(kk,h);B[kk]=h}n++}
+   else if(mine===h){if(h===null)delete B[kk];else B[kk]=h}
+   else{s.conflicts=(s.conflicts||[]).filter(x=>x.k!==kk);s.conflicts.push({k:kk,mine:mine===null?null:clone(L.get(kk)),theirs:h===null?null:ch[2],dev:p.devName||p.dev,ts:p.ts});if(h===null)delete B[kk];else B[kk]=h}}
+  s.applied[p.dev]=p.seq;(s.devs=s.devs||{})[p.dev]={name:p.devName||p.dev,last:p.ts}}
+ if(s.conflicts&&s.conflicts.length>200)s.conflicts=s.conflicts.slice(-200);
+ normalize(c);await putBase(cid);pending=true;await flush();if(n&&c.id===activeCompanyId)refreshUI()}
+async function push(cid,s,k){const c=comp(cid);if(!c)return;const B=await base(cid),L=flatC(c),ch=[];
+ L.forEach((v,kk)=>{const h=H(v);if(B[kk]!==h)ch.push([kk,h,v])});Object.keys(B).forEach(kk=>{if(!L.has(kk))ch.push([kk,null])});if(!ch.length)return 0;
+ const seq=(s.seq||0)+1,p={v:1,cid,dev:DEV,devName:devName(),seq,ts:Date.now(),ch};await T().write(cid+'/changes',DEV+'_'+pad(seq,6)+'.ajc',await seal(k,p));
+ s.seq=seq;(s.sent=s.sent||[]).push([seq,p.ts]);ch.forEach(x=>{if(x[1]===null)delete B[x[0]];else B[x[0]]=x[1]});await putBase(cid);await putSt(cid);return ch.length}
+// daily full backup (also how new devices join); keeps 30 per device and clears this device's change files older than 45 days
+async function snapshot(cid,force){const s=ST[cid],k=KEY[cid],c=comp(cid);if(!s||!k||!c)return;const ap=Object.assign({},s.applied,{[DEV]:s.seq||0});
+ await T().write(cid+'/backups',DEV+'_'+stamp()+'.ajs',await seal(k,{v:1,cid,dev:DEV,devName:devName(),ts:Date.now(),applied:ap,company:c}));s.lastSnap=Date.now();
+ try{const mine=(await T().list(cid+'/backups')).filter(n=>n.startsWith(DEV+'_')&&/\.ajs$/.test(n)).sort();for(const n of mine.slice(0,Math.max(0,mine.length-30)))await T().del(cid+'/backups',n);
+  const old=Date.now()-45*864e5,keep=(s.sent||[]).filter(x=>x[1]>=old);for(const x of(s.sent||[]).filter(x=>x[1]<old))await T().del(cid+'/changes',DEV+'_'+pad(x[0],6)+'.ajc');s.sent=keep}catch(e){}}
+// ---------- triggers ----------
+let dT=0;const SY={dirty(){clearTimeout(dT);dT=setTimeout(()=>{const id=activeCompanyId;if(id&&ST[id]&&ST[id].on)syncCo(id)},12000)}};
+async function cycle(){if(document.hidden||!activeCompanyId)return;const ids=new Set([activeCompanyId]);companies.forEach(c=>{if(ST[c.id]&&ST[c.id].on)ids.add(c.id)});for(const id of ids){await st(id);if(ST[id]&&ST[id].on)await syncCo(id)}}
+setInterval(cycle,120000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(cycle,800);else if(activeCompanyId&&ST[activeCompanyId]&&ST[activeCompanyId].on)syncCo(activeCompanyId)});
+{const o=window.switchCompany;window.switchCompany=function(){const r=o.apply(this,arguments);setTimeout(async()=>{const id=activeCompanyId;if(!id)return;await st(id);paint();if(ST[id]&&ST[id].on)syncCo(id)},1500);return r}}
+function refreshUI(){try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}try{if(!document.querySelector('.modal-overlay:not(.hidden) .modal')&&window.ERPX)ERPX.rerender()}catch(e){}}
+// ---------- header status button ----------
+const ICO='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.2 9.1 4 4 0 0 0 6.5 17H8"/><path d="M12 12v8M9 15l3-3 3 3"/></svg>';
+document.head.insertAdjacentHTML('beforeend','<style>#syncChip{position:relative}#syncChip i{position:absolute;right:5px;bottom:5px;width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px var(--frame,#016351);top:auto}#syncChip i.ok{background:#22c55e}#syncChip i.wait{background:#f59e0b}#syncChip i.bad{background:#ef4444}#syncChip i.off{background:#9ca3af}#syncChip.spin svg{animation:sySpin 1s linear infinite}@keyframes sySpin{50%{opacity:.4}}'
+ +'.sy-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.sy-step{border:1px solid var(--border-color);border-radius:12px;padding:12px 14px;margin-bottom:10px}.sy-step h4{margin:0 0 6px}.sy-ok{color:#16a34a;font-weight:700}.sy-warn{color:#b45309;font-weight:700}.sy-bad{color:var(--danger,#dc2626);font-weight:700}.sy-mono{font-family:ui-monospace,Consolas,monospace;font-size:.82rem;word-break:break-all}</style>');
+const hr=document.querySelector('header .header-right');
+if(hr){hr.insertAdjacentHTML('afterbegin','<button type="button" class="tb-ib" id="syncChip" title="Sync">'+ICO+'<i class="off"></i></button>');$('syncChip').onclick=chipClick}
+function stateOf(){const id=activeCompanyId,s=id&&ST[id];if(!s||!s.on)return['off','Sync is off for this company'];if(busy[id])return['wait','Syncing…'];
+ if(s.err==='access')return['bad',CFG.mode==='gd'?'Tap to sign in to Google Drive':'Tap to allow access to the sync folder'];if(s.err)return['bad','Sync problem: '+s.err];
+ if(s.conflicts&&s.conflicts.length)return['wait',s.conflicts.length+' change'+(s.conflicts.length===1?'':'s')+' to review'];if(s.stale)return['bad','This device is too far behind. Open Sync & Backup.'];
+ if(s.waiting&&s.waiting.length)return['wait','Waiting for files from another device to finish uploading'];const m=s.lastSync?Math.round((Date.now()-s.lastSync)/60000):null;return['ok',m==null?'Synced':m<1?'Synced just now':'Synced '+m+' min ago']}
+function paint(){const c=$('syncChip');if(!c)return;const[k,t]=stateOf();c.querySelector('i').className=k;c.title=t;c.classList.toggle('spin',k==='wait'&&!!busy[activeCompanyId]);const p=$('setTab-sync');if(p&&p.classList.contains('active'))renderSet()}
+async function chipClick(){const id=activeCompanyId,s=id&&ST[id];if(!s||!s.on){showTab('settings');showSettingsSubTab('sync');return}
+ if(s.err==='access'){try{if(CFG.mode==='gd')await GD.grant();else if(!(await FS.grant()))return toast('Access to the folder was not allowed.')}catch(e){return toast(e.message)}}
+ if(s.conflicts&&s.conflicts.length)return conflicts(id);await syncCo(id);toast(stateOf()[1],stateOf()[0]==='bad'?'error':'success')}
+setInterval(paint,30000);
+// ---------- conflict review ----------
+const NAMES={journalEntries:'Journal entry',chartOfAccounts:'Account',inv:'Invoice',bills:'Bill',pay:'Payment',customers:'Customer',suppliers:'Supplier',employees:'Employee',queue:'Encoder entry',tenants:'Tenant',leases:'Lease',jobs:'Job',users:'User',payments:'Payment',runs:'Payroll run',assets:'Fixed asset',checks:'Check',txns:'Bank transaction',docs:'Inventory document',items:'Item',logs:'Activity',sales:'Walk-in sale',list:'Record'};
+function label(k,v){const S=k.split(SEP),l=S[S.length-1];if(l[0]==='#'){const coll=S[S.length-2],x=v||{};return(NAMES[coll]||coll)+' '+(x.no||x.ref||x.name||x.title||x.desc||(x.data&&(x.data.payee||x.data.from))||l.slice(3))}return S.join(' › ')}
+const brief=v=>v==null?'(deleted)':typeof v!=='object'?String(v):(['no','ref','date','desc','name','title','status','amount','total'].filter(f=>v[f]!=null).map(f=>f+': '+(typeof v[f]==='object'?'…':v[f])).join(' · ')||JSON.stringify(v).slice(0,120));
+function conflicts(cid){const s=ST[cid];if(!s)return;const L=s.conflicts||[];const m=document.createElement('div');m.className='modal-overlay';
+ m.innerHTML='<div class="modal" style="max-width:820px"><h2 style="margin-top:0">Changes to review</h2><p class="hr-note">The same record was changed on two devices before they synced. This device’s version was kept and sent to the others. If the other version is the right one, press <b>Use theirs</b>.</p>'
+ +(L.length?L.map((x,i)=>'<div class="sy-step"><b>'+esc(label(x.k,x.mine||x.theirs))+'</b><div class="hr-note" style="margin:.3rem 0">Kept (this device): '+esc(brief(x.mine))+'<br>Other version from '+esc(x.dev)+' ('+esc(new Date(x.ts).toLocaleString())+'): '+esc(brief(x.theirs))+'</div><div class="sy-row"><button class="btn btn-sm" data-cf="'+i+'" data-a="keep">Keep mine</button><button class="btn btn-outline btn-sm" data-cf="'+i+'" data-a="theirs">Use theirs</button></div></div>').join(''):'<p class="bk-mut">Nothing to review.</p>')
+ +'<div style="text-align:right;margin-top:1rem">'+(L.length>1?'<button class="btn btn-outline" data-all="keep">Keep all mine</button> ':'')+'<button class="btn btn-outline" data-x>Close</button></div></div>';
+ document.body.appendChild(m);m.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>m.remove());
+ m.addEventListener('click',async e=>{const b=e.target.closest('[data-cf],[data-all]');if(!b)return;const c=comp(cid);
+  if(b.dataset.all){s.conflicts=[]}else{const x=s.conflicts[+b.dataset.cf];if(b.dataset.a==='theirs'&&c){if(x.theirs===null)delAt(c,x.k);else setAt(c,x.k,x.theirs);normalize(c);saveToLocalStorage();refreshUI()}s.conflicts.splice(+b.dataset.cf,1)}
+  await putSt(cid);m.remove();paint();syncCo(cid);if(s.conflicts.length)conflicts(cid)})}
+// ---------- Settings › Sync & Backup ----------
+const nb=$('setNav-auto')||$('setNav-health');if(nb)nb.insertAdjacentHTML('afterend','<button id="setNav-sync" onclick="showSettingsSubTab(\'sync\')">Sync &amp; Backup</button>');
+const tb=$('setTab-auto')||$('setTab-health');if(tb)tb.insertAdjacentHTML('afterend','<div id="setTab-sync" class="sub-tab-section"></div>');
+{const o=window.showSettingsSubTab;window.showSettingsSubTab=function(t){if(t==='sync'){document.querySelectorAll('#tab-settings .sub-tab-section').forEach(s=>s.classList.remove('active'));document.querySelectorAll('#tab-settings .sub-nav button').forEach(b=>b.classList.remove('active'));$('setTab-sync').classList.add('active');$('setNav-sync').classList.add('active');renderSet();return}return o.apply(this,arguments)}}
+const isAdmin=()=>{const u=window.currentUser;return !u||u.role==='admin'};
+async function storageLine(){try{const e=navigator.storage&&navigator.storage.estimate?await navigator.storage.estimate():null,p=navigator.storage&&navigator.storage.persisted?await navigator.storage.persisted():false;const mb=v=>(v/1048576).toFixed(v<1048576*10?1:0)+' MB';return e?'Using <b>'+mb(e.usage||0)+'</b> of about '+mb(e.quota||0)+' available to this app'+(p?' · protected from automatic clean-up ✓':''):''}catch(e){return ''}}
+async function renderSet(){const el=$('setTab-sync'),c=activeCompany&&activeCompany();if(!el||!c)return;const s=await st(c.id),[k,t]=stateOf(),mode=CFG.mode;
+ const conn=mode==='fs'?FS.label():mode==='gd'?GD.label():'Not connected';
+ el.innerHTML='<h3 style="margin-top:0">Sync &amp; Backup</h3><p class="hr-note">Keep this company the same on every computer and phone, through a shared Google Drive folder. Everything is saved on this device first, so it works offline; changes are exchanged every couple of minutes and a full backup is saved to the folder every day. Files in the folder are encrypted with the company’s sync passphrase.</p>'
+ +'<div class="sy-step"><h4>This device</h4><div class="sy-row"><label style="font-weight:600">Name <input id="syDev" value="'+esc(devName())+'" maxlength="40" style="width:220px"></label><span class="bk-mut" id="syStore"></span></div></div>'
+ +'<div class="sy-step"><h4>1. Connect the shared folder</h4><p class="hr-note" style="margin-top:0">Status: <b>'+esc(conn)+'</b></p>'
+ +'<div class="sy-row">'+(canFS()?'<button class="btn btn-sm" id="syPick">'+(mode==='fs'?'Choose a different folder':'Choose the Google Drive folder on this computer')+'</button>':'')+(canGD()?'<button class="btn btn-sm btn-outline" id="syGd">'+(mode==='gd'?'Google Drive settings':'Sign in to Google Drive instead')+'</button>':'')+'</div>'
+ +(!canFS()&&!canGD()?'<div class="rq-note" style="margin-top:.5rem">This browser can’t open a folder, and the app was opened from a file. On a phone, open the hosted copy of the app (see “Phones” below), then sign in to Google Drive.</div>':'')
+ +'<details style="margin-top:.6rem"><summary style="cursor:pointer;font-weight:700">How to set up the folder</summary><ol class="hr-note" style="margin:.4rem 0 0 1.1rem;padding:0"><li>On the main computer, install <b>Google Drive for Desktop</b> and sign in.</li><li>In Google Drive, create a folder named <b>AJ ERP Sync</b> and share it (Editor) with your encoder and bookkeeper.</li><li>On their computers: install Google Drive for Desktop, open “Shared with me”, right-click the folder › <b>Organize › Add shortcut to My Drive</b> so it appears on their computer.</li><li>On each computer, use Chrome or Edge, press <b>Choose the Google Drive folder</b> and pick <b>AJ ERP Sync</b> (inside the Google Drive drive, usually G:).</li></ol></details>'
+ +'<details style="margin-top:.4rem"><summary style="cursor:pointer;font-weight:700">Phones</summary><div class="hr-note" style="margin:.4rem 0 0">Phone browsers can’t open folders, so phones sign in to Google Drive directly. That needs the app opened from a web address (for example free hosting on GitHub Pages or Netlify; the page holds no data) and a free Google sign-in key (OAuth client ID). Then: <b>Sign in to Google Drive</b>, paste the client ID and the link of the shared folder.</div></details></div>'
+ +'<div class="sy-step"><h4>2. Sync this company ('+esc(c.name)+')</h4>'+(s&&s.on?'<p style="margin:.2rem 0"><span class="'+(k==='ok'?'sy-ok':k==='bad'?'sy-bad':'sy-warn')+'">'+esc(t)+'</span></p><p class="hr-note">Changes sent from this device: '+(s.seq||0)+' · last backup: '+(s.lastSnap?new Date(s.lastSnap).toLocaleString():'none')+'</p>'
+   +'<div class="hr-note">Other devices: '+(Object.values(s.devs||{}).map(d=>esc(d.name)+' ('+new Date(d.last).toLocaleString()+')').join(', ')||'none seen yet')+'</div>'
+   +'<div class="sy-row" style="margin-top:.6rem"><button class="btn btn-sm" id="sySync">Sync now</button>'+(s.conflicts&&s.conflicts.length?'<button class="btn btn-sm btn-outline" id="syConf">Review '+s.conflicts.length+' change(s)</button>':'')+(s.stale?'<button class="btn btn-sm btn-outline" id="syRe">Bring this device up to date</button>':'')+'<button class="btn btn-sm btn-outline" id="syBk">Backups</button>'+(isAdmin()?'<button class="btn btn-sm btn-outline btn-danger" id="syOff">Stop syncing on this device</button>':'')+'</div>'
+  :(mode?'<p class="hr-note" style="margin-top:0">'+(isAdmin()?'Start syncing to put this company in the folder, or join if it is already there.':'Ask the admin for the sync passphrase to join.')+'</p><div class="sy-row">'+(isAdmin()?'<button class="btn btn-sm" id="syStart">Start syncing this company</button>':'')+'<button class="btn btn-sm btn-outline" id="syJoin">Join with passphrase</button></div>':'<p class="bk-mut">Connect the folder first.</p>'))+'</div>'
+ +'<div class="sy-step"><h4>Good to know</h4><ul class="hr-note" style="margin:0 0 0 1.1rem;padding:0"><li>Pick a sync passphrase you can remember and give it only to your team. Without it nobody can open the files, including you on a new device.</li><li>Two people editing different records at the same time is fine. If both change the same record before syncing, this device keeps its version and lists the other one for you to review.</li><li>Every device that syncs gets the whole company, including the books. If an encoder must not have the books on their device, keep using encoder files for them (Settings › Users &amp; Access).</li></ul></div>';
+ storageLine().then(h=>{const x=$('syStore');if(x)x.innerHTML=h});
+ const on=(id,f)=>{const b=$(id);if(b)b.onclick=f};
+ $('syDev').onchange=e=>{try{localStorage.setItem('aj_dev_name',e.target.value.trim().slice(0,40)||devName())}catch(x){}};
+ on('syPick',pickFolder);on('syGd',gdSetup);on('sySync',async()=>{await syncCo(c.id);toast(stateOf()[1])});on('syConf',()=>conflicts(c.id));on('syBk',()=>backups(c.id));
+ on('syOff',async()=>{if(!confirm('Stop syncing this company on this device? The data stays here; other devices keep syncing.'))return;s.on=false;await putSt(c.id);paint();renderSet()});
+ on('syStart',()=>passForm(true,c));on('syJoin',()=>passForm(false,c));
+ on('syRe',async()=>{if(!confirm('Replace this device’s copy with the latest backup from the folder, then apply newer changes? A copy of the current data is kept on this device.'))return;const pass=prompt('Sync passphrase:');if(!pass)return;try{await joinSync(c.id,pass);switchCompany(c.id);toast('This device is up to date.','success')}catch(e){toast(e.message,'error')}})}
+async function pickFolder(){try{const h=await window.showDirectoryPicker({id:'ajsync',mode:'readwrite'});if((await h.requestPermission({mode:'readwrite'}))!=='granted')return toast('Access was not allowed.');CFG.root=h;CFG.mode='fs';await saveCfg();toast('Folder connected: '+h.name,'success');renderSet();paint()}catch(e){if(e.name!=='AbortError')toast(e.message,'error')}}
+function gdSetup(){const m=document.createElement('div');m.className='modal-overlay';m.innerHTML='<div class="modal" style="max-width:640px"><h2 style="margin-top:0">Google Drive sign-in</h2><p class="hr-note">For phones (or any browser that can’t open a folder). The app must be opened from its web address.</p><div class="form-group"><label>Google OAuth client ID</label><input id="gdC" class="sy-mono" value="'+esc(CFG.gdClient)+'" placeholder="1234-abc.apps.googleusercontent.com"></div><div class="form-group"><label>Link of the shared “AJ ERP Sync” folder</label><input id="gdF" value="'+esc(CFG.gdRoot?'https://drive.google.com/drive/folders/'+CFG.gdRoot:'')+'" placeholder="https://drive.google.com/drive/folders/…"></div>'
+ +'<details><summary style="cursor:pointer;font-weight:700">How to get a client ID (once, about 10 minutes)</summary><ol class="hr-note" style="margin:.4rem 0 0 1.1rem;padding:0"><li>Go to console.cloud.google.com and create a project (free).</li><li>APIs &amp; Services › Library › enable <b>Google Drive API</b>.</li><li>OAuth consent screen › External › add your team’s Google emails as <b>test users</b>.</li><li>Credentials › Create credentials › OAuth client ID › <b>Web application</b> › add the app’s web address (e.g. https://yourname.github.io) under Authorized JavaScript origins.</li><li>Copy the client ID here. Google will show “unverified app” on sign-in; that is expected for your own private app.</li></ol></details>'
+ +'<div style="text-align:right;margin-top:1rem"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="gdGo">Sign in and connect</button></div></div>';
+ document.body.appendChild(m);m.querySelector('[data-x]').onclick=()=>m.remove();
+ m.querySelector('#gdGo').onclick=async()=>{const cl=m.querySelector('#gdC').value.trim(),lk=m.querySelector('#gdF').value.trim(),fm=/folders\/([\w-]{10,})/.exec(lk)||/[?&]id=([\w-]{10,})/.exec(lk)||/^([\w-]{20,})$/.exec(lk);
+  if(!/\.apps\.googleusercontent\.com$/.test(cl))return toast('Paste the OAuth client ID (it ends with .apps.googleusercontent.com).');if(!fm)return toast('Paste the link of the shared folder.');
+  CFG.gdClient=cl;CFG.gdRoot=fm[1];CFG.mode='gd';GD.ids={};GD.files={};try{await GD.grant();await GD.listAll(CFG.gdRoot,true);await saveCfg();m.remove();toast('Connected to Google Drive.','success');renderSet();paint()}catch(e){toast(e.message,'error')}}}
+function passForm(start,c){const m=document.createElement('div');m.className='modal-overlay';m.innerHTML='<div class="modal" style="max-width:520px"><h2 style="margin-top:0">'+(start?'Start syncing':'Join with passphrase')+'</h2><p class="hr-note">'+(start?'Choose a sync passphrase for <b>'+esc(c.name)+'</b>. Every device needs it once. If it is lost, the files in the folder can’t be opened, so write it down.':'Enter the sync passphrase for <b>'+esc(c.name)+'</b>. This device’s copy will be replaced by the one in the folder (a copy is kept on this device).')+'</p><div class="form-group"><label>Passphrase'+(start?' (10+ characters)':'')+'</label><input type="password" id="spP" autocomplete="new-password"></div>'+(start?'<div class="form-group"><label>Repeat passphrase</label><input type="password" id="spP2" autocomplete="new-password"></div>':'')+'<div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="spGo">'+(start?'Start syncing':'Join')+'</button></div></div>';
+ document.body.appendChild(m);m.querySelector('[data-x]').onclick=()=>m.remove();
+ m.querySelector('#spGo').onclick=async()=>{const p=m.querySelector('#spP').value;if(start&&p.length<10)return toast('Use at least 10 characters.');if(start&&p!==m.querySelector('#spP2').value)return toast('The passphrases do not match.');if(!p)return;
+  const b=m.querySelector('#spGo');b.disabled=true;b.textContent='Working…';try{if(!(await T().ready())&&!(CFG.mode==='fs'?await FS.grant():await GD.grant()))throw new Error('No access to the folder.');
+   if(start){await startSync(c,p);toast('Syncing started. Join from the other devices with the same passphrase.','success')}else{const r=await joinSync(c.id,p);switchCompany(c.id);toast('Joined. '+r.name+' is now in sync on this device.','success')}m.remove();renderSet();paint()}catch(e){b.disabled=false;b.textContent=start?'Start syncing':'Join';toast(e.message,'error')}}}
+async function backups(cid){const k=await key(cid);let L=[];try{L=(await T().list(cid+'/backups')).filter(n=>/\.ajs$/.test(n)).sort((a,b)=>b.split('_').pop().localeCompare(a.split('_').pop()))}catch(e){return toast(e.message)}
+ const m=document.createElement('div');m.className='modal-overlay';m.innerHTML='<div class="modal" style="max-width:640px"><h2 style="margin-top:0">Backups in the folder</h2><p class="hr-note">One full backup per device per day; the last 30 are kept. Restoring replaces the company on this device and sends the restored data to the other devices.</p>'
+ +(L.length?'<div class="hr-scroll" style="max-height:50vh"><table class="hr-tbl"><thead><tr><th>Saved</th><th>From device</th><th></th></tr></thead><tbody>'+L.slice(0,90).map(n=>{const m2=/^(.+)_(\d{8})-(\d{4})\.ajs$/.exec(n)||[];const dv=(ST[cid]&&ST[cid].devs&&ST[cid].devs[m2[1]]||{}).name||(m2[1]===DEV?devName()+' (this device)':m2[1]);return '<tr><td>'+(m2[2]?m2[2].slice(0,4)+'-'+m2[2].slice(4,6)+'-'+m2[2].slice(6)+' '+m2[3].slice(0,2)+':'+m2[3].slice(2):esc(n))+'</td><td>'+esc(dv)+'</td><td><button class="btn btn-outline btn-sm" data-rs="'+esc(n)+'">Restore</button></td></tr>'}).join('')+'</tbody></table></div>':'<p class="bk-mut">No backups yet.</p>')
+ +'<div style="text-align:right;margin-top:1rem"><button class="btn btn-outline" data-x>Close</button></div></div>';document.body.appendChild(m);m.querySelector('[data-x]').onclick=()=>m.remove();
+ m.addEventListener('click',async e=>{const b=e.target.closest('[data-rs]');if(!b)return;if(!confirm('Restore '+b.dataset.rs+'? Everything changed after it on every device is replaced by this backup. A copy of the current data is kept on this device.'))return;
+  try{const snap=await unseal(k,await T().read(cid+'/backups',b.dataset.rs)),cur=comp(cid);await kset('prerestore:'+cid,clone(cur));const nc=snap.company;normalize(nc);companies[companies.indexOf(cur)]=nc;saveToLocalStorage();switchCompany(cid);await syncCo(cid);m.remove();toast('Restored. The other devices receive it on their next sync.','success')}catch(x){toast(x.message,'error')}})}
+// ---------- login screen: open a company from the sync folder ----------
+const lf=$('btnOpenEncPkg');if(lf)lf.insertAdjacentHTML('afterend','<div style="margin-top:.5rem"><button class="btn btn-outline btn-sm" type="button" id="btnSyncOpen">Open from Google Drive sync</button></div>');
+const so=$('btnSyncOpen');if(so)so.onclick=openFromDrive;
+async function openFromDrive(){await loadCfg();const m=document.createElement('div');m.className='modal-overlay';m.style.zIndex='100001';m.innerHTML='<div class="modal" style="max-width:560px"><h2 style="margin-top:0">Open from Google Drive sync</h2><p class="hr-note">For a new computer or phone joining companies that are already syncing.</p><div class="sy-row">'+(canFS()?'<button class="btn btn-sm" id="ofPick">Choose the sync folder</button>':'')+(canGD()?'<button class="btn btn-sm btn-outline" id="ofGd">Sign in to Google Drive</button>':'')+'</div>'+(!canFS()&&!canGD()?'<div class="rq-note" style="margin-top:.6rem">On a phone, open the app from its web address to sign in to Google Drive.</div>':'')+'<div id="ofList" style="margin-top:1rem"></div><div style="text-align:right;margin-top:1rem"><button class="btn btn-outline" data-x>Close</button></div></div>';
+ document.body.appendChild(m);m.querySelector('[data-x]').onclick=()=>m.remove();
+ const list=async()=>{const box=m.querySelector('#ofList');box.innerHTML='<p class="bk-mut">Looking in the folder…</p>';try{const ds=await T().dirs('');const infos=[];for(const d of ds){const i=await readInfo(d);if(i)infos.push(i)}
+  box.innerHTML=infos.length?infos.map(i=>'<div class="sy-step sy-row" style="justify-content:space-between"><div><b>'+esc(i.name)+'</b><br><small class="bk-mut">started '+esc(String(i.created||'').slice(0,10))+(comp(i.id)?' · already on this device':'')+'</small></div><button class="btn btn-sm" data-jo="'+esc(i.id)+'">Open</button></div>').join(''):'<p class="bk-mut">No synced companies in this folder.</p>'}catch(e){box.innerHTML='<p class="rq-note">'+esc(e.message)+'</p>'}};
+ if(CFG.mode&&await T().ready())list();
+ const p=m.querySelector('#ofPick');if(p)p.onclick=async()=>{await pickFolder();if(CFG.mode==='fs')list()};
+ const g=m.querySelector('#ofGd');if(g)g.onclick=()=>{gdSetup();const iv=setInterval(async()=>{if(CFG.mode==='gd'&&await GD.ready()){clearInterval(iv);list()}},800)};
+ m.querySelector('#ofList').addEventListener('click',async e=>{const b=e.target.closest('[data-jo]');if(!b)return;const pass=prompt('Sync passphrase:');if(!pass)return;b.disabled=true;b.textContent='Opening…';
+  try{const r=await joinSync(b.dataset.jo,pass);renderLoginCompanySelector();const s=$('loginCompanySelect');if(s){s.value=b.dataset.jo;handleLoginCompanySelectChange()}m.remove();toast(r.name+' is on this device now. Sign in with your username and password.','success')}catch(x){b.disabled=false;b.textContent='Open';toast(x.message,'error')}})}
+// ---------- start-up ----------
+loadCfg().then(paint);
+window.AJSYNC={syncCo,startSync,joinSync,flatC,setAt,delAt,H,st:cid=>ST[cid],useTransport:t=>{TEST=t},key,kget,kset,flush:()=>{pending=true;return flush()},DEV,setCfg:c=>Object.assign(CFG,c),conflicts,FS};
 })();
 
 </script>
