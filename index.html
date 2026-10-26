@@ -6460,7 +6460,11 @@ function lists(){
  const ar=c.ar&&window.ARAPMOD?ARAPMOD.A():null,cust=[...new Set(((c.re&&c.re.tenants)||[]).map(t=>t.name).concat(ar?ar.customers.filter(x=>!x.inactive).map(x=>x.name):[]).filter(Boolean))].sort(nameCmp);
  const openInv=ar?ar.inv.filter(d=>!d.void&&ARAPMOD.openAR(d)>0).map(d=>({c:(ar.customers.find(x=>x.id===d.cust)||{}).name||'',no:d.no,bal:Math.round(ARAPMOD.openAR(d))/100,due:d.due})).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,400):[];
  const vat=window.TAXMOD?TAXMOD.T().profile.biz==='VAT':/^vat/i.test(c.vat||'');
- return{banks,payees:[...pm.values()].sort(nameCmp).slice(0,500),particulars:parts,customers:cust.slice(0,800),openInv,vat};
+ const hints={},rates={},re=c.re||{};(re.tenants||[]).forEach(t=>{if(!t||!t.name)return;const rm=((re.rooms||[]).find(r=>r.id===t.roomId)||{}).name,pp=((re.properties||[]).find(p=>p.id===t.propertyId)||{}).name,off=/inactive/i.test(t.status||'');
+  hints[t.name]=[off?'Former tenant':'Tenant',rm?'Rm '+rm:'',pp||'',!off&&t.rate?n2(Math.round(t.rate*100))+'/mo':''].filter(Boolean).join(' · ');if(!off&&t.rate>0)rates[t.name]=r2(t.rate)});
+ openInv.forEach(x=>{if(!x.c)return;const tot=openInv.filter(y=>y.c===x.c).reduce((a,y)=>a+y.bal,0);hints[x.c]='Customer · owes '+n2(Math.round(tot*100))});
+ const custL=cust.slice(0,800);Object.keys(hints).forEach(k=>{if(!custL.includes(k))delete hints[k]});
+ return{banks,payees:[...pm.values()].sort(nameCmp).slice(0,500),particulars:parts,customers:custL,openInv,vat,hints,rates};
 }
 const bankLabel=id=>(lists().banks.find(x=>x.id===id)||{label:'(bank account)'}).label;
 function qSummary(it){const d=it.data||{};
@@ -6493,24 +6497,25 @@ function renderEnc(){
  $('rqEncKpi').innerHTML='<div class="bk-kpis"><div class="bk-kpi"><span>Entered today</span><b>'+todayN.length+'</b><small>'+n2(todayN.reduce((a,it)=>a+c100(it.data.amount),0))+'</small></div><div class="bk-kpi'+(ret?' warn':'')+'"><span>Returned to fix</span><b>'+ret+'</b><small>'+(ret?'see notes below':'none')+'</small></div><div class="bk-kpi"><span>Waiting for posting</span><b>'+mine.filter(it=>it.status==='PENDING').length+'</b><small>'+(ws?unsent+' not sent yet':'')+'</small></div><div class="bk-kpi"><span>Posted this month</span><b>'+postedM+'</b><small></small></div></div>';
  $('rqEncNote').innerHTML=ws?'You are working in your own copy for <b>'+esc(C().name)+'</b>. Entries stay here until you press <b>Send batch</b>, which saves a file to send to the admin (for example through a shared Google Drive folder). Load the admin’s update file to see which entries were posted or returned.'+(C().pkgAt?' Last update from admin: '+esc(fdt(C().pkgAt))+'.':''):'Your entries go to the admin’s For Posting list. The admin chooses the accounts and enters them in the books.';
  const FD={check:'Payee, check number, amount and check date',deposit:'Cash or check deposits, transfers between accounts, withdrawals',expense:'Bills and receipts paid or to be paid, with a photo of the receipt',collection:'Payments received from customers or tenants, and the invoices they pay',sale:'Invoices given to customers who will pay later'};
- $('rqForms').innerHTML=FORMS.filter(x=>f[x[0]]).map(x=>'<button type="button" class="rq-form-btn" data-new="'+x[0]+'"><b>+ '+x[1]+'</b><span>'+FD[x[0]]+'</span></button>').join('')||'<p class="bk-mut">No entry forms are turned on for encoders. Ask the admin.</p>';
+ $('rqForms').innerHTML=FORMS.filter(x=>f[x[0]]).map(x=>'<button type="button" class="rq-form-btn" data-new="'+x[0]+'"><b>+ '+x[1]+'</b><span>'+FD[x[0]]+'</span></button>').join('')+(f.collection?'<button type="button" class="rq-form-btn" data-quick="1"><b>+ Many payments at once</b><span>Rent or collections from several people: type a name, the amount fills in, press Enter for the next row</span></button>':'')||'<p class="bk-mut">No entry forms are turned on for encoders. Ask the admin.</p>';
  if(ws){$('rqLoadPkg').onclick=()=>pickFile('.json,application/json',t=>loadPackage(t,true));$('rqSend').onclick=sendBatch;if($('rqSendAll'))$('rqSendAll').onclick=sendAll}$('rqCsv').onclick=csvImport;
  const st=$('rqMySt').value,list=mine.filter(it=>st==='ALL'||(st==='OPEN'?it.status==='PENDING':it.status===st)).sort((a,b)=>String(b.at).localeCompare(String(a.at)));
  $('rqMyBody').innerHTML=list.map(it=>'<tr><td>'+esc(fdt(it.at))+'</td><td>'+KIND_LABEL[it.kind]+'</td><td class="wrap" style="white-space:normal;min-width:240px">'+esc(qSummary(it))+(it.status==='RETURNED'&&it.note?'<div class="rq-note">Admin: '+esc(it.note)+'</div>':'')+'</td><td class="number">'+n2(c100(it.data.amount))+'</td><td>'+stBadge(it)+'</td><td style="white-space:nowrap">'+(it.status==='RETURNED'||(it.status==='PENDING'&&(!ws||!it.sent))?'<button class="btn btn-outline btn-sm" data-edit="'+esc(it.id)+'">'+(it.status==='RETURNED'?'Fix and resend':'Edit')+'</button> ':'')+(it.status==='PENDING'&&(!ws||!it.sent)?'<button class="btn btn-danger btn-outline btn-sm" data-del="'+esc(it.id)+'">Delete</button> ':'')+'<button class="btn btn-outline btn-sm" data-copy="'+esc(it.id)+'" title="Start a new entry from this one">Copy</button></td></tr>').join('')
   ||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">Nothing here yet. Choose a form above to enter a transaction.</td></tr>';
 }
 $('tab-enc').addEventListener('click',e=>{
+ const qk=e.target.closest('[data-quick]');if(qk)return quickCollect();
  const n=e.target.closest('[data-new]');if(n)return openForm(n.dataset.new);
  const ed=e.target.closest('[data-edit]');if(ed){const it=Q().find(x=>x.id===ed.dataset.edit);if(it)openForm(it.kind,it);return}
  const cp=e.target.closest('[data-copy]');if(cp){const it=Q().find(x=>x.id===cp.dataset.copy);if(it){if(!encForms()[it.kind])return toast('That form is turned off.');openForm(it.kind,null,JSON.parse(JSON.stringify(it.data)))}return}
  const dl=e.target.closest('[data-del]');if(dl){const it=Q().find(x=>x.id===dl.dataset.del);if(it&&confirm('Delete this entry?')){C().queue=Q().filter(x=>x!==it);saveToLocalStorage();renderEnc();updCount()}}
 });
 $('rqMySt').onchange=renderEnc;
-function openForm(kind,it,pre){
- const L=lists(),d=Object.assign({},it?it.data:(pre||{})),ws=isWS();if(pre){d.orNo='';d.number='';d.photo='';d.invs=[];['date','issued','due'].forEach(k=>{if(k in d)d[k]=td()})}
+function openForm(kind,it,pre,keep){
+ const L=lists(),d=Object.assign({},it?it.data:(pre||{})),ws=isWS();if(pre&&!keep){d.orNo='';d.number='';d.photo='';d.invs=[];['date','issued','due'].forEach(k=>{if(k in d)d[k]=td()})}
  const opt=(arr,cur)=>arr.map(o=>'<option value="'+esc(o[0])+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>').join('');
  const bankOpts=(cur,blank)=>(blank?'<option value="">'+blank+'</option>':'')+L.banks.map(b=>'<option value="'+esc(b.id)+'"'+(b.id===cur?' selected':'')+'>'+esc(b.label)+'</option>').join('');
- const dl=(id,arr)=>'<datalist id="'+id+'">'+arr.map(p=>'<option value="'+esc(p)+'">').join('')+'</datalist>';
+ const H=L.hints||{},dl=(id,arr)=>'<datalist id="'+id+'">'+arr.map(p=>'<option value="'+esc(p)+'"'+(H[p]?' label="'+esc(H[p])+'"':'')+'>').join('')+'</datalist>';
  const F=(id,label,inner,wide)=>'<div class="form-group"'+(wide?' style="grid-column:1/-1"':'')+'><label for="'+id+'">'+label+'</label>'+inner+'</div>';
  const inp=(id,v,extra)=>'<input id="'+id+'" value="'+esc(v==null?'':v)+'" autocomplete="off"'+(extra||'')+'>';
  const amt=F('rqfAmt','Amount *','<input type="number" id="rqfAmt" min="0" step="0.01" inputmode="decimal" value="'+(d.amount||'')+'">');
@@ -6532,8 +6537,11 @@ function openForm(kind,it,pre){
  if(kind==='collection')body=F('rqfDate','Date received *','<input type="date" id="rqfDate" value="'+esc(d.date||td())+'">')+F('rqfFrom2','Received from *',inp('rqfFrom2',d.from,' list="rqfCustL"')+dl('rqfCustL',L.customers.concat(L.payees).slice(0,800)))
   +F('rqfFor','What is it for? *','<select id="rqfFor">'+opt(COL_FOR,d.forWhat||'sales')+'</select>')+F('rqfAs','Received as *','<select id="rqfAs">'+opt(COL_AS,d.as||'cash')+'</select>')
   +'<div class="form-group" id="rqfColBankW"><label for="rqfBank">Into which account?</label><select id="rqfBank">'+bankOpts(d.acct,L.banks.length?'':'(no bank accounts listed)')+'</select></div>'+amt+F('rqfCwt','Tax withheld by the payer (2307)','<input type="number" id="rqfCwt" min="0" step="0.01" inputmode="decimal" value="'+(d.cwt||'')+'"><small class="bk-mut">Only if they gave a 2307. Amount above = cash actually received.</small>')+F('rqfOr','Official receipt / AR no.',inp('rqfOr',d.orNo))+'<div class="form-group" id="rqfInvW" style="grid-column:1/-1"><label>Invoices being paid</label><div id="rqfInv"></div></div>'+F('rqfNotes','Notes',inp('rqfNotes',d.notes))+photoF('Photo of the receipt or 2307 (optional)');
- const m=modal('<h2 style="margin-top:0">'+(it?'Edit':'New')+': '+KIND_LABEL[kind]+'</h2>'+(it&&it.status==='RETURNED'&&it.note?'<div class="rq-note">Returned by the admin: '+esc(it.note)+'</div>':'')+'<form novalidate><div class="grid-2">'+body+'</div><div style="text-align:right;margin-top:.6rem"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">'+(it&&it.status==='RETURNED'?'Save and resend':'Save entry')+'</button></div></form>',760);
- const q=s=>m.querySelector(s);let photo=d.photo||'';
+ const m=modal('<h2 style="margin-top:0">'+(it?'Edit':'New')+': '+KIND_LABEL[kind]+'</h2>'+(it&&it.status==='RETURNED'&&it.note?'<div class="rq-note">Returned by the admin: '+esc(it.note)+'</div>':'')+'<form novalidate><div class="grid-2">'+body+'</div><div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:.6rem"><small class="bk-mut" style="margin-right:auto;align-self:center">Ctrl+Enter saves</small><button type="button" class="btn btn-outline" data-x>Cancel</button>'+(it?'':'<button type="submit" class="btn btn-outline" data-more="1">Save &amp; add another</button>')+'<button type="submit" class="btn">'+(it&&it.status==='RETURNED'?'Save and resend':'Save entry')+'</button></div></form>',760);
+ const q=s=>m.querySelector(s);let photo=d.photo||'',more=false;
+ m.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>{more=true}));m.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();q('form').requestSubmit()}});
+ {const nm=q('#rqfFrom2')||q('#rqfPay');if(nm&&!it)setTimeout(()=>{try{nm.focus()}catch(e){}},80);
+  if(kind==='collection'&&q('#rqfFrom2')){const fill=()=>{const r=(L.rates||{})[q('#rqfFrom2').value.trim()];if(r){if(!q('#rqfAmt').value)q('#rqfAmt').value=r.toFixed(2);if(!it&&q('#rqfFor').value==='sales')q('#rqfFor').value='rent'}if(document.activeElement===q('#rqfFrom2')&&q('#rqfFrom2').value.trim())setTimeout(()=>{q('#rqfAmt').focus();q('#rqfAmt').select()},0)};q('#rqfFrom2').addEventListener('change',fill)}}
  if(kind==='deposit'){const u=()=>{const t=q('#rqfType').value;q('#rqfSrcW').style.display=t==='Fund Transfer'?'':'none';q('#rqfFromW').style.display=/Deposit/.test(t)?'':'none';q('#rqfBankL').textContent=t==='Fund Transfer'?'To account':'Bank account'};q('#rqfType').onchange=u;u()}
  if(kind==='collection'){const u=()=>{q('#rqfColBankW').style.display=q('#rqfAs').value==='bank'?'':'none'};q('#rqfAs').onchange=u;u();
   const picked=new Set(d.invs||[]),inv=()=>{const nm=nk(q('#rqfFrom2').value),L2=(L.openInv||[]).filter(x=>nm&&nk(x.c)===nm);q('#rqfInvW').style.display=L2.length?'':'none';q('#rqfInv').innerHTML=L2.map(x=>'<label style="display:flex;gap:8px;align-items:center;font-weight:500;margin:3px 0"><input type="checkbox" data-inv="'+esc(x.no)+'"'+(picked.has(x.no)?' checked':'')+'> '+esc(x.no)+' <span class="bk-mut">balance '+n2(Math.round(x.bal*100))+(x.due?' · due '+esc(fd(x.due)):'')+'</span></label>').join('')+(L2.length?'<small class="bk-mut">Tick the invoices this payment is for. The admin applies it to them.</small>':'')};
@@ -6560,8 +6568,37 @@ function openForm(kind,it,pre){
   else Q().push({id:'q_'+uid(),kind,data:out,by:{id:me().id,name:me().name},at:new Date().toISOString(),status:'PENDING',note:'',sent:!isWS(),rev:0});
   try{saveToLocalStorage()}catch(e){}
   m.remove();renderEnc();updCount();toast(isWS()?'Entry saved. Press Send batch when you are ready to send it.':'Entry saved and sent for posting.','success');
+  if(more){const keepF={check:['acct','issued','due'],deposit:['type','date','acct','from'],expense:['date','paid','category'],collection:['date','forWhat','as','acct'],sale:['date','due','vat']}[kind]||[],nx={};keepF.forEach(k=>{if(out[k]!=null)nx[k]=out[k]});
+   const inc=v=>{const mm=/^(.*?)(\d+)$/.exec(String(v||''));return mm?mm[1]+String(+mm[2]+1).padStart(mm[2].length,'0'):''};if(out.orNo)nx.orNo=inc(out.orNo);if(kind==='check'&&out.number)nx.number=inc(out.number);openForm(kind,null,nx,true)}
  };
 }
+// several collections in one go (rent day): shared date / how received, one row per payer
+function quickCollect(){const L=lists(),H=L.hints||{},RT=L.rates||{},ws=isWS();
+ const opt=(arr,cur)=>arr.map(o=>'<option value="'+esc(o[0])+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>').join('');
+ const names=L.customers.concat(L.payees.filter(p=>!L.customers.includes(p)));
+ const m=modal('<h2 style="margin-top:0">Many payments at once</h2><p class="hr-note" style="margin-top:0">Type a name and pick it; the monthly rent fills in for tenants. <b>Enter</b> on the last box adds a row. Each row becomes its own entry'+(ws?' (send them with Send batch).':' for the admin to post.')+'</p>'
+  +'<div class="grid-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px"><div class="form-group"><label for="qcDate">Date received *</label><input type="date" id="qcDate" value="'+td()+'"></div><div class="form-group"><label for="qcAs">Received as *</label><select id="qcAs">'+opt(COL_AS,'cash')+'</select></div><div class="form-group" id="qcBankW"><label for="qcBank">Into which account?</label><select id="qcBank">'+L.banks.map(b=>'<option value="'+esc(b.id)+'">'+esc(b.label)+'</option>').join('')+'</select></div></div>'
+  +'<datalist id="qcNames">'+names.map(p=>'<option value="'+esc(p)+'"'+(H[p]?' label="'+esc(H[p])+'"':'')+'>').join('')+'</datalist>'
+  +'<div class="hr-scroll"><table class="hr-tbl erp-lines"><thead><tr><th style="min-width:200px">Received from</th><th>For</th><th class="number" style="min-width:110px">Amount</th><th style="min-width:100px">OR / AR no.</th><th></th></tr></thead><tbody id="qcRows"></tbody><tfoot><tr><td colspan="2"><button type="button" class="btn btn-outline btn-sm" id="qcAdd">+ Add row</button></td><td class="number"><b id="qcTot">0.00</b></td><td colspan="2" class="bk-mut" id="qcCnt"></td></tr></tfoot></table></div>'
+  +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:.8rem"><button type="button" class="btn btn-outline" data-x>Cancel</button><button type="button" class="btn" id="qcSave">Save all</button></div>',900);
+ const q=s=>m.querySelector(s),tb=q('#qcRows');
+ const bankU=()=>{q('#qcBankW').style.display=q('#qcAs').value==='bank'?'':'none'};q('#qcAs').onchange=bankU;bankU();
+ const tot=()=>{let t=0,n=0;tb.querySelectorAll('tr').forEach(r=>{const a=r2(r.querySelector('[data-f=amt]').value);if(a>0&&r.querySelector('[data-f=nm]').value.trim()){t+=a;n++}});q('#qcTot').textContent=n2(Math.round(t*100));q('#qcCnt').textContent=n?n+' payment'+(n===1?'':'s'):''};
+ const inc=v=>{const mm=/^(.*?)(\d+)$/.exec(String(v||''));return mm?mm[1]+String(+mm[2]+1).padStart(mm[2].length,'0'):''};
+ const row=focus=>{const last=[...tb.querySelectorAll('tr')].pop(),tr=document.createElement('tr');
+  tr.innerHTML='<td><input data-f="nm" list="qcNames" autocomplete="off" placeholder="Start typing a name"></td><td><select data-f="for">'+opt(COL_FOR,last?last.querySelector('[data-f=for]').value:'rent')+'</select></td><td><input data-f="amt" type="number" min="0" step="0.01" inputmode="decimal" style="text-align:right"></td><td><input data-f="or" autocomplete="off" value="'+esc(last?inc(last.querySelector('[data-f=or]').value):'')+'"></td><td><button type="button" class="btn btn-outline btn-sm" data-rm title="Remove row">✕</button></td>';
+  tb.appendChild(tr);const nm=tr.querySelector('[data-f=nm]'),amt=tr.querySelector('[data-f=amt]');
+  nm.addEventListener('change',()=>{const r=RT[nm.value.trim()];if(r&&!amt.value){amt.value=r.toFixed(2);tr.querySelector('[data-f=for]').value='rent'}tot();amt.focus();amt.select()});
+  tr.querySelectorAll('input').forEach(i=>{i.addEventListener('input',tot);i.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.defaultPrevented){e.preventDefault();const cells=[...tr.querySelectorAll('input')],k=cells.indexOf(i);if(k<cells.length-1){cells[k+1].focus();cells[k+1].select&&cells[k+1].select()}else{const nx=tr.nextElementSibling;if(nx)nx.querySelector('[data-f=nm]').focus();else row(true)}}})});
+  tr.querySelector('[data-rm]').onclick=()=>{tr.remove();if(!tb.children.length)row(true);tot()};if(focus)setTimeout(()=>nm.focus(),30)};
+ for(let i=0;i<3;i++)row(i===0);q('#qcAdd').onclick=()=>row(true);
+ q('#qcSave').onclick=()=>{const date=q('#qcDate').value,as=q('#qcAs').value,acct=as==='bank'?q('#qcBank').value:'';if(!DT.test(date))return toast('Enter the date received.');if(as==='bank'&&!acct)return toast('Choose the bank account.');
+  const rows=[...tb.querySelectorAll('tr')].map(r=>({r,from:r.querySelector('[data-f=nm]').value.trim(),forWhat:r.querySelector('[data-f=for]').value,amount:r2(r.querySelector('[data-f=amt]').value),orNo:r.querySelector('[data-f=or]').value.trim()})).filter(x=>x.from||x.amount);
+  if(!rows.length)return toast('Add at least one payment.');const bad=rows.find(x=>!x.from||!(x.amount>0));if(bad){bad.r.querySelector(bad.from?'[data-f=amt]':'[data-f=nm]').focus();return toast(bad.from?'Enter the amount for '+bad.from+'.':'Enter who paid.')}
+  const dups=[];rows.forEach(x=>{const data={amount:x.amount,date,from:x.from,forWhat:x.forWhat,as,acct,orNo:x.orNo,notes:'',cwt:0,invs:[],photo:''};x.data=data;const dp=dupOf({kind:'collection',data});if(dp)dups.push(x.from+': '+dp)});
+  if(dups.length&&!confirm('These look like entries already made:\n'+dups.slice(0,8).join('\n')+'\n\nSave them anyway?'))return;
+  const at=new Date().toISOString();rows.forEach(x=>Q().push({id:'q_'+uid(),kind:'collection',data:x.data,by:{id:me().id,name:me().name},at,status:'PENDING',note:'',sent:!isWS(),rev:0}));
+  saveToLocalStorage();m.remove();renderEnc();updCount();toast(rows.length+' payment'+(rows.length===1?'':'s')+' saved ('+n2(Math.round(rows.reduce((a,x)=>a+x.amount,0)*100))+').'+(isWS()?' Press Send batch when ready.':' Sent for posting.'),'success')}}
 function sendBatch(){
  const c=C(),items=Q().filter(it=>it.by&&it.by.id===me().id&&it.status==='PENDING'&&!it.sent);
  if(!items.length)return toast('Nothing new to send.');
@@ -6673,7 +6710,7 @@ function loadPackage(text,inWorkspace,quiet){
  const wid='ws_'+safeId(p.company.id);let w=companies.find(x=>x.id===wid);
  if(inWorkspace&&!quiet&&C()&&C().id!==wid)return toast('This file is for "'+String(p.company.name)+'", not this workspace.');
  const S=(v,n)=>String(v==null?'':v).slice(0,n||200),arr=(a,n)=>Array.isArray(a)?a.map(x=>S(x)).slice(0,n||500):[];
- const L=p.lists||{},lists2={banks:(Array.isArray(L.banks)?L.banks:[]).filter(b=>b&&b.id).map(b=>({id:S(b.id,60),label:S(b.label)})),payees:arr(L.payees),particulars:arr(L.particulars,200),customers:arr(L.customers,800),openInv:(Array.isArray(L.openInv)?L.openInv:[]).filter(x=>x&&x.no).slice(0,400).map(x=>({c:S(x.c,120),no:S(x.no,20),bal:r2(x.bal),due:DT.test(x.due||'')?x.due:''})),vat:!!L.vat};
+ const L=p.lists||{},lists2={banks:(Array.isArray(L.banks)?L.banks:[]).filter(b=>b&&b.id).map(b=>({id:S(b.id,60),label:S(b.label)})),payees:arr(L.payees),particulars:arr(L.particulars,200),customers:arr(L.customers,800),openInv:(Array.isArray(L.openInv)?L.openInv:[]).filter(x=>x&&x.no).slice(0,400).map(x=>({c:S(x.c,120),no:S(x.no,20),bal:r2(x.bal),due:DT.test(x.due||'')?x.due:''})),vat:!!L.vat,hints:{},rates:{}};Object.keys(L.hints||{}).slice(0,800).forEach(k=>{lists2.hints[S(k,120)]=S(L.hints[k],120)});Object.keys(L.rates||{}).slice(0,800).forEach(k=>{const v=r2(L.rates[k]);if(v>0)lists2.rates[S(k,120)]=v});
  const user={id:safeId(p.user.id),name:S(p.user.name,80),username:S(p.user.username,60),role:'encoder',active:p.user.active!==false,pw:{salt:S(p.user.pw.salt,64),hash:S(p.user.pw.hash,128),iter:parseInt(p.user.pw.iter,10)||150000}};
  const forms={};FORMS.forEach(f=>forms[f[0]]=!p.forms||p.forms[f[0]]!==false);
  if(!w){w={id:wid,workspace:'encoder',sourceCompanyId:S(p.company.id,80),name:S(p.company.name,120),tin:'',entity:'',currency:p.company.currency==='USD'?'USD':'PHP',vat:'Non-VAT Registered',vatRate:12,line:'',contact:'',address:'',passwordHash:null,logo:null,coaSetupDone:true,basis:'accrual',serviceLines:[],otherLine:'',chartOfAccounts:[],journalEntries:[],reportsHistory:[],queue:[]};companies.push(w)}
@@ -12439,6 +12476,39 @@ function fixMacNames(c){let n=0;const f=(o,k)=>{if(o&&typeof o[k]==='string'){co
     if(!confirm('Delete '+L.length+' journal entr'+(L.length===1?'y':'ies')+'?'+(re?'\n\n'+re+' of them came from Real Estate; the matching rent payments, utility readings or deposits are removed too.':'')+'\n\nThis cannot be undone.'))return;
     c.journalEntries=c.journalEntries.filter(e=>!JS.has(e.id));JS.clear();if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter();toast(L.length+' entr'+(L.length===1?'y':'ies')+' deleted.','success')}}
   paintBar()}}
+// ---------- type-to-search for name boxes (replaces the browser's own suggestion list everywhere) ----------
+// Matches any part of the name in any order, ignores accents (nina finds NIÑA), shows the room / balance under each name.
+{const fold=x=>String(x||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+ document.head.insertAdjacentHTML('beforeend','<style>.aj-ta{position:fixed;z-index:2147483600;background:var(--bg-card,#fff);color:var(--text-main,#111);border:1px solid var(--border-color,#ddd);border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.22);max-height:min(330px,46vh);overflow:auto;padding:4px;font-size:.92rem;-webkit-overflow-scrolling:touch}'
+  +'.aj-ta button{display:block;width:100%;text-align:left;padding:8px 10px;border:0;background:none;color:inherit;border-radius:8px;cursor:pointer;font:inherit;line-height:1.25}.aj-ta button.on,.aj-ta button:hover{background:color-mix(in srgb,var(--accent-primary,#016351) 16%,transparent)}'
+  +'.aj-ta small{display:block;color:var(--text-muted,#666);font-size:.78rem;margin-top:1px}.aj-ta b{font-weight:800}.aj-ta .em,.aj-ta .ft{padding:7px 10px;color:var(--text-muted,#666);font-size:.78rem}.aj-ta .ft{border-top:1px solid var(--border-color,#ddd);margin-top:3px}@media (pointer:coarse){.aj-ta button{padding:11px 12px}.aj-ta .ft{display:none}}</style>');
+ let box=null,cur=null,items=[],hi=-1,toks=[];
+ const opts=inp=>{const dl=inp.dataset.ajlist&&document.getElementById(inp.dataset.ajlist);return dl?[...dl.options].map(o=>({v:o.value,h:o.label&&o.label!==o.value?o.label:''})).filter(o=>o.v):[]};
+ function search(inp){const qq=fold(inp.value);toks=qq?qq.split(' '):[];const all=opts(inp);if(!toks.length)return all.slice(0,80);const out=[];
+  for(const o of all){const f=' '+fold(o.v)+' ',g=' '+fold(o.h)+' ';let sc=0,ok=true;for(const t of toks){if(f.startsWith(' '+t))sc+=0;else if(f.includes(' '+t))sc+=1;else if(f.includes(t))sc+=3;else if(g.includes(' '+t))sc+=4;else{ok=false;break}}if(ok)out.push([sc,o])}
+  out.sort((x,y)=>x[0]-y[0]||x[1].v.localeCompare(y[1].v));return out.slice(0,80).map(x=>x[1])}
+ const fk=v=>[...v].map(c=>(c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/,' ')+' ')[0]).join('');
+ const mark=v=>{let h=esc(v);if(!toks.length)return h;const f=fk(v);const spans=[];toks.forEach(t=>{let i=(' '+f).indexOf(' '+t);if(i<0)i=f.indexOf(t);else i=i;if(i>=0)spans.push([i,i+t.length])});
+  if(!spans.length||f.length!==v.length)return h;spans.sort((a,b)=>a[0]-b[0]);let o='',p=0;spans.forEach(([a,b])=>{if(a<p)return;o+=esc(v.slice(p,a))+'<b>'+esc(v.slice(a,b))+'</b>';p=b});return o+esc(v.slice(p))};
+ function place(){if(!cur||!box||box.hidden)return;const r=cur.getBoundingClientRect(),w=Math.max(r.width,280),below=innerHeight-r.bottom;box.style.width=Math.min(w,innerWidth-16)+'px';box.style.left=Math.max(8,Math.min(r.left,innerWidth-Math.min(w,innerWidth-16)-8))+'px';
+  if(below<230&&r.top>below){box.style.top='';box.style.bottom=(innerHeight-r.top+4)+'px'}else{box.style.bottom='';box.style.top=(r.bottom+4)+'px'}}
+ function hide(){if(box)box.hidden=true;hi=-1}
+ function draw(){if(!cur)return;if(!box){box=document.createElement('div');box.className='aj-ta';box.setAttribute('role','listbox');box.hidden=true;document.body.appendChild(box);box.addEventListener('mousedown',e=>e.preventDefault());box.addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(b)pick(+b.dataset.i)})}
+  const val=cur.value.trim();if(items.length===1&&items[0].v===val)return hide();
+  if(!items.length){if(!val)return hide();box.innerHTML='<div class="em">No match. “'+esc(val)+'” is saved as typed.</div>'}
+  else box.innerHTML=items.map((o,i)=>'<button type="button" role="option" data-i="'+i+'"'+(i===hi?' class="on" aria-selected="true"':'')+'>'+mark(o.v)+(o.h?'<small>'+esc(o.h)+'</small>':'')+'</button>').join('')+'<div class="ft">↑↓ to move · Enter to pick · Esc to keep what you typed</div>';
+  box.hidden=false;place();const on=box.querySelector('.on');if(on)on.scrollIntoView({block:'nearest'})}
+ function pick(i){const o=items[i],inp=cur;if(!o||!inp)return;inp.value=o.v;hide();inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}))}
+ const isT=t=>t&&t.tagName==='INPUT'&&(t.hasAttribute('list')||t.dataset.ajlist);
+ document.addEventListener('focusin',e=>{const t=e.target;if(!isT(t))return;if(t.hasAttribute('list')){t.dataset.ajlist=t.getAttribute('list');t.removeAttribute('list')}cur=t;hi=-1;items=search(t);draw()},true);
+ document.addEventListener('focusout',e=>{if(e.target===cur)setTimeout(()=>{if(document.activeElement!==cur){hide();cur=null}},120)},true);
+ document.addEventListener('input',e=>{if(e.target!==cur||!e.isTrusted)return;items=search(cur);hi=items.length&&cur.value.trim()?0:-1;draw()},true);
+ document.addEventListener('keydown',e=>{if(e.target!==cur||!box||box.hidden)return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!items.length)return;hi=e.key==='ArrowDown'?Math.min(items.length-1,hi+1):Math.max(0,hi-1);draw()}
+  else if(e.key==='Enter'&&hi>=0&&!(e.ctrlKey||e.metaKey)){e.preventDefault();e.stopPropagation();pick(hi)}
+  else if(e.key==='Tab'&&hi>=0&&cur.value.trim()&&items[hi]&&items[hi].v!==cur.value){pick(hi)}
+  else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();hide()}},true);
+ addEventListener('resize',place);addEventListener('scroll',place,true)}
 window.AJACCT={lock,deleteCompany,me:()=>ACC&&{email:ACC.email,name:ACC.name,pic:ACC.pic},emails,membersChanged,gate,enter};
 window.AJSYNC={syncCo,startSync,openShared,joinV1,upgrade,rotate,readInfo,flatC,setAt,delAt,H,st:cid=>ST[cid],useTransport:t=>{TEST=t},key,kget,kset,kkeys,flush:()=>flushNow(),DEV,setCfg:c=>Object.assign(CFG,c),conflicts,FS,GD,
  useIdp:(i,a,d)=>{IDPX=i;ADX=a;if(d)DRVX=d},boot,cycle,afterUnlockForTest:async(acc)=>{ACC=acc;await afterUnlock()},acc:()=>ACC,legacyList,gateState:()=>gateState,devSet:c=>{try{localStorage.setItem('aj_dev_id',c)}catch(e){}}};
