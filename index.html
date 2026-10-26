@@ -1201,7 +1201,7 @@ body.dark-mode .login-logo{--lm-edge:color-mix(in srgb,var(--aj-6) 40%,transpare
                 <div class="welcome-banner">
                     <div>
                         <h2 style="margin:0; font-size:1.5rem;" id="welcomeHeading">Welcome Back!</h2>
-                        <p id="dashSubtitle" style="margin:4px 0 0 0; opacity: 0.85; font-size: 0.9rem;">Have a productive day ahead!.</p>
+                        <p id="dashSubtitle" style="margin:4px 0 0 0; opacity: 0.85; font-size: 0.9rem;">Here is your financial overview for today.</p>
                     </div>
                     <div>
                         <select id="dashBasisSel" class="hidden" onchange="setDashBasis(this.value)" aria-label="Dashboard accounting basis" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:9px;padding:9px 12px;font-weight:600;"><option value="accrual" style="color:#000">Accrual basis</option><option value="cash" style="color:#000">Cash basis</option></select><button class="btn btn-outline" style="color: white; border-color: rgba(255,255,255,0.4);" onclick="openWidgetConfigModal()"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg> Customize Widgets</button>
@@ -1631,8 +1631,10 @@ body.dark-mode .login-logo{--lm-edge:color-mix(in srgb,var(--aj-6) 40%,transpare
                         </div>
 
                         <div class="card" style="background: rgba(220, 38, 38, 0.05); border: 1px solid var(--fiery-red-mid); margin-top: 1rem;">
-                            <h4 style="margin-top:0; color: var(--fiery-red-mid);"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg> Danger Zone: Clear Application Data</h4>
-                            <button class="btn btn-danger" onclick="deleteEverythingData()"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg> Delete Everything (Factory Reset)</button>
+                            <h4 style="margin-top:0; color: var(--fiery-red-mid);"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg> Danger Zone</h4>
+                            <p class="hr-note" style="margin-top:0"><b>Delete this company</b> removes only this company: from this device and, if it syncs, from the Drive folder and everyone's devices. <b>Remove all companies from this device</b> clears every company in your account on this device only; synced companies stay in Drive and can be opened again.</p>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-danger" onclick="AJACCT.deleteCompany()"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg> Delete this company</button>
+                            <button class="btn btn-outline btn-danger" onclick="deleteEverythingData()">Remove all companies from this device</button></div>
                         </div>
                     </div>
 
@@ -6421,7 +6423,7 @@ function lists(){
  const pm=new Map();((c.inv&&c.inv.suppliers)||[]).forEach(x=>{if(x&&x.name&&x.active!==false)pm.set(nk(x.name),x.name)});(b.checks||[]).forEach(k=>{if(k.payee&&!pm.has(nk(k.payee)))pm.set(nk(k.payee),k.payee)});
  Q().forEach(it=>{const p=it.data&&(it.data.payee||it.data.from);if(p&&!pm.has(nk(p)))pm.set(nk(p),p)});
  const parts=[...new Set((b.checks||[]).map(k=>k.particulars).filter(Boolean))].slice(0,200);
- const ar=c.ar&&window.ARAPMOD?ARAPMOD.A():null,cust=[...new Set(((c.re&&c.re.tenants)||[]).map(t=>t.name).concat(ar?ar.customers.map(x=>x.name):[]).filter(Boolean))].sort(nameCmp);
+ const ar=c.ar&&window.ARAPMOD?ARAPMOD.A():null,cust=[...new Set(((c.re&&c.re.tenants)||[]).map(t=>t.name).concat(ar?ar.customers.filter(x=>!x.inactive).map(x=>x.name):[]).filter(Boolean))].sort(nameCmp);
  const openInv=ar?ar.inv.filter(d=>!d.void&&ARAPMOD.openAR(d)>0).map(d=>({c:(ar.customers.find(x=>x.id===d.cust)||{}).name||'',no:d.no,bal:Math.round(ARAPMOD.openAR(d))/100,due:d.due})).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,400):[];
  const vat=window.TAXMOD?TAXMOD.T().profile.biz==='VAT':/^vat/i.test(c.vat||'');
  return{banks,payees:[...pm.values()].sort(nameCmp).slice(0,500),particulars:parts,customers:cust.slice(0,800),openInv,vat};
@@ -8315,8 +8317,12 @@ function partyForm(side,p,cb){
   +'<div class="form-group"><label for="ptK">Type</label><select id="ptK"><option value="C">Corporation / partnership</option><option value="I"'+(p.kind==='I'?' selected':'')+'>Individual</option></select></div>'
   +(ar?'<div class="form-group"><label for="ptW">Withholds tax from us (CWT %)</label><input type="number" step="0.01" min="0" id="ptW" value="'+(p.cwt||0)+'"><small class="bk-mut">e.g. 1% goods, 2% services when the customer is a top withholding agent</small></div>'
    :'<div class="form-group"><label for="ptW">We withhold (ATC)</label><select id="ptW"><option value="">None</option>'+atcs.map(a=>'<option value="'+esc(a.atc)+'"'+(p.atc===a.atc?' selected':'')+'>'+esc(a.atc+' – '+a.desc+' ('+a.rate+'%)')+'</option>').join('')+'</select></div>')
-  +'</div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="ptGo">Save</button></div>',720);
+  +'</div><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>'+(edit?'<button type="button" class="btn btn-outline btn-danger" id="ptDel">Delete</button> <button type="button" class="btn btn-outline" id="ptHide">'+(p.inactive?'Show again (active)':'Hide (inactive)')+'</button>':'')+'</span><span><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="ptGo">Save</button></span></div>',720);
  const q=s=>m.querySelector(s);
+ if(edit){const store=ar?A().customers:P().suppliers,uses=()=>{const j=JSON.stringify(activeCompany());return Math.max(0,j.split('"'+p.id+'"').length-2)};
+  q('#ptDel').onclick=()=>{const n=uses();if(n){if(confirm(p.name+' is used in '+n+' record'+(n===1?'':'s')+' (invoices, payments, jobs, leases or checks), so deleting would break the books.\n\nHide them instead? They stay in past records and reports but no longer appear when you choose a '+(ar?'customer':'supplier')+'.')){p.inactive=true;X.save();m.remove();X.rerender();toast(p.name+' is hidden.','success')}return}
+   if(!confirm('Delete '+p.name+'? This cannot be undone.'))return;store.splice(store.indexOf(p),1);X.save();m.remove();X.rerender();toast(p.name+' deleted.','success')};
+  q('#ptHide').onclick=()=>{p.inactive=!p.inactive;if(!p.inactive)delete p.inactive;X.save();m.remove();X.rerender();toast(p.name+(p.inactive?' is hidden from pick lists.':' is active again.'),'success')}}
  q('#ptGo').onclick=()=>{const name=q('#ptN').value.trim();if(!name)return toast('Enter the name.');const store=ar?A().customers:P().suppliers;
   if(store.some(x=>x.id!==p.id&&x.name.toLowerCase()===name.toLowerCase()))return toast('There is already a '+(ar?'customer':'supplier')+' with that name.');
   const rec=edit?p:{id:(ar?'cu_':'su_')+X.uid()};Object.assign(rec,{name:name.slice(0,120),tin:fmtTin(q('#ptT').value),addr:q('#ptA').value.trim().slice(0,200),contact:q('#ptC').value.trim().slice(0,120),terms:Math.max(0,X.I(q('#ptTm').value)),kind:q('#ptK').value});
@@ -8342,7 +8348,7 @@ function arInv(){
  $('aiS').value=invF.st;$('aiS').onchange=e=>{invF.st=e.target.value;arInv()};$('aiQ').oninput=e=>{invF.q=e.target.value;const p=e.target.selectionStart;arInv();$('aiQ').focus();$('aiQ').setSelectionRange(p,p)};
 }
 $('ar-inv').addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b){if(b.dataset.a==='new')invForm();if(b.dataset.a==='csv')X.dl(X.slug(C().name)+'_invoices.csv',X.csv([['Invoice','Date','Customer','TIN','Due','Net','VAT','Total','Balance','Status','Reference']].concat(A().inv.map(d=>{const o=openAR(d);return[d.no,d.date,cust(d.cust).name,cust(d.cust).tin||'',d.due,X.p2(d.net),X.p2(d.tax),X.p2(d.total),X.p2(Math.max(0,o)),stat(d,o,X.today())[1],d.ref||'']}))));return}const tr=e.target.closest('tr[data-id]');if(tr)invView(tr.dataset.id)});
-function custOpts(sel){return '<option value="">– choose –</option>'+A().customers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'<option value="__new">+ New customer…</option>'}
+function custOpts(sel){return '<option value="">– choose –</option>'+A().customers.filter(c=>!c.inactive||c.id===sel).sort((a,b)=>a.name.localeCompare(b.name)).map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'<option value="__new">+ New customer…</option>'}
 function invForm(d){
  if(d&&d.inv)return toast('This invoice came from Inventory sale '+d.inv+'. Change or cancel it in Inventory.');
  const a=A(),edit=!!d,paid=edit&&settledAR(d.id)>0;if(paid)return toast('This invoice has payments or credit memos. Remove them first to edit it.');
@@ -8437,7 +8443,7 @@ function apBill(){
  $('abS').value=billF.st;$('abS').onchange=e=>{billF.st=e.target.value;apBill()};$('abQ').oninput=e=>{billF.q=e.target.value;const p=e.target.selectionStart;apBill();$('abQ').focus();$('abQ').setSelectionRange(p,p)};
 }
 $('ap-bill').addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b){if(b.dataset.a==='new')billForm();if(b.dataset.a==='csv')X.dl(X.slug(C().name)+'_bills.csv',X.csv([['Bill','Supplier invoice','Supplier','TIN','Bill date','Due','Net','VAT','Total','Balance','Status']].concat(P().bills.map(d=>{const o=openAP(d);return[d.no,d.sinv||'',supp(d.sup).name,supp(d.sup).tin||'',d.date,d.due,X.p2(d.net),X.p2(d.tax),X.p2(d.total),X.p2(Math.max(0,o)),stat(d,o,X.today())[1]]}))));return}const tr=e.target.closest('tr[data-id]');if(tr)billView(tr.dataset.id)});
-function supOpts(sel){return '<option value="">– choose –</option>'+P().suppliers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'<option value="__new">+ New supplier…</option>'}
+function supOpts(sel){return '<option value="">– choose –</option>'+P().suppliers.filter(c=>!c.inactive||c.id===sel).sort((a,b)=>a.name.localeCompare(b.name)).map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'<option value="__new">+ New supplier…</option>'}
 function billForm(d){
  const a=P(),edit=!!d;if(edit&&settledAP(d.id)>0)return toast('This bill has payments. Void them first to edit it.');
  d=d||{date:X.today(),sup:'',lines:[],vat:isVat()?'incl':'none'};const atcs=T()?T().atc:[];
@@ -8518,12 +8524,12 @@ function voidBillPay(id){const p=P().pay.find(x=>x.id===id);if(!p)return;if(X.lo
 
 // ---------- customers / suppliers lists ----------
 function parties(side){
- const ar=side==='ar',L=(ar?A().customers:P().suppliers).slice().sort((a,b)=>a.name.localeCompare(b.name)),t=X.today();
+ const ar=side==='ar',L=(ar?A().customers:P().suppliers).slice().sort((a,b)=>(!!a.inactive-!!b.inactive)||a.name.localeCompare(b.name)),t=X.today();
  const bal=p=>ar?A().inv.filter(d=>d.cust===p.id).reduce((s,d)=>s+Math.max(0,openAR(d)),0):P().bills.filter(d=>d.sup===p.id).reduce((s,d)=>s+Math.max(0,openAP(d)),0);
  const od=p=>ar?A().inv.filter(d=>d.cust===p.id&&d.due<t).reduce((s,d)=>s+Math.max(0,openAR(d)),0):P().bills.filter(d=>d.sup===p.id&&d.due<t).reduce((s,d)=>s+Math.max(0,openAP(d)),0);
  $(side+'-'+(ar?'cust':'sup')).innerHTML='<div class="erp-head"><div><h2>'+(ar?'Customers':'Suppliers')+'</h2><p>'+(ar?'People and businesses you bill.':'Businesses you buy from. Set a withholding code (ATC) to withhold tax automatically when you pay them.')+'</p></div><div class="acts"><button class="btn" data-a="new">+ New '+(ar?'customer':'supplier')+'</button></div></div>'
  +'<div class="hr-scroll"><table class="hr-tbl erp-tbl"><thead><tr><th>Name</th><th>TIN</th><th>Contact</th><th class="number">Terms</th><th>'+(ar?'They withhold':'We withhold')+'</th><th class="number">Balance</th><th class="number">Overdue</th><th></th></tr></thead><tbody>'
- +(L.length?L.map(p=>'<tr><td class="wrap"><b>'+esc(p.name)+'</b>'+(p.addr?'<br><small class="bk-mut">'+esc(p.addr)+'</small>':'')+'</td><td>'+esc(p.tin||'–')+'</td><td class="wrap">'+esc(p.contact||'')+'</td><td class="number">'+p.terms+' days</td><td>'+(ar?(p.cwt?p.cwt+'%':'–'):(p.atc?esc(p.atc):'–'))+'</td><td class="number">'+n2(bal(p))+'</td><td class="number"'+(od(p)?' style="color:var(--danger)"':'')+'>'+n2(od(p))+'</td><td class="hr-acts-cell">'+(ar?'<button class="btn btn-outline btn-sm" data-soa="'+p.id+'">Statement</button> ':'')+'<button class="btn btn-outline btn-sm" data-ed="'+p.id+'">Edit</button></td></tr>').join(''):'<tr><td colspan="8" class="erp-empty">None yet.</td></tr>')+'</tbody></table></div>';
+ +(L.length?L.map(p=>'<tr'+(p.inactive?' style="opacity:.55"':'')+'><td class="wrap"><b>'+esc(p.name)+'</b>'+(p.inactive?' <span class="badge">Hidden</span>':'')+(p.addr?'<br><small class="bk-mut">'+esc(p.addr)+'</small>':'')+'</td><td>'+esc(p.tin||'–')+'</td><td class="wrap">'+esc(p.contact||'')+'</td><td class="number">'+p.terms+' days</td><td>'+(ar?(p.cwt?p.cwt+'%':'–'):(p.atc?esc(p.atc):'–'))+'</td><td class="number">'+n2(bal(p))+'</td><td class="number"'+(od(p)?' style="color:var(--danger)"':'')+'>'+n2(od(p))+'</td><td class="hr-acts-cell">'+(ar?'<button class="btn btn-outline btn-sm" data-soa="'+p.id+'">Statement</button> ':'')+'<button class="btn btn-outline btn-sm" data-ed="'+p.id+'">Edit</button></td></tr>').join(''):'<tr><td colspan="8" class="erp-empty">None yet.</td></tr>')+'</tbody></table></div>';
 }
 ['ar-cust','ap-sup'].forEach(id=>$(id).addEventListener('click',e=>{const side=id.slice(0,2),b=e.target.closest('button');if(!b)return;const store=side==='ar'?A().customers:P().suppliers;
  if(b.dataset.a==='new')partyForm(side);if(b.dataset.ed)partyForm(side,store.find(x=>x.id===b.dataset.ed));if(b.dataset.soa)soa(b.dataset.soa,X.today())}));
@@ -8600,7 +8606,7 @@ const advOf=j=>la(LN(j.line).sv.adv||2310);
 const revAccts=()=>C().chartOfAccounts.filter(a=>a.category==='Revenue'&&!a.isContra).sort((a,b)=>a.code-b.code);
 const custs=()=>AR().customers.slice().sort((a,b)=>a.name.localeCompare(b.name));
 const cust=id=>AR().customers.find(c=>c.id===id)||{name:'(deleted client)',terms:30};
-const custOpts=(sel,ph)=>'<option value="">'+esc(ph||'– choose –')+'</option>'+custs().map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'<option value="__new">+ New client…</option>';
+const custOpts=(sel,ph)=>'<option value="">'+esc(ph||'– choose –')+'</option>'+custs().filter(c=>!c.inactive||c.id===sel).map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'<option value="__new">+ New client…</option>';
 const staffList=()=>{const c=C(),h=c.hr&&Array.isArray(c.hr.employees)?c.hr.employees:[];const n=new Set(h.map(e=>String(e.name||((e.lastName||'')+', '+(e.firstName||''))).trim()).filter(x=>x&&x!==','));S().logs.forEach(l=>l.staff&&n.add(l.staff));S().sales.forEach(l=>l.staff&&n.add(l.staff));return [...n].sort()};
 const K=(a,b,n,w)=>'<div class="bk-kpi'+(w?' warn':'')+'"><span>'+a+'</span><b>'+b+'</b><small>'+(n||'')+'</small></div>';
 const sel=(id,v,list)=>'<select id="'+id+'">'+list.map(o=>'<option value="'+esc(o[0])+'"'+(String(o[0])===String(v)?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select>';
@@ -8958,7 +8964,7 @@ const TPL=code=>(SERVICE_LINES.find(s=>s.id==='commercial')||{accounts:[]}).acco
 const la=code=>{if(X.acct(code))return code;const a=TPL(code);return a?X.ensureAcct(a.code,a.title,a.category,{sub:a.subCategoryClass,normal:a.normal}):code};
 const A_RENT=()=>la(4220),A_CAM=()=>la(4221),A_UTIL=()=>la(4222),A_PEN=()=>la(4223),A_FORF=()=>la(4224),A_DEP=()=>la(2370),A_ADV=()=>la(2380);
 const cust=id=>AR().customers.find(c=>c.id===id)||{name:'(deleted tenant)',terms:0};
-const custOpts=sel=>'<option value="">– choose –</option>'+AR().customers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'<option value="__new">+ New tenant…</option>';
+const custOpts=sel=>'<option value="">– choose –</option>'+AR().customers.filter(c=>!c.inactive||c.id===sel).sort((a,b)=>a.name.localeCompare(b.name)).map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'<option value="__new">+ New tenant…</option>';
 const K=(a,b,n,w)=>'<div class="bk-kpi'+(w?' warn':'')+'"><span>'+a+'</span><b>'+b+'</b><small>'+(n||'')+'</small></div>';
 const fg=(lab,inner,full)=>'<div class="form-group"'+(full?' style="grid-column:1/-1"':'')+'><label>'+lab+'</label>'+inner+'</div>';
 const sel=(id,v,list)=>'<select id="'+id+'">'+list.map(o=>'<option value="'+esc(o[0])+'"'+(String(o[0])===String(v)?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select>';
@@ -9375,7 +9381,7 @@ function render(){const el=$('bk-rcv');if(!el||!C())return;const P=PD(),t=X.toda
  +(L.length?L.map(k=>{const s=ST[k.status]||ST.hand,ready=k.status==='hand'&&k.date<=t;return '<tr><td><b>'+esc(X.fdl(k.date))+'</b>'+(ready?'<br><small style="color:var(--danger);font-weight:700">deposit now</small>':'')+'</td><td class="wrap">'+esc(cust(k.cust).name)+'</td><td>'+esc(k.bank||'')+' · '+esc(k.chk)+'</td><td class="number">'+n2(k.amt)+(k.cwt?'<br><small class="bk-mut">+ 2307 '+n2(k.cwt)+'</small>':'')+'</td><td class="wrap">'+esc(k.note||'')+'</td><td><span class="st '+s[1]+'">'+s[0]+'</span>'+(k.status==='dep'?'<br><small class="bk-mut">'+esc(X.fdl(k.depDate))+'</small>':'')+'</td><td style="white-space:nowrap">'
   +(k.status==='hand'?'<button class="btn btn-sm" data-dep="'+k.id+'">Deposit</button> <button class="btn btn-outline btn-sm" data-ret="'+k.id+'">Return</button>':k.status==='dep'?'<button class="btn btn-outline btn-sm btn-danger" data-bnc="'+k.id+'">Bounced</button>':'')+(k.status==='hand'?' <button class="btn btn-outline btn-sm btn-danger" data-del="'+k.id+'">×</button>':'')+'</td></tr>'}).join(''):'<tr><td colspan="7" class="erp-empty">No checks here.</td></tr>')+'</tbody></table></div>';
  $('pdS').onchange=e=>{F.st=e.target.value;render()}}
-function addForm(){const cs=AM().A().customers.slice().sort((a,b)=>a.name.localeCompare(b.name));if(!cs.length)return toast('Add the customer or tenant in Receivables first.');
+function addForm(){const cs=AM().A().customers.filter(c=>!c.inactive).sort((a,b)=>a.name.localeCompare(b.name));if(!cs.length)return toast('Add the customer or tenant in Receivables first.');
  const leases=window.CLMOD&&CLMOD.on()&&C().cl?CLMOD.S().leases.filter(l=>l.status==='active'):[];
  const m=X.modal('<h2 style="margin-top:0">Record checks received</h2><p class="hr-note">For a series of post-dated checks (e.g. 12 monthly rent checks), enter the first check and how many.</p><div class="grid-2">'
   +(leases.length?'<div class="form-group" style="grid-column:1/-1"><label>For a lease (optional)</label><select id="pkL"><option value="">–</option>'+leases.map(l=>'<option value="'+l.id+'">'+esc(l.no+' – '+cust(l.cust).name)+'</option>').join('')+'</select></div>':'')
@@ -11994,7 +12000,7 @@ async function rotate(cid,info){const c=comp(cid),K=await key(cid);if(!c||!K||K.
  const ni=Object.assign({},info,{name:c.name,epoch:(info.epoch||1)+1,members:members(c).map(m=>m.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:b64e(await seal(ck,{keys:olds})),rotated:new Date().toISOString(),by:ACC.email});
  await writeInfo(cid,ni);await setKey(cid,{v:2,epoch:ni.epoch,cur:b64e(raw),old:olds});await snapshot(cid,true);return ni}
 // every sync round: follow key changes; Admins hand the key to new members and replace it when someone leaves
-async function checkInfo(cid,s){const info=await readInfo(cid);if(!info)return;const c=comp(cid);
+async function checkInfo(cid,s){const info=await readInfo(cid);if(!info)return;const c=comp(cid);if(info.deleted)return removed(cid,info,true);
  if(info.v!==2){s.v1=true;const K=await key(cid);if(!K)throw new Error('This device does not have the sync key for this company.');if(c&&amAdmin(c)&&K.raw1){try{await upgrade(cid)}catch(e){console.error(e)}}return}
  s.v1=false;let K=await key(cid);
  if(!K||K.v!==2||K.epoch!==info.epoch){const w=info.keys&&info.keys[ACC.aid];
@@ -12009,10 +12015,10 @@ async function adminDuty(cid,info,K){const c=comp(cid),mem=members(c),want=new S
  const ml=mem.map(m=>m.email).sort();if(JSON.stringify(ml)!==JSON.stringify(info.members||[])){info.members=ml;ch=true}
  if(info.name!==c.name){info.name=c.name;ch=true}
  if(ch){info.keys=keys;await writeInfo(cid,info)}}
-async function removed(cid,info){const c=comp(cid);const s=ST[cid];if(s){s.on=false;s.removed=true}
+async function removed(cid,info,del){const c=comp(cid);const s=ST[cid];if(s){s.on=false;s.removed=true}
  if(c){companies.splice(companies.indexOf(c),1);if(activeCompanyId===cid){try{logOff()}catch(e){}}}
  for(const k of['syncs:','syncb:','synck:','prejoin:','prerestore:'])await vdel(k+cid);delete ST[cid];delete BASE[cid];delete KEY[cid];pending=true;await flushNow();
- toast('Your access to '+((info&&info.name)||'a company')+' was removed by an Admin, so it was taken off this device.','error');renderGate();throw Object.assign(new Error('removed'),{quiet:true})}
+ toast(del?((info&&info.name)||'A company')+' was deleted by an Admin, so it was taken off this device.':'Your access to '+((info&&info.name)||'a company')+' was removed by an Admin, so it was taken off this device.','error');renderGate();throw Object.assign(new Error('removed'),{quiet:true})}
 // ---------- one sync round for a company: pull everyone else's changes, then push ours ----------
 const busy={};
 async function syncCo(cid){if(busy[cid])return busy[cid];return busy[cid]=(async()=>{try{if(!ACC)return;const s=await st(cid);if(!s||!s.on)return;if(!(await T().ready()))throw Object.assign(new Error('needs-access'),{access:true});
@@ -12185,14 +12191,17 @@ function setErr(t){const e=card.querySelector('.ag-err');if(e)e.textContent=t||'
 function busyBtn(b,t){if(!b)return()=>{};const o=b.innerHTML;b.disabled=true;b.textContent=t;return()=>{b.disabled=false;b.innerHTML=o}}
 // first screen
 async function rStart(){const L=await accts(),online=navigator.onLine!==false;
- card.innerHTML=head('',L.length?'Choose your account':'Sign in to open your companies.')
+ if(!clientId())return rNoKey();
+ card.innerHTML=head('',L.length?'Choose your account':'Sign in, or create your account, with Google.')
  +(L.length?L.map(a=>'<button type="button" class="ag-acc" data-aid="'+esc(a.aid)+'">'+av(a.name,a.pic)+'<span><b>'+esc(a.name)+'</b><small>'+esc(a.email)+'</small></span></button>').join('')+'<div class="ag-sep">or</div>':'')
  +'<button type="button" class="btn ag-g" id="agG">'+GICON+'<span>Continue with Google</span></button>'
- +'<p class="ag-err"></p><p class="ag-note" style="text-align:center;margin:.6rem 0 0">'+(online?'Use the Google account your Admin added in Users &amp; Access.':'You are offline. Choose your account above and use this device’s passcode.')+'</p>'
+ +'<p class="ag-err"></p><p class="ag-note" style="text-align:center;margin:.6rem 0 0">'+(online?(L.length?'':'<b>First time?</b> The same button creates your account. Then create your company, or open one someone shared with you.'):'You are offline. Choose your account above and use this device’s passcode. A first sign-in needs internet.')+'</p>'
  +'<div class="ag-foot"><span>Google sign-in key: <b>'+(clientId()?'set':'not set')+'</b> <button type="button" class="ag-link" id="agSet">'+(clientId()?'Change':'Set up')+'</button></span></div>';
  card.querySelectorAll('[data-aid]').forEach(b=>b.onclick=()=>{const a=L.find(x=>x.aid===b.dataset.aid);gate('pass',a)});
  card.querySelector('#agG').onclick=e=>google_(null,e.currentTarget);card.querySelector('#agSet').onclick=()=>gate('setup')}
-function rSetup(){card.innerHTML=head('Google sign-in key','Needed once per device (or paste it into the app file so nobody has to).')
+function rNoKey(){card.innerHTML=head('Almost there','This copy of the app needs its Google sign-in key before anyone can sign in.')
+ +'<p class="ag-note"><b>Joining someone’s team?</b> Ask them for the app’s <b>invite link</b> (on their company list) and open it on this device. It sets the key for you.</p><p class="ag-note"><b>Setting up the app yourself?</b> Enter your Google OAuth client ID once.</p><div class="ag-acts"><button type="button" class="btn" id="agSet">Enter the sign-in key</button></div>';card.querySelector('#agSet').onclick=()=>gate('setup')}
+function rSetup(){card.innerHTML=head('Google sign-in key','Needed once per device. Opening the invite link sets it automatically.')
  +'<div class="form-group"><label for="agCid">Google OAuth client ID</label><input id="agCid" class="sy-mono" value="'+esc(clientId())+'" placeholder="1234-abc.apps.googleusercontent.com"></div>'
  +'<details class="ag-note"><summary style="cursor:pointer;font-weight:700">Where to get it</summary><ol style="margin:.4rem 0 0 1.1rem;padding:0"><li>console.cloud.google.com › your project › <b>Google Auth Platform › Clients</b> (or APIs &amp; Services › Credentials).</li><li>Open the Web client and copy the <b>Client ID</b>.</li><li>Under <b>Audience › Test users</b>, add every Gmail that will use the app.</li></ol></details>'
  +'<p class="ag-err"></p><div class="ag-acts" style="justify-content:flex-end"><button type="button" class="btn btn-outline" id="agBk">Back</button><button type="button" class="btn" id="agSv">Save</button></div>';
@@ -12273,15 +12282,17 @@ async function rHub(){if(!ACC)return gate('start');const L=companies.slice().sor
  +'<h4>Your companies</h4>'+(L.length?L.map(c=>'<button type="button" class="ag-co" data-co="'+esc(c.id)+'">'+coIni(c)+'<span><b>'+esc(c.name)+'</b><small>'+esc(c.tin?'TIN '+c.tin:c.workspace?'Data entry':'')+'</small></span><span class="ag-pill">'+esc(coRole(c))+'</span></button>').join(''):'<p class="ag-note">No companies on this device yet. Create one, or open one that was shared with you.</p>')
  +'<div id="agShared"></div>'
  +'<div class="ag-acts"><button type="button" class="btn btn-sm" id="agNew">+ Create company</button><button type="button" class="btn btn-outline btn-sm" id="agPkg">Open a file from your admin</button><button type="button" class="btn btn-outline btn-sm" id="agImp">Import from a backup file</button></div>'
- +'<div class="ag-foot"><span>Sync folder: <b>'+esc(CFG.mode==='fs'?FS.label():CFG.mode==='gd'?GD.label():'not connected')+'</b> <button type="button" class="ag-link" id="agFold">'+(CFG.mode?'Change':'Set up')+'</button></span><span>Lock this device after '+idleSel('agIdle')+' of no use</span><span><button type="button" class="ag-link" id="agSw">Switch account</button> · <button type="button" class="ag-link" id="agRm" style="color:var(--danger,#dc2626)">Remove my account from this device</button></span></div>';
+ +'<div class="ag-foot"><span>Invite link for your team: <button type="button" class="ag-link" id="agInv">Copy</button> <small>(opens the app with Google sign-in ready)</small></span><span>Sync folder: <b>'+esc(CFG.mode==='fs'?FS.label():CFG.mode==='gd'?GD.label():'not connected')+'</b> <button type="button" class="ag-link" id="agFold">'+(CFG.mode?'Change':'Set up')+'</button></span><span>Lock this device after '+idleSel('agIdle')+' of no use</span><span><button type="button" class="ag-link" id="agSw">Switch account</button> · <button type="button" class="ag-link" id="agRm" style="color:var(--danger,#dc2626)">Remove my account from this device</button></span></div>';
  card.querySelectorAll('[data-co]').forEach(b=>b.onclick=()=>enter(b.dataset.co));
  card.querySelector('#agLock').onclick=()=>lock();card.querySelector('#agSw').onclick=()=>lock('switch');
  card.querySelector('#agNew').onclick=()=>openCreateCompanyModal();
  card.querySelector('#agPkg').onclick=()=>pickJSON(t=>{try{ROLEMOD.loadPackage(t,false)}catch(e){toast(e.message)}setTimeout(()=>{if(gateState==='hub')renderGate()},300)});
  card.querySelector('#agImp').onclick=()=>pickJSON(importBackup);
  card.querySelector('#agFold').onclick=()=>folderMenu();bindIdle(card.querySelector('#agIdle'));
- card.querySelector('#agRm').onclick=removeAccount;
+ card.querySelector('#agRm').onclick=removeAccount;card.querySelector('#agInv').onclick=copyInvite;
  renderShared()}
+const inviteLink=()=>location.origin+location.pathname+'#key='+encodeURIComponent(clientId());
+async function copyInvite(){const l=inviteLink();try{await navigator.clipboard.writeText(l);toast('Invite link copied. Send it to your team; they open it and continue with Google.','success')}catch(e){mdl('<h2 style="margin-top:0">Invite link</h2><p class="hr-note">Send this to your team. They open it and continue with Google.</p><input class="sy-mono" style="width:100%" readonly value="'+esc(l)+'" onclick="this.select()"><div style="text-align:right;margin-top:1rem"><button class="btn" data-x>Done</button></div>')}}
 function pickJSON(cb){const i=document.createElement('input');i.type='file';i.accept='.json,application/json';i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>cb(String(r.result));r.readAsText(f)};i.click()}
 function folderMenu(){const m=mdl('<h2 style="margin-top:0">Sync folder</h2><p class="hr-note">The shared Google Drive folder where synced companies live. Everyone you add with a Google email gets access to it.</p><div class="sy-row">'+(canGD()?'<button class="btn btn-sm" id="fmG">Use a Google Drive folder</button>':'')+(canFS()?'<button class="btn btn-sm btn-outline" id="fmF">Use the Drive folder on this computer</button>':'')+'</div>'+(ROOTS.length>1?'<h4 style="margin:1rem 0 .4rem">Folders shared with you</h4>'+ROOTS.map(f=>'<button class="ag-acc" data-rt="'+esc(f.id)+'" style="display:flex;gap:8px;align-items:center;width:100%;padding:8px 10px;border:1px solid var(--border-color);border-radius:10px;background:none;color:inherit;margin-bottom:6px;cursor:pointer"><b>'+esc(f.name)+'</b><small class="bk-mut">'+esc(((f.owners||[])[0]||{}).emailAddress||'')+'</small></button>').join(''):'')+'<div style="text-align:right;margin-top:1rem"><button class="btn btn-outline" data-x>Close</button></div>',560);
  const g=m.q('#fmG');if(g)g.onclick=()=>{m.remove();gdSetup(()=>renderGate())};const f=m.q('#fmF');if(f)f.onclick=async()=>{m.remove();await pickFolder();renderGate()};
@@ -12291,7 +12302,7 @@ async function renderShared(){const box=$('agShared');if(!box||!ACC||shBusy)retu
  if(!connected()){box.innerHTML=ROOTS.length>1?'<p class="ag-note" style="margin-top:.6rem">Several sync folders were shared with you. <button type="button" class="ag-link" id="agPickRoot">Choose one</button></p>':'';const p=$('agPickRoot');if(p)p.onclick=folderMenu;return}
  let ready=false;try{ready=await T().ready()}catch(e){}
  if(!ready){box.innerHTML='<h4>Shared with you</h4><p class="ag-note">'+(CFG.mode==='gd'?'Sign in to Google to see companies shared with you.':'Allow access to the sync folder to see companies shared with you.')+' <button type="button" class="ag-link" id="agConn">'+(CFG.mode==='gd'?'Continue with Google':'Allow access')+'</button></p>';$('agConn').onclick=async()=>{if(await access())renderShared()};return}
- shBusy=true;try{await publishMe();const out=[];for(const d of await T().dirs('')){if(d[0]==='_'||comp(d))continue;const i=await readInfo(d);if(!i||!i.id)continue;if(i.v===2){if((i.members||[]).includes(ACC.email))out.push({id:d,name:i.name,ok:!!(i.keys&&i.keys[ACC.aid])})}else out.push({id:d,name:i.name,v1:true})}
+ shBusy=true;try{await publishMe();const out=[];for(const d of await T().dirs('')){if(d[0]==='_'||comp(d))continue;const i=await readInfo(d);if(!i||!i.id||i.deleted)continue;if(i.v===2){if((i.members||[]).includes(ACC.email))out.push({id:d,name:i.name,ok:!!(i.keys&&i.keys[ACC.aid])})}else out.push({id:d,name:i.name,v1:true})}
   box.innerHTML=out.length?'<h4>Shared with you</h4>'+out.map(x=>'<div class="ag-co"><span class="ag-ini">'+ini(x.name)+'</span><span><b>'+esc(x.name)+'</b><small>'+(x.v1?'Uses a sync passphrase':x.ok?'Ready to open on this device':'Waiting for approval. This happens automatically the next time an Admin’s app syncs.')+'</small></span>'+(x.ok||x.v1?'<button type="button" class="btn btn-sm" data-op="'+esc(x.id)+'"'+(x.v1?' data-v1="1"':'')+'>Open</button>':'<button type="button" class="btn btn-outline btn-sm" data-chk>Check again</button>')+'</div>').join(''):'';
   box.querySelectorAll('[data-chk]').forEach(b=>b.onclick=()=>renderShared());
   box.querySelectorAll('[data-op]').forEach(b=>b.onclick=async()=>{const done=busyBtn(b,'Opening…');try{if(b.dataset.v1){const p=await askText('Sync passphrase','This company was set up with a passphrase. Ask an Admin for it, or ask them to switch it to account access in Settings › Sync & Backup.','Passphrase','password');if(!p){done();return}await joinV1(b.dataset.op,p)}else await openShared(b.dataset.op);toast('Opened on this device.','success');await enter(b.dataset.op)}catch(e){toast(e.message,'error');done()}})}
@@ -12308,6 +12319,27 @@ async function enter(cid){const c=comp(cid);if(!c)return;let u=myUser(c);
 async function removeAccount(){if(!ACC)return;const n=companies.length;if(!confirm('Remove your account from this device?\n\nThe '+n+' compan'+(n===1?'y':'ies')+' saved here for '+ACC.email+' will be deleted from this device. Companies that sync stay in Google Drive and can be opened again by signing in.'))return;
  if(prompt('Type REMOVE to confirm')!=='REMOVE')return;const aid=ACC.aid;await flushNow();ACC=null;
  try{for(const k of await kkeys())if(String(k).startsWith('v:'+aid+':'))await kdel(k)}catch(e){}const L=(await accts()).filter(a=>a.aid!==aid);await kset('accts',L);try{sessionStorage.clear()}catch(e){}location.reload()}
+// delete one company (Admin): this device, the Drive folder, and everyone's devices on their next sync
+async function forget(cid){const c=comp(cid);if(c)companies.splice(companies.indexOf(c),1);for(const k of['syncs:','syncb:','synck:','prejoin:','prerestore:'])await vdel(k+cid);try{await kdel('synck:'+cid)}catch(e){}delete ST[cid];delete BASE[cid];delete KEY[cid];pending=true;await flushNow()}
+async function deleteCompany(cid){cid=cid||activeCompanyId;const c=comp(cid);if(!c||!ACC)return;const admin=amAdmin(c)||(!c.users||!c.users.length);const s=await st(cid),synced=!!(s&&s.on);
+ const m=mdl('<h2 style="margin-top:0">'+(admin?'Delete '+esc(c.name)+'?':'Remove '+esc(c.name)+' from this device?')+'</h2>'
+  +(admin?'<p class="hr-note">This deletes the company, its books and every record in it'+(synced?' from this device, from the shared Drive folder (with its backups), and from everyone’s devices the next time their app syncs':' from this device')+'. It cannot be undone.</p>':'<p class="hr-note">Only an Admin can delete the company for everyone. This removes your copy on this device; you can open it again from the company list while you still have access.</p>')
+  +'<label class="hr-chk" style="margin:.4rem 0"><input type="checkbox" id="dcBk" checked> Download a backup file first</label>'
+  +(admin?'<div class="form-group"><label for="dcN">Type the company name to confirm</label><input id="dcN" autocomplete="off" placeholder="'+esc(c.name)+'"></div>':'')
+  +'<div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn btn-danger" id="dcGo">'+(admin?'Delete company':'Remove from this device')+'</button></div>',520);
+ m.q('#dcGo').onclick=async()=>{if(admin&&m.q('#dcN').value.trim().toLowerCase()!==String(c.name).trim().toLowerCase())return toast('Type the company name exactly to confirm.');
+  const b=m.q('#dcGo');b.disabled=true;b.textContent='Deleting…';
+  try{if(m.q('#dcBk').checked)downloadJSON(c,String(c.name).replace(/[^\w]+/g,'_')+'_Backup_'+td()+'.json');
+   let note='';if(admin&&synced){try{if(!(await T().ready())&&!(await access()))throw new Error('no access');const info=(await readInfo(cid))||{};
+     await writeInfo(cid,{app:'AJ ERP System',v:2,id:cid,name:c.name,deleted:true,deletedBy:ACC.email,deletedAt:new Date().toISOString(),epoch:(info.epoch||1)+1,keys:{},members:[]});
+     for(const d of['changes','backups'])for(const n of await T().list(cid+'/'+d))await T().del(cid+'/'+d,n);
+     for(const e of members(c))if(e.email!==ACC.email&&!(await stillMemberElsewhere(e.email,cid)))try{await DRVX.unshare(e.email)}catch(x){}}
+    catch(x){note=' The Drive folder could not be reached, so other devices keep their copy until you delete it again while connected.'}}
+   if(activeCompanyId===cid){activeCompanyId=null;window.currentUser=null;try{sessionStorage.removeItem('aj_session')}catch(x){}}
+   await forget(cid);m.remove();try{renderLoginCompanySelector()}catch(x){}gate('hub');toast(c.name+(admin?' was deleted.':' was removed from this device.')+note,note?'error':'success')}
+  catch(x){b.disabled=false;b.textContent='Try again';toast(x.message,'error')}}}
+window.deleteEverythingData=async function(){if(!ACC)return;const n=companies.length;if(!confirm('Remove all '+n+' compan'+(n===1?'y':'ies')+' in your account from this device?\n\nSynced companies stay in the Drive folder and can be opened again. Companies that do not sync are gone unless you have a backup file.'))return;
+ if(prompt('Type DELETE to confirm')!=='DELETE')return;for(const c of companies.slice())await forget(c.id);activeCompanyId=null;window.currentUser=null;try{sessionStorage.removeItem('aj_session')}catch(e){}gate('hub');toast('All companies were removed from this device.','success')};
 // lock: save, forget the keys and reload so nothing stays in memory
 async function lock(why){if(!ACC){gate('start');return}const aid=ACC.aid;await flushNow();ACC=null;GD.tok='';try{if(why==='switch'){sessionStorage.removeItem('aj_session');sessionStorage.removeItem('aj_lock_aid')}else{sessionStorage.setItem('aj_lock_aid',aid);if(why==='idle')sessionStorage.setItem('aj_lock_why','idle')}}catch(e){}location.reload()}
 let lastAct=Date.now();['pointerdown','keydown','wheel','touchstart'].forEach(ev=>addEventListener(ev,()=>{lastAct=Date.now()},{passive:true,capture:true}));
@@ -12324,14 +12356,16 @@ window.onload=async function(){const args=arguments;try{await db();IDB_OK=true}c
  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
  const r=oOnload?oOnload.apply(this,args):undefined;
  try{await boot()}catch(e){console.error(e)}return r};
-async function boot(){await loadCfg();paint();
+async function boot(){await loadCfg();
+ try{const m=/[#&]key=([^&]+)/.exec(location.hash);if(m){const k=decodeURIComponent(m[1]);if(/\.apps\.googleusercontent\.com$/.test(k)&&k!==CFG.gdClient){CFG.gdClient=k;await saveCfg()}history.replaceState(null,'',location.pathname+location.search)}}catch(e){}
+ paint();
  if(!IDB_OK){showGate();card.innerHTML=head('Storage is blocked','This browser is not letting the app save data (a private window, or site data is blocked). Open the app in a normal window.');return}
  if(window.AJ_TEST_HOLD)return;
  if(!canGD())return gate('nofile');
  const L=await accts();let pre=null;try{pre=sessionStorage.getItem('aj_lock_aid');sessionStorage.removeItem('aj_lock_aid')}catch(e){}
  const a=pre&&L.find(x=>x.aid===pre)||(L.length===1?L[0]:null);if(a)return gate('pass',a);return gate('start')}
 if('serviceWorker' in navigator&&location.protocol==='https:'){addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
-window.AJACCT={lock,me:()=>ACC&&{email:ACC.email,name:ACC.name,pic:ACC.pic},emails,membersChanged,gate,enter};
+window.AJACCT={lock,deleteCompany,me:()=>ACC&&{email:ACC.email,name:ACC.name,pic:ACC.pic},emails,membersChanged,gate,enter};
 window.AJSYNC={syncCo,startSync,openShared,joinV1,upgrade,rotate,readInfo,flatC,setAt,delAt,H,st:cid=>ST[cid],useTransport:t=>{TEST=t},key,kget,kset,kkeys,flush:()=>flushNow(),DEV,setCfg:c=>Object.assign(CFG,c),conflicts,FS,GD,
  useIdp:(i,a,d)=>{IDPX=i;ADX=a;if(d)DRVX=d},boot,cycle,afterUnlockForTest:async(acc)=>{ACC=acc;await afterUnlock()},acc:()=>ACC,legacyList,gateState:()=>gateState,devSet:c=>{try{localStorage.setItem('aj_dev_id',c)}catch(e){}}};
 })();
