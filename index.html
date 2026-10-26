@@ -1755,11 +1755,11 @@ body.dark-mode .login-logo{--lm-edge:color-mix(in srgb,var(--aj-6) 40%,transpare
                 <div class="grid-2">
                     <div class="form-group">
                         <label>Prepared By (Name & Title)</label>
-                        <input type="text" id="rptPreparedBy" placeholder="e.g. Certified Accountant">
+                        <input type="text" id="rptPreparedBy" placeholder="Certified Accountant">
                     </div>
                     <div class="form-group">
                         <label>Approved / Reviewed By</label>
-                        <input type="text" id="rptApprovedBy" placeholder="e.g. Board of Directors / Owner">
+                        <input type="text" id="rptApprovedBy" placeholder="Board of Directors / Owner">
                     </div>
                 </div>
 
@@ -1779,7 +1779,7 @@ body.dark-mode .login-logo{--lm-edge:color-mix(in srgb,var(--aj-6) 40%,transpare
                 <div class="grid-2">
                     <div class="form-group">
                         <label>Business / Company Name *</label>
-                        <input type="text" id="newCompName" required placeholder="e.g. Acme Corp.">
+                        <input type="text" id="newCompName" required placeholder="Acme Corp.">
                     </div>
                     <div class="form-group">
                         <label>TIN *</label>
@@ -1841,13 +1841,13 @@ body.dark-mode .login-logo{--lm-edge:color-mix(in srgb,var(--aj-6) 40%,transpare
                     </div>
                     <div class="form-group">
                         <label>Reference No. / Voucher No.</label>
-                        <input type="text" id="entryRef" placeholder="e.g. JV-2026-0001">
+                        <input type="text" id="entryRef" placeholder="JV-2026-0001">
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label>Transaction Particulars / Description *</label>
-                    <input type="text" id="entryDesc" required placeholder="e.g. Received rental payment for room #101">
+                    <input type="text" id="entryDesc" required placeholder="Rent for Room 101">
                 </div>
 
                 <!-- FILE ATTACHMENT INPUT -->
@@ -4450,7 +4450,7 @@ function supEdit(id,pre){const s=id?supList().find(x=>x.id===id):null;if(id&&!s)
  const m=document.createElement('div');m.className='modal-overlay';
  m.innerHTML='<div class="modal" style="max-width:640px"><h2>'+(s?'Edit supplier':'New supplier')+'</h2><form id="supForm" data-id="'+(s?esc(s.id):'')+'" onsubmit="INV.supSave(event)"><div class="grid-2">'
   +g('Supplier name *','sName','name',' required')+g('Contact person','sContact','contact')+g('Phone','sPhone','phone',' type="tel"')+g('Email','sEmail','email',' type="email"')+g('Tax ID / TIN','sTin','tin')
-  +'<div class="form-group"><label>Payment terms</label><input id="sTerms" maxlength="60" list="sTermsL" placeholder="e.g. Net 30" value="'+f('terms')+'"><datalist id="sTermsL"><option value="Cash on delivery"><option value="Net 15"><option value="Net 30"><option value="Net 60"></datalist></div></div>'
+  +'<div class="form-group"><label>Payment terms</label><input id="sTerms" maxlength="60" list="sTermsL" placeholder="Net 30" value="'+f('terms')+'"><datalist id="sTermsL"><option value="Cash on delivery"><option value="Net 15"><option value="Net 30"><option value="Net 60"></datalist></div></div>'
   +'<div class="form-group"><label>Address</label><textarea id="sAddr" rows="2" maxlength="300">'+f('address')+'</textarea></div>'
   +'<div class="form-group"><label>Notes</label><textarea id="sNotes" rows="2" maxlength="500">'+f('notes')+'</textarea></div>'
   +'<label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem"><input type="checkbox" id="sAct"'+(v.active!==false?' checked':'')+'> Active (suggested when creating purchase orders)</label>'
@@ -6045,7 +6045,7 @@ function openCheck(id,pre){
   +'<div class="form-group"><label for="bkfIss">Date issued</label><input type="date" id="bkfIss" value="'+esc(v.issued)+'"></div>'
   +'<div class="form-group"><label for="bkfDue">Check date / due date *</label><input type="date" id="bkfDue" value="'+esc(v.due)+'"></div>'
   +'<div class="form-group"><label for="bkfPay">Payee / supplier</label><input id="bkfPay" list="bkfPayL" value="'+esc(v.payee)+'" autocomplete="off"><datalist id="bkfPayL">'+payees().map(p=>'<option value="'+esc(p)+'">').join('')+'</datalist></div>'
-  +'<div class="form-group"><label for="bkfPart">Particulars</label><input id="bkfPart" list="bkfPartL" value="'+esc(v.particulars)+'" placeholder="e.g. To Pay Groceries" autocomplete="off"><datalist id="bkfPartL">'+parts.map(p=>'<option value="'+esc(p)+'">').join('')+'</datalist></div>'
+  +'<div class="form-group"><label for="bkfPart">Particulars</label><input id="bkfPart" list="bkfPartL" value="'+esc(v.particulars)+'" placeholder="Groceries for the store" autocomplete="off"><datalist id="bkfPartL">'+parts.map(p=>'<option value="'+esc(p)+'">').join('')+'</datalist></div>'
   +'<div class="form-group"><label for="bkfAmt">Amount *</label><input type="number" id="bkfAmt" min="0" step="0.01" inputmode="decimal" value="'+(v.amount||'')+'"></div>'
   +'<div class="form-group"><label for="bkfSt">Status</label><select id="bkfSt">'+ST.map(s=>'<option'+(s===v.status?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
   +'<div class="form-group" id="bkfClW"><label for="bkfCl">Date cleared</label><input type="date" id="bkfCl" value="'+esc(v.cleared||'')+'"></div>'
@@ -6208,8 +6208,8 @@ function openAcct(id,after){
  const assets=coa().filter(x=>x.category==='Asset'&&!x.isContra).sort((x,y)=>(y.roleTag==='cash')-(x.roleTag==='cash')||x.code-y.code);
  const used=new Set(b.accounts.filter(x=>x.id!==id&&x.gl).map(x=>x.gl));
  const m=modal('<h2 style="margin-top:0">'+(a?'Edit Bank Account':'Add Bank Account')+'</h2><form novalidate><div class="grid-2">'
-  +'<div class="form-group"><label for="bkaBank">Bank *</label><input id="bkaBank" value="'+esc(v.bank)+'" placeholder="e.g. BDO" autocomplete="off"></div>'
-  +'<div class="form-group"><label for="bkaBr">Branch</label><input id="bkaBr" value="'+esc(v.branch)+'" placeholder="e.g. Guindulman" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="bkaBank">Bank *</label><input id="bkaBank" value="'+esc(v.bank)+'" placeholder="BDO" autocomplete="off"></div>'
+  +'<div class="form-group"><label for="bkaBr">Branch</label><input id="bkaBr" value="'+esc(v.branch)+'" placeholder="Guindulman" autocomplete="off"></div>'
   +'<div class="form-group"><label for="bkaNo">Account number *</label><input id="bkaNo" value="'+esc(v.number)+'" autocomplete="off"></div>'
   +'<div class="form-group"><label for="bkaType">Account type</label><select id="bkaType">'+['Checking','Savings','Current','Time Deposit','E-wallet'].map(x=>'<option'+(x===v.type?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'
   +'<div class="form-group" style="grid-column:1/-1"><label for="bkaName">Account name</label><input id="bkaName" value="'+esc(v.name)+'" autocomplete="off"></div>'
@@ -6442,12 +6442,12 @@ $('setTab-theme').insertAdjacentHTML('afterend','<div id="setTab-users" class="s
 document.querySelector('main.main-content').insertAdjacentHTML('beforeend',
  '<div id="tab-posting" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">For Posting</h2><div class="hr-acts"><button class="btn btn-outline" id="rqImport">Import encoder batch</button></div></div>'
  +'<p class="hr-note">Entries made by encoders wait here. Nothing reaches the books until you press <b>Enter in books</b>. Suggested accounts learn from your past choices.</p>'
- +'<div class="hr-bar"><div class="form-group"><label for="rqSt">Show</label><select id="rqSt"><option value="PENDING">Waiting for posting</option><option value="RETURNED">Returned to encoder</option><option value="POSTED">Posted</option><option value="REJECTED">Not posted (rejected)</option><option value="MSG">Unread messages</option><option value="ALL">All</option></select></div><div class="form-group"><label for="rqBy">Encoder</label><select id="rqBy"></select></div><button class="btn" id="rqBulk" type="button">Enter selected in books</button></div>'
+ +'<div class="rq-toolbar"><div class="ds-seg" id="rqSeg" role="tablist" aria-label="Show"></div><div class="hr-bar"><div class="form-group" style="display:none"><label for="rqSt">Show</label><select id="rqSt"><option value="PENDING">Waiting for posting</option><option value="RETURNED">Returned to encoder</option><option value="POSTED">Posted</option><option value="REJECTED">Not posted (rejected)</option><option value="MSG">Unread messages</option><option value="ALL">All</option></select></div><div class="form-group"><label for="rqBy">Encoder</label><select id="rqBy"></select></div><button class="btn" id="rqBulk" type="button">Enter selected in books</button></div></div>'
  +'<div class="hr-scroll"><table class="hr-tbl hr-hist"><thead><tr><th><input type="checkbox" id="rqAll" aria-label="Select all"></th><th>Date</th><th>Encoder</th><th>Type</th><th>Details</th><th class="number">Amount</th><th>Suggested entry</th><th>Status</th><th></th></tr></thead><tbody id="rqBody"></tbody></table></div></div></div>'
  +'<div id="tab-rptlib" class="tab-section"><div class="card" id="rqLibList"><h2 style="margin-top:0">Saved Reports</h2><p class="hr-note" id="rqLibNote"></p><div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Report</th><th>Period</th><th>Basis</th><th>Prepared by</th><th>Saved</th><th></th></tr></thead><tbody id="rqLibBody"></tbody></table></div></div>'
  +'<div class="card hidden" id="rqLibPaper"><div class="filter-bar" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:1rem"><button class="btn btn-outline btn-sm" id="rqLibBack">Back to list</button><b id="rqLibMeta"></b><button class="btn btn-sm" onclick="window.print()">Print / Export PDF</button></div><div class="report-paper"><div id="rqLibArea"></div></div></div></div>'
- +'<div id="tab-enc" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Data Entry</h2><div class="hr-acts" id="rqWsActs"></div></div><p class="hr-note" id="rqEncNote"></p><div id="rqEncKpi"></div><div class="rq-forms" id="rqForms"></div>'
- +'<h3 style="margin:.4rem 0 .6rem;font-size:1.05rem">My entries</h3><div class="hr-bar"><div class="form-group"><label for="rqMySt">Show</label><select id="rqMySt"><option value="OPEN">Waiting for posting</option><option value="RETURNED">Needs fixing</option><option value="POSTED">Posted</option><option value="REJECTED">Not posted</option><option value="ALL">All</option></select></div></div>'
+ +'<div id="tab-enc" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Data Entry</h2><div class="hr-acts" id="rqWsActs"></div></div><p class="hr-note" id="rqEncNote"></p><div id="rqEncKpi"></div><h3 class="rq-h">New entry</h3><div class="rq-forms" id="rqForms"></div>'
+ +'<h3 class="rq-h">My entries</h3><input type="hidden" id="rqMySt" value="OPEN"><div class="ds-seg" id="rqMySeg" role="tablist" aria-label="Show entries" style="margin-bottom:.8rem"></div>'
  +'<div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Entered</th><th>Type</th><th>Details</th><th class="number">Amount</th><th>Status</th><th></th></tr></thead><tbody id="rqMyBody"></tbody></table></div></div></div>');
 
 // ---------- lists the encoder chooses from (live in the admin copy, from the package in a workspace) ----------
@@ -6471,7 +6471,7 @@ function qSummary(it){const d=it.data||{};
  if(it.kind==='check')return 'Check '+d.number+' – '+(d.payee||'')+(d.particulars?' ('+d.particulars+')':'')+' • due '+fd(d.due);
  if(it.kind==='deposit')return d.type+' – '+bankLabel(d.acct)+(d.type==='Fund Transfer'?' from '+(d.source?bankLabel(d.source):'outside account'):'')+(d.from?' • '+lbl(DEP_FROM,d.from):'')+(d.ref?' • ref '+d.ref:'');
  if(it.kind==='expense')return (d.payee||'')+' – '+(d.category||'')+(d.desc?': '+d.desc:'')+' • '+lbl(PAID_WITH,d.paid)+(d.photo?' • receipt photo':'');
- if(it.kind==='collection')return 'From '+(d.from||'')+' – '+lbl(COL_FOR,d.forWhat)+' • '+lbl(COL_AS,d.as)+(d.as==='bank'&&d.acct?' ('+bankLabel(d.acct)+')':'')+(d.orNo?' • OR '+d.orNo:'')+(d.invs&&d.invs.length?' • for '+d.invs.join(', '):'')+(d.cwt>0?' • 2307 '+n2(c100(d.cwt)):'')+(d.photo?' • photo':'');
+ if(it.kind==='collection')return 'From '+(d.from||'')+' – '+lbl(COL_FOR,d.forWhat)+' • '+lbl(COL_AS,d.as)+(d.as==='bank'&&d.acct?' ('+bankLabel(d.acct)+')':'')+(d.orNo?' • '+(/^(or|ar)\b/i.test(d.orNo)?'':'OR ')+d.orNo:'')+(d.invs&&d.invs.length?' • for '+d.invs.join(', '):'')+(d.cwt>0?' • 2307 '+n2(c100(d.cwt)):'')+(d.photo?' • photo':'');
  if(it.kind==='sale')return 'Invoice '+(d.orNo||'')+' to '+(d.from||'')+' – '+(d.desc||'')+(d.due?' • due '+fd(d.due):'')+(d.vat==='incl'?' • VAT incl.':'')+(d.photo?' • photo':'');
  return '';
 }
@@ -6487,6 +6487,107 @@ function dupOf(it){const d=it.data||{},amt=c100(d.amount),same=x=>x.id!==it.id&&
 const qDate=it=>{const d=it.data||{};return it.kind==='check'?(d.issued||d.due):d.date};window.ENCDUP=it=>dupOf(it);
 const stBadge=it=>it.status==='POSTED'?'<span class="badge badge-vat">Posted</span>':it.status==='REJECTED'?'<span class="badge badge-nonvat">Not posted</span>':it.status==='RETURNED'?'<span class="badge badge-contra">Needs fixing</span>':(isWS()&&!it.sent?'<span class="badge badge-credit">'+(C()&&C().chan?'Sending…':'Not sent yet')+'</span>':'<span class="badge badge-debit">Waiting for posting</span>');
 
+// ---------- Sheet: spreadsheet-style entry, one tab per kind; every ready row becomes an entry for posting ----------
+const SHEET_VAT=[['incl','Includes VAT'],['none','No VAT']];
+const SHEETS={
+ collection:{label:'Money received',cols:[['date','Date','date'],['from','Received from','name:cust'],['forWhat','For','sel:for'],['as','Received as','sel:as'],['acct','Into bank account','sel:bank'],['amount','Amount','money'],['cwt','2307 tax','money'],['orNo','OR / AR no.','text'],['notes','Notes','text']]},
+ expense:{label:'Expenses',cols:[['date','Date','date'],['payee','Paid to','name:payee'],['category','Category','sel:cat'],['desc','Description','text'],['amount','Amount','money'],['paid','Paid with','sel:paid'],['orNo','Receipt no.','text']]},
+ check:{label:'Checks issued',cols:[['acct','Bank account','sel:bank'],['number','Check no.','text'],['issued','Date issued','date'],['due','Check date','date'],['payee','Pay to','name:payee'],['particulars','For','name:part'],['amount','Amount','money'],['notes','Notes','text']]},
+ deposit:{label:'Deposits & transfers',cols:[['type','Type','sel:dtype'],['date','Date','date'],['acct','Bank account','sel:bank'],['source','From account','sel:bank0'],['from','Money came from','sel:dfrom'],['amount','Amount','money'],['ref','Reference','text'],['notes','Notes','text']]},
+ sale:{label:'Sales invoices',cols:[['date','Invoice date','date'],['due','Due date','date'],['from','Customer','name:cust'],['orNo','Invoice no.','text'],['desc','What was sold','text'],['amount','Amount','money'],['vat','VAT','sel:vat']]}};
+const STICKY={collection:['date','forWhat','as','acct'],expense:['date','paid','category'],check:['acct','issued','due'],deposit:['type','date','acct','from'],sale:['date','due','vat']};
+function sheetOpts(key,L){const pairs=a=>a.map(x=>Array.isArray(x)?x:[x,x]);return({for:COL_FOR,as:COL_AS,cat:pairs(EXP_CATS),paid:PAID_WITH,dtype:pairs(DEP_TYPES),dfrom:[['','–']].concat(DEP_FROM),bank:[['','–']].concat(L.banks.map(b=>[b.id,b.label])),bank0:[['','Outside account']].concat(L.banks.map(b=>[b.id,b.label])),vat:SHEET_VAT})[key]||[]}
+const pMoney=v=>{const n=parseFloat(String(v==null?'':v).replace(/[₱,\s]/g,'').replace(/^\((.*)\)$/,'-$1'));return Number.isFinite(n)?Math.round(n*100)/100:0};
+const MONS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function pDate(v){v=String(v||'').trim();let m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v);if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+ m=/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/.exec(v);if(m){let y=+m[3];if(y<100)y+=2000;return y+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0')}
+ m=/^([a-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})$/i.exec(v);if(m&&MONS.indexOf(m[1].toLowerCase())>=0)return m[3]+'-'+String(MONS.indexOf(m[1].toLowerCase())+1).padStart(2,'0')+'-'+m[2].padStart(2,'0');
+ m=/^(\d{1,2})[\s-]([a-z]{3})[a-z]*[\s-](\d{2,4})$/i.exec(v);if(m&&MONS.indexOf(m[2].toLowerCase())>=0){let y=+m[3];if(y<100)y+=2000;return y+'-'+String(MONS.indexOf(m[2].toLowerCase())+1).padStart(2,'0')+'-'+m[1].padStart(2,'0')}return ''}
+function sheetDefaults(kind,L){const d={};SHEETS[kind].cols.forEach(([f,,t])=>{if(t==='date')d[f]=f==='due'&&kind==='sale'?'':td();else if(t.startsWith('sel:')){const o=sheetOpts(t.slice(4),L);d[f]=o.length?o[0][0]:''}else d[f]=''});
+ if(kind==='collection')d.forWhat=Object.keys(L.rates||{}).length?'rent':'sales';if(kind==='deposit')d.type='Cash Deposit';if(kind==='sale')d.vat=L.vat?'incl':'none';return d}
+function sheetTouched(kind,r){return SHEETS[kind].cols.some(([f,,t])=>(t==='money'&&pMoney(r[f])!==0)||((t==='text'||t.startsWith('name'))&&String(r[f]||'').trim()))}
+function sheetCheck(kind,r,L){const e={},amt=pMoney(r.amount),bank=id=>L.banks.some(b=>b.id===id);if(!(amt>0))e.amount='Enter an amount above zero.';
+ const dt=f=>{if(!DT.test(r[f]||''))e[f]='Enter a valid date.'};
+ if(kind==='collection'){dt('date');if(!String(r.from||'').trim())e.from='Who paid?';if(r.as==='bank'&&!bank(r.acct))e.acct='Choose the bank account.';if(pMoney(r.cwt)<0)e.cwt='Cannot be negative.'}
+ if(kind==='expense'){dt('date');if(!String(r.payee||'').trim())e.payee='Who was paid?'}
+ if(kind==='check'){if(!bank(r.acct))e.acct='Choose the bank account.';if(!String(r.number||'').trim())e.number='Check number?';dt('issued');dt('due');if(!String(r.payee||'').trim())e.payee='Pay to whom?';
+  if(!e.number&&!e.acct){const dup=Q().some(x=>x.kind==='check'&&x.status!=='RETURNED'&&x.status!=='REJECTED'&&x.data.acct===r.acct&&x.data.number===String(r.number).trim())||(!isWS()&&((C().bank&&C().bank.checks)||[]).some(k=>k.acct===r.acct&&k.number===String(r.number).trim()));if(dup)e.number='Check '+r.number+' is already recorded.'}}
+ if(kind==='deposit'){dt('date');if(!bank(r.acct))e.acct='Choose the bank account.';if(r.type==='Fund Transfer'&&r.source&&r.source===r.acct)e.source='Must differ from the bank account.'}
+ if(kind==='sale'){dt('date');if(r.due&&!DT.test(r.due))e.due='Enter a valid date.';else if(r.due&&r.due<r.date)e.due='Due date is before the invoice date.';if(!String(r.from||'').trim())e.from='Which customer?';if(!String(r.orNo||'').trim())e.orNo='Invoice number?';if(!String(r.desc||'').trim())e.desc='What was sold?'}
+ return e}
+function sheetData(kind,r,L){const s=v=>String(v==null?'':v).trim(),amount=pMoney(r.amount);
+ if(kind==='collection')return{amount,date:r.date,from:s(r.from),forWhat:r.forWhat,as:r.as,acct:r.as==='bank'?r.acct:'',orNo:s(r.orNo),notes:s(r.notes),cwt:Math.max(0,pMoney(r.cwt)),invs:[],photo:''};
+ if(kind==='expense')return{amount,date:r.date,payee:s(r.payee),category:r.category,desc:s(r.desc),paid:r.paid,orNo:s(r.orNo),photo:''};
+ if(kind==='check')return{amount,acct:r.acct,number:s(r.number),issued:r.issued,due:r.due,payee:s(r.payee),particulars:s(r.particulars),notes:s(r.notes),photo:''};
+ if(kind==='deposit')return{amount,type:r.type,date:r.date,acct:r.acct,source:r.type==='Fund Transfer'?r.source:'',from:/Deposit/.test(r.type)?r.from:'',ref:s(r.ref),notes:s(r.notes),photo:''};
+ return{amount,date:r.date,due:r.due||'',from:s(r.from),orNo:s(r.orNo),desc:s(r.desc),vat:L.vat?r.vat:'none',notes:'',photo:''}}
+function openSheet(startKind){const L=lists(),H=L.hints||{},f=encForms(),kinds=Object.keys(SHEETS).filter(k=>f[k]);if(!kinds.length)return toast('No entry forms are turned on for you. Ask the admin.');
+ const c=C();if(!c.sheetDraft||typeof c.sheetDraft!=='object')c.sheetDraft={};let kind=kinds.includes(startKind)?startKind:kinds[0],tried=false;
+ const rowsOf=k=>{let R=c.sheetDraft[k];if(!Array.isArray(R)||!R.length){R=[];for(let i=0;i<12;i++)R.push(sheetDefaults(k,L));c.sheetDraft[k]=R}return R};
+ const lists2={cust:L.customers.concat(L.payees.filter(p=>!L.customers.includes(p))),payee:L.payees.concat(L.customers.filter(p=>!L.payees.includes(p))),part:L.particulars};
+ const ov=document.createElement('div');ov.className='sheet-ov';ov.id='ajSheet';ov.setAttribute('role','dialog');ov.setAttribute('aria-label','Sheet');
+ ov.innerHTML='<div class="sheet-top"><div class="sheet-title"><h2>Sheet</h2><span class="bk-mut">Type or paste rows from Excel or Google Sheets. Ready rows become entries for posting; rows with a problem stay here.</span></div><div class="sheet-acts"><button type="button" class="btn btn-outline" id="shClose">Close</button><button type="button" class="btn" id="shSubmit">Submit</button></div></div>'
+  +'<div class="sheet-bar"><div class="ds-seg" id="shTabs"></div><span class="sheet-sum" id="shSum"></span><span class="sheet-tools"><button type="button" class="btn btn-outline btn-sm" id="shMore">+ 10 rows</button><button type="button" class="btn btn-outline btn-sm" id="shClear">Clear sheet</button></span></div>'
+  +'<div class="sheet-wrap"><table class="sheet"><thead id="shHead"></thead><tbody id="shBody"></tbody></table></div>'
+  +'<datalist id="shL-cust">'+lists2.cust.map(p=>'<option value="'+esc(p)+'"'+(H[p]?' label="'+esc(H[p])+'"':'')+'>').join('')+'</datalist><datalist id="shL-payee">'+lists2.payee.map(p=>'<option value="'+esc(p)+'">').join('')+'</datalist><datalist id="shL-part">'+lists2.part.map(p=>'<option value="'+esc(p)+'">').join('')+'</datalist>'
+  +'<div class="sheet-foot bk-mut">Enter moves down · Tab moves right · Ctrl+D copies the cell above · Paste a block of cells to fill many rows at once.</div>';
+ document.body.appendChild(ov);document.body.classList.add('sheet-open');
+ const q=s=>ov.querySelector(s),cols=()=>SHEETS[kind].cols;let saveT=0;
+ const save=()=>{clearTimeout(saveT);saveT=setTimeout(()=>{try{saveToLocalStorage()}catch(e){}},400)};
+ function cellHtml(col,v,ri,ci){const[f,,t]=col,a=' data-r="'+ri+'" data-c="'+ci+'" data-f="'+f+'" aria-label="'+esc(col[1])+' row '+(ri+1)+'"';
+  if(t==='date')return '<input type="date"'+a+' value="'+esc(v||'')+'">';
+  if(t==='money')return '<input'+a+' inputmode="decimal" class="num" placeholder="0.00" value="'+esc(v===''||v==null?'':v)+'">';
+  if(t.startsWith('sel:'))return '<select'+a+'>'+sheetOpts(t.slice(4),L).map(o=>'<option value="'+esc(o[0])+'"'+(o[0]===v?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select>';
+  if(t.startsWith('name:'))return '<input'+a+' list="shL-'+t.slice(5)+'" autocomplete="off" value="'+esc(v||'')+'">';
+  return '<input'+a+' autocomplete="off" value="'+esc(v||'')+'">'}
+ function tabs(){const counts=k=>(c.sheetDraft[k]||[]).filter(r=>sheetTouched(k,r)).length;q('#shTabs').innerHTML=kinds.map(k=>'<button type="button" data-k="'+k+'"'+(k===kind?' class="on"':'')+'>'+esc(SHEETS[k].label)+(counts(k)?'<span class="n">'+counts(k)+'</span>':'')+'</button>').join('');
+  q('#shTabs').querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{kind=b.dataset.k;tried=false;draw()})}
+ function draw(){const R=rowsOf(kind);q('#shHead').innerHTML='<tr><th class="rn">#</th>'+cols().map(c2=>'<th'+(c2[2]==='money'?' class="number"':'')+'>'+esc(c2[1])+'</th>').join('')+'<th class="sh-st">Status</th><th class="x"></th></tr>';
+  q('#shBody').innerHTML=R.map((r,ri)=>'<tr data-row="'+ri+'"><td class="rn">'+(ri+1)+'</td>'+cols().map((c2,ci)=>'<td>'+cellHtml(c2,r[c2[0]],ri,ci)+'</td>').join('')+'<td class="sh-st" id="shSt'+ri+'"></td><td class="x"><button type="button" class="sheet-x" data-del="'+ri+'" title="Remove row" aria-label="Remove row '+(ri+1)+'">✕</button></td></tr>').join('');
+  R.forEach((r,ri)=>mark(ri));tabs();sum()}
+ function mark(ri){const R=rowsOf(kind),r=R[ri],tr=q('#shBody tr[data-row="'+ri+'"]');if(!tr)return;const touched=sheetTouched(kind,r),e=touched?sheetCheck(kind,r,L):{},n=Object.keys(e).length;
+  tr.querySelectorAll('[data-f]').forEach(el=>{const f2=el.dataset.f,bad=!!e[f2]&&(tried||el.dataset.dirty);el.classList.toggle('bad',bad);el.title=bad?e[f2]:''});
+  if(kind==='deposit'||kind==='collection'){const h=(f2,on)=>{const el=tr.querySelector('[data-f="'+f2+'"]');if(el)el.closest('td').classList.toggle('na',!on)};if(kind==='deposit'){h('source',r.type==='Fund Transfer');h('from',/Deposit/.test(r.type))}else h('acct',r.as==='bank')}
+  let dup='';if(touched&&!n){dup=dupOf({kind,data:sheetData(kind,r,L)})}
+  const st=q('#shSt'+ri);st.innerHTML=!touched?'':n?'<span class="ds-pill '+(tried?'bad':'warn')+'" title="'+esc(Object.values(e).join(' '))+'">'+n+' to fix</span>':dup?'<span class="ds-pill warn" title="'+esc(dup)+'">Possible duplicate</span>':'<span class="ds-pill ok">Ready</span>'}
+ function sum(){const R=rowsOf(kind);let ready=0,bad=0,tot=0;R.forEach(r=>{if(!sheetTouched(kind,r))return;if(Object.keys(sheetCheck(kind,r,L)).length)bad++;else{ready++;tot+=pMoney(r.amount)}});
+  q('#shSum').innerHTML=ready||bad?'<b>'+ready+'</b> ready'+(ready?' · '+n2(Math.round(tot*100)):'')+(bad?' · <span style="color:var(--ds-bad,#b42318)"><b>'+bad+'</b> to fix</span>':''):'';const b=q('#shSubmit');b.textContent=ready?'Submit '+ready+' entr'+(ready===1?'y':'ies'):'Submit';b.disabled=!ready}
+ function setCell(ri,f2,v,el){const R=rowsOf(kind);R[ri][f2]=v;if(el)el.dataset.dirty='1';
+  if(kind==='collection'&&f2==='from'){const rate=(L.rates||{})[String(v).trim()];if(rate&&!pMoney(R[ri].amount)){R[ri].amount=rate.toFixed(2);R[ri].forWhat='rent';const tr=q('#shBody tr[data-row="'+ri+'"]');if(tr){const a=tr.querySelector('[data-f=amount]'),fw=tr.querySelector('[data-f=forWhat]');if(a)a.value=R[ri].amount;if(fw)fw.value='rent'}}}
+  if(ri===R.length-1&&sheetTouched(kind,R[ri]))addRows(5,false);mark(ri);sum();tabs();save()}
+ function addRows(n,redraw){const R=rowsOf(kind);for(let i=0;i<n;i++){const last=R[R.length-1],d=sheetDefaults(kind,L);if(last)(STICKY[kind]||[]).forEach(k=>{if(last[k])d[k]=last[k]});R.push(d)}
+  if(redraw!==false)draw();else{const tb=q('#shBody'),start=R.length-n;for(let ri=start;ri<R.length;ri++){tb.insertAdjacentHTML('beforeend','<tr data-row="'+ri+'"><td class="rn">'+(ri+1)+'</td>'+cols().map((c2,ci)=>'<td>'+cellHtml(c2,R[ri][c2[0]],ri,ci)+'</td>').join('')+'<td class="sh-st" id="shSt'+ri+'"></td><td class="x"><button type="button" class="sheet-x" data-del="'+ri+'" title="Remove row" aria-label="Remove row '+(ri+1)+'">✕</button></td></tr>');mark(ri)}}}
+ const cell=(ri,ci)=>q('#shBody [data-r="'+ri+'"][data-c="'+ci+'"]');
+ const focusCell=(ri,ci)=>{const R=rowsOf(kind);if(ri<0)return;if(ri>=R.length)addRows(1,false);const el=cell(ri,ci);if(el){el.focus();if(el.select&&el.type!=='date')try{el.select()}catch(e){}}};
+ ov.addEventListener('input',e=>{const el=e.target.closest('[data-f]');if(el)setCell(+el.dataset.r,el.dataset.f,el.value,el)});
+ ov.addEventListener('change',e=>{const el=e.target.closest('[data-f]');if(el)setCell(+el.dataset.r,el.dataset.f,el.value,el)});
+ ov.addEventListener('keydown',e=>{const el=e.target.closest('[data-f]');if(!el||e.defaultPrevented)return;const ri=+el.dataset.r,ci=+el.dataset.c;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'){e.preventDefault();if(ri>0){const up=rowsOf(kind)[ri-1][el.dataset.f];el.value=up;setCell(ri,el.dataset.f,up,el)}return}
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();q('#shSubmit').click();return}
+  if(e.key==='Enter'){e.preventDefault();focusCell(e.shiftKey?ri-1:ri+1,ci);return}
+  if(el.tagName!=='SELECT'&&(e.key==='ArrowDown'||e.key==='ArrowUp')){e.preventDefault();focusCell(e.key==='ArrowDown'?ri+1:ri-1,ci)}});
+ ov.addEventListener('paste',e=>{const el=e.target.closest('[data-f]');if(!el)return;const t=(e.clipboardData||window.clipboardData).getData('text');if(!/[\t\n]/.test(t.replace(/\r?\n$/,'')))return;e.preventDefault();
+  const rows=t.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(l=>l.split('\t')),R=rowsOf(kind),r0=+el.dataset.r,c0=+el.dataset.c;while(R.length<r0+rows.length+1){const d=sheetDefaults(kind,L);(STICKY[kind]||[]).forEach(k=>{if(R[R.length-1]&&R[R.length-1][k])d[k]=R[R.length-1][k]});R.push(d)}
+  let bad=0;rows.forEach((cells,i)=>cells.forEach((raw,j)=>{const col=cols()[c0+j];if(!col)return;const[f2,,ty]=col,v=String(raw).trim();let out=v;
+   if(ty==='date'){out=pDate(v);if(v&&!out)bad++}else if(ty==='money'){const n=parseFloat(v.replace(/[₱,\s]/g,'').replace(/^\((.*)\)$/,'-$1'));out=!v?'':Number.isFinite(n)?(Math.round(n*100)/100).toFixed(2):v;if(v&&!Number.isFinite(n))bad++}
+   else if(ty.startsWith('sel:')){const o=sheetOpts(ty.slice(4),L),lv=v.toLowerCase(),hit=o.find(x=>String(x[0]).toLowerCase()===lv)||o.find(x=>String(x[1]).toLowerCase()===lv)||o.find(x=>v&&String(x[1]).toLowerCase().startsWith(lv));if(hit)out=hit[0];else{out=R[r0+i][f2];if(v)bad++}}
+   R[r0+i][f2]=out;if(kind==='collection'&&f2==='from'){const rate=(L.rates||{})[out];if(rate&&!pMoney(R[r0+i].amount)){R[r0+i].amount=rate.toFixed(2);R[r0+i].forWhat='rent'}}}));
+  draw();tried=false;save();toast('Pasted '+rows.length+' row'+(rows.length===1?'':'s')+'.'+(bad?' '+bad+' cell'+(bad===1?'':'s')+' did not match a choice or date; check the highlighted rows.':''),bad?'error':'success')});
+ ov.addEventListener('click',e=>{const d=e.target.closest('[data-del]');if(!d)return;const R=rowsOf(kind);R.splice(+d.dataset.del,1);if(!R.length)R.push(sheetDefaults(kind,L));draw();save()});
+ q('#shMore').onclick=()=>addRows(10);
+ q('#shClear').onclick=()=>{if(!confirm('Clear every row on the '+SHEETS[kind].label+' tab?'))return;c.sheetDraft[kind]=[];draw();save()};
+ const close=()=>{clearTimeout(saveT);try{saveToLocalStorage()}catch(e){}ov.remove();document.body.classList.remove('sheet-open');renderEnc();document.removeEventListener('keydown',esc2,true)};
+ const esc2=e=>{if(e.key==='Escape'&&!document.querySelector('.aj-ta:not([hidden])')&&!document.querySelector('.modal-overlay:not(.hidden)')){e.preventDefault();close()}};document.addEventListener('keydown',esc2,true);
+ q('#shClose').onclick=close;
+ q('#shSubmit').onclick=()=>{tried=true;const R=rowsOf(kind),ready=[],keep=[];R.forEach(r=>{if(!sheetTouched(kind,r))return;(Object.keys(sheetCheck(kind,r,L)).length?keep:ready).push(r)});
+  if(!ready.length){draw();return toast(keep.length?'Fix the highlighted rows first. Hover a red cell to see why.':'Nothing to submit yet.')}
+  const dups=ready.map(r=>{const dp=dupOf({kind,data:sheetData(kind,r,L)});return dp?(r.from||r.payee||r.number||'')+': '+dp:''}).filter(Boolean);
+  if(dups.length&&!confirm(dups.length+' row'+(dups.length===1?' looks':'s look')+' like entries already made:\n'+dups.slice(0,6).join('\n')+'\n\nSubmit them anyway?'))return;
+  const at=new Date().toISOString();ready.forEach(r=>Q().push({id:'q_'+uid(),kind,data:sheetData(kind,r,L),by:{id:me().id,name:me().name},at,status:'PENDING',note:'',sent:!isWS(),rev:0,via:'sheet'}));
+  const last=R.filter(r=>sheetTouched(kind,r)).slice(-1)[0];const keepN=keep.length;c.sheetDraft[kind]=keep.length?keep:[];if(keep.length){const R2=c.sheetDraft[kind];while(R2.length<10){const d=sheetDefaults(kind,L);(STICKY[kind]||[]).forEach(k=>{if(last&&last[k])d[k]=last[k]});R2.push(d)}}const NR=rowsOf(kind);if(!keep.length&&last)NR.forEach(d=>(STICKY[kind]||[]).forEach(k=>{if(last[k])d[k]=last[k]}));
+  try{saveToLocalStorage()}catch(e){}updCount();draw();toast(ready.length+' entr'+(ready.length===1?'y':'ies')+' submitted ('+n2(Math.round(ready.reduce((a,r)=>a+pMoney(r.amount),0)*100))+').'+(keepN?' '+keepN+' row'+(keepN===1?' needs':'s need')+' fixing and stayed in the sheet.':'')+(isWS()&&!C().chan?' Press Send batch when ready.':''),keepN?'error':'success')};
+ draw();setTimeout(()=>focusCell(0,cols().findIndex(c2=>c2[2].startsWith('name:'))>=0?cols().findIndex(c2=>c2[2].startsWith('name:')):0),60)}
+
 // ---------- Encoder: Data Entry ----------
 function renderEnc(){
  const ws=isWS(),f=encForms(),mine=Q().filter(it=>it.by&&it.by.id===me().id);
@@ -6497,14 +6598,23 @@ function renderEnc(){
  const ret=mine.filter(it=>it.status==='RETURNED').length,ym=td().slice(0,7),postedM=mine.filter(it=>it.status==='POSTED'&&String(it.postedAt||'').slice(0,7)===ym).length,todayN=mine.filter(it=>String(it.at).slice(0,10)===td());
  $('rqEncKpi').innerHTML='<div class="bk-kpis"><div class="bk-kpi"><span>Entered today</span><b>'+todayN.length+'</b><small>'+n2(todayN.reduce((a,it)=>a+c100(it.data.amount),0))+'</small></div><div class="bk-kpi'+(ret?' warn':'')+'"><span>Returned to fix</span><b>'+ret+'</b><small>'+(ret?'see notes below':'none')+'</small></div><div class="bk-kpi"><span>Waiting for posting</span><b>'+mine.filter(it=>it.status==='PENDING').length+'</b><small>'+(ws?unsent+' not sent yet':'')+'</small></div><div class="bk-kpi"><span>Posted this month</span><b>'+postedM+'</b><small></small></div></div>';
  $('rqEncNote').innerHTML=chan?'Your entries go to the office automatically whenever you are online, and their replies come back the same way. You only see your own entries; the books stay with the office.'+(C().pkgAt?' Last update from the office: '+esc(fdt(C().pkgAt))+'.':''):ws?'You are working in your own copy for <b>'+esc(C().name)+'</b>. Entries stay here until you press <b>Send batch</b>, which saves a file to send to the admin (for example through a shared Google Drive folder). Load the admin’s update file to see which entries were posted or returned.'+(C().pkgAt?' Last update from admin: '+esc(fdt(C().pkgAt))+'.':''):'Your entries go to the admin’s For Posting list. The admin chooses the accounts and enters them in the books.';
- const FD={check:'Payee, check number, amount and check date',deposit:'Cash or check deposits, transfers between accounts, withdrawals',expense:'Bills and receipts paid or to be paid, with a photo of the receipt',collection:'Payments received from customers or tenants, and the invoices they pay',sale:'Invoices given to customers who will pay later'};
- $('rqForms').innerHTML=FORMS.filter(x=>f[x[0]]).map(x=>'<button type="button" class="rq-form-btn" data-new="'+x[0]+'"><b>+ '+x[1]+'</b><span>'+FD[x[0]]+'</span></button>').join('')+(f.collection?'<button type="button" class="rq-form-btn" data-quick="1"><b>+ Many payments at once</b><span>Rent or collections from several people: type a name, the amount fills in, press Enter for the next row</span></button>':'')||'<p class="bk-mut">No entry forms are turned on for encoders. Ask the admin.</p>';
+ const FD={check:'Payee, check no., amount, check date',deposit:'Deposits, transfers, withdrawals',expense:'Bills and receipts, with a photo',collection:'Payments from customers or tenants',sale:'Invoices to be paid later'};
+ const IC={check:'M4 7h16v10H4zM7 11h6M7 14h3',deposit:'M3 10l9-5 9 5M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18',expense:'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',collection:'M3 7h18v10H3zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',sale:'M6 3h9l3 3v15H6zM9 9h6M9 13h6M9 17h3',sheet:'M4 4h16v16H4zM4 9h16M4 14h16M9 4v16M14 4v16',quick:'M4 6h16M4 12h16M4 18h10'};
+ const ico=k=>'<i class="rq-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="'+IC[k]+'"/></svg></i>';
+ const draftN=Object.keys(SHEETS).reduce((a,k)=>a+((C().sheetDraft||{})[k]||[]).filter(r=>sheetTouched(k,r)).length,0);
+ const anyF=FORMS.some(x=>f[x[0]]);
+ $('rqForms').innerHTML=anyF?'<button type="button" class="rq-form-btn rq-feature" data-sheet="1">'+ico('sheet')+'<span class="rq-tx"><b>Open the Sheet</b><span>Type many entries in rows like Excel, or paste them straight from a spreadsheet'+(draftN?' · <em>'+draftN+' row'+(draftN===1?'':'s')+' saved</em>':'')+'</span></span></button>'
+  +FORMS.filter(x=>f[x[0]]).map(x=>'<button type="button" class="rq-form-btn" data-new="'+x[0]+'">'+ico(x[0])+'<span class="rq-tx"><b>'+x[1]+'</b><span>'+FD[x[0]]+'</span></span></button>').join('')+(f.collection?'<button type="button" class="rq-form-btn" data-quick="1">'+ico('quick')+'<span class="rq-tx"><b>Many payments at once</b><span>Type a name, the amount fills in</span></span></button>':''):'<p class="bk-mut">No entry forms are turned on for you. Ask the admin.</p>';
+ const SEG=[['OPEN','Waiting',it=>it.status==='PENDING'],['RETURNED','Needs fixing',it=>it.status==='RETURNED'],['POSTED','Posted',it=>it.status==='POSTED'],['REJECTED','Not posted',it=>it.status==='REJECTED'],['ALL','All',()=>true]];
+ const cur=$('rqMySt').value;$('rqMySeg').innerHTML=SEG.map(([v,l,fn])=>{const n=mine.filter(fn).length,u=mine.filter(fn).filter(it=>unread(it,'enc')).length;return '<button type="button" role="tab" aria-selected="'+(v===cur)+'" data-seg="'+v+'"'+(v===cur?' class="on"':'')+'>'+l+(v!=='ALL'&&n?'<span class="n'+(v==='RETURNED'?' warn':'')+'">'+n+'</span>':'')+(u?'<i class="dot" title="New messages"></i>':'')+'</button>'}).join('');
  if(ws&&!chan){$('rqLoadPkg').onclick=()=>pickFile('.json,application/json',t=>loadPackage(t,true));$('rqSend').onclick=sendBatch;if($('rqSendAll'))$('rqSendAll').onclick=sendAll}$('rqCsv').onclick=csvImport;
  const st=$('rqMySt').value,list=mine.filter(it=>st==='ALL'||(st==='OPEN'?it.status==='PENDING':it.status===st)).sort((a,b)=>String(b.at).localeCompare(String(a.at)));
  $('rqMyBody').innerHTML=list.map(it=>'<tr><td>'+esc(fdt(it.at))+'</td><td>'+KIND_LABEL[it.kind]+'</td><td class="wrap" style="white-space:normal;min-width:240px">'+esc(qSummary(it))+((it.status==='RETURNED'||it.status==='REJECTED')&&it.note?'<div class="rq-note">'+(it.status==='REJECTED'?'Not posted: ':'To fix: ')+esc(it.note)+'</div>':'')+'</td><td class="number">'+n2(c100(it.data.amount))+'</td><td>'+stBadge(it)+'</td><td style="white-space:nowrap">'+(it.status==='RETURNED'||(it.status==='PENDING'&&(!ws||!it.sent))?'<button class="btn btn-outline btn-sm" data-edit="'+esc(it.id)+'">'+(it.status==='RETURNED'?'Fix and resend':'Edit')+'</button> ':'')+(it.status==='PENDING'&&(!ws||!it.sent)?'<button class="btn btn-danger btn-outline btn-sm" data-del="'+esc(it.id)+'">Delete</button> ':'')+'<button class="btn btn-outline btn-sm" data-copy="'+esc(it.id)+'" title="Start a new entry from this one">Copy</button> <button class="btn btn-sm '+(unread(it,'enc')?'':'btn-outline')+'" data-msg="'+esc(it.id)+'">'+(unread(it,'enc')?unread(it,'enc')+' new message'+(unread(it,'enc')===1?'':'s'):'Messages'+((it.thread||[]).length?' ('+it.thread.length+')':''))+'</button></td></tr>').join('')
-  ||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">Nothing here yet. Choose a form above to enter a transaction.</td></tr>';
+  ||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">Nothing here. New entries you make will show up in this list.</td></tr>';
 }
 $('tab-enc').addEventListener('click',e=>{
+ const sg=e.target.closest('[data-seg]');if(sg){$('rqMySt').value=sg.dataset.seg;return renderEnc()}
+ const sh=e.target.closest('[data-sheet]');if(sh)return openSheet();
  const qk=e.target.closest('[data-quick]');if(qk)return quickCollect();
  const mg=e.target.closest('[data-msg]');if(mg){const it=Q().find(x=>x.id===mg.dataset.msg);if(it)encThread(it);return}
  const n=e.target.closest('[data-new]');if(n)return openForm(n.dataset.new);
@@ -6524,18 +6634,18 @@ function openForm(kind,it,pre,keep){
  let body='';
  if((kind==='check'||kind==='deposit')&&!L.banks.length)return toast(ws?'No bank accounts in your file yet. Ask the admin for an updated file.':'No bank accounts are set up yet. Ask the admin to add them under Banking > Bank Accounts.');
  if(kind==='check')body=F('rqfBank','Bank account *','<select id="rqfBank">'+bankOpts(d.acct)+'</select>')+F('rqfNo','Check number *',inp('rqfNo',d.number,' inputmode="numeric"'))+F('rqfIss','Date issued *','<input type="date" id="rqfIss" value="'+esc(d.issued||td())+'">')+F('rqfDue','Check date / due date *','<input type="date" id="rqfDue" value="'+esc(d.due||td())+'">')
-  +F('rqfPay','Pay to (payee / supplier) *',inp('rqfPay',d.payee,' list="rqfPayL"')+dl('rqfPayL',L.payees))+F('rqfPart','What is it for?',inp('rqfPart',d.particulars,' list="rqfPartL" placeholder="e.g. To Pay Groceries"')+dl('rqfPartL',L.particulars))+amt+F('rqfNotes','Notes',inp('rqfNotes',d.notes));
+  +F('rqfPay','Pay to (payee / supplier) *',inp('rqfPay',d.payee,' list="rqfPayL"')+dl('rqfPayL',L.payees))+F('rqfPart','What is it for?',inp('rqfPart',d.particulars,' list="rqfPartL" placeholder="Groceries for the store"')+dl('rqfPartL',L.particulars))+amt+F('rqfNotes','Notes',inp('rqfNotes',d.notes));
  if(kind==='deposit')body=F('rqfType','Type *','<select id="rqfType">'+DEP_TYPES.map(t=>'<option'+(t===(d.type||'Cash Deposit')?' selected':'')+'>'+t+'</option>').join('')+'</select>')+F('rqfDate','Date *','<input type="date" id="rqfDate" value="'+esc(d.date||td())+'">')
   +F('rqfBank','<span id="rqfBankL">Bank account</span> *','<select id="rqfBank">'+bankOpts(d.acct)+'</select>')+'<div class="form-group" id="rqfSrcW"><label for="rqfSrc">From account</label><select id="rqfSrc">'+bankOpts(d.source,'Outside account (not listed)')+'</select></div>'
   +'<div class="form-group" id="rqfFromW"><label for="rqfFrom">Where did the money come from?</label><select id="rqfFrom">'+opt(DEP_FROM,d.from||'sales')+'</select></div>'+amt+F('rqfRef','Deposit slip / reference no.',inp('rqfRef',d.ref))+F('rqfNotes','Notes',inp('rqfNotes',d.notes));
  if(kind==='expense')body=F('rqfDate','Date *','<input type="date" id="rqfDate" value="'+esc(d.date||td())+'">')+F('rqfPay','Paid to *',inp('rqfPay',d.payee,' list="rqfPayL"')+dl('rqfPayL',L.payees))
-  +F('rqfCat','What was it for? *','<select id="rqfCat">'+EXP_CATS.map(x=>'<option'+(x===d.category?' selected':'')+'>'+x+'</option>').join('')+'</select>')+F('rqfDesc','Description',inp('rqfDesc',d.desc,' placeholder="e.g. October electric bill"'))+amt
+  +F('rqfCat','What was it for? *','<select id="rqfCat">'+EXP_CATS.map(x=>'<option'+(x===d.category?' selected':'')+'>'+x+'</option>').join('')+'</select>')+F('rqfDesc','Description',inp('rqfDesc',d.desc,' placeholder="October electricity bill"'))+amt
   +F('rqfPaid','How was it paid? *','<select id="rqfPaid">'+opt(PAID_WITH,d.paid||'cash')+'</select>')+F('rqfOr','Receipt / OR / invoice no.',inp('rqfOr',d.orNo))
   +F('rqfPhoto','Photo of the receipt','<input type="file" id="rqfPhoto" accept="image/*" capture="environment"><div id="rqfPhotoV" style="margin-top:6px">'+(d.photo?'<img class="rq-photo" src="'+d.photo+'" alt="Receipt photo"><button type="button" class="btn btn-outline btn-sm" id="rqfPhotoX" style="margin-top:6px">Remove photo</button>':'')+'</div>',true);
  const photoF=lab=>F('rqfPhoto',lab,'<input type="file" id="rqfPhoto" accept="image/*" capture="environment"><div id="rqfPhotoV" style="margin-top:6px"></div>',true);
  if(kind==='check')body+=photoF('Photo of the voucher or check (optional)');
  if(kind==='deposit')body+=photoF('Photo of the deposit slip (optional)');
- if(kind==='sale')body=F('rqfDate','Invoice date *','<input type="date" id="rqfDate" value="'+esc(d.date||td())+'">')+F('rqfDue','Due date','<input type="date" id="rqfDue" value="'+esc(d.due||'')+'">')+F('rqfFrom2','Customer *',inp('rqfFrom2',d.from,' list="rqfCustL"')+dl('rqfCustL',L.customers.slice(0,800)))+F('rqfOr','Invoice no. *',inp('rqfOr',d.orNo))+F('rqfDesc','What was sold / billed *',inp('rqfDesc',d.desc,' placeholder="e.g. 20 sacks rice, October rent, repair job"'),true)+amt+(L.vat?F('rqfVat','VAT','<select id="rqfVat"><option value="incl"'+(d.vat!=='none'?' selected':'')+'>Amount includes VAT</option><option value="none"'+(d.vat==='none'?' selected':'')+'>No VAT (exempt / zero-rated)</option></select>'):'')+F('rqfNotes','Notes',inp('rqfNotes',d.notes))+photoF('Photo of the invoice copy (optional)');
+ if(kind==='sale')body=F('rqfDate','Invoice date *','<input type="date" id="rqfDate" value="'+esc(d.date||td())+'">')+F('rqfDue','Due date','<input type="date" id="rqfDue" value="'+esc(d.due||'')+'">')+F('rqfFrom2','Customer *',inp('rqfFrom2',d.from,' list="rqfCustL"')+dl('rqfCustL',L.customers.slice(0,800)))+F('rqfOr','Invoice no. *',inp('rqfOr',d.orNo))+F('rqfDesc','What was sold / billed *',inp('rqfDesc',d.desc,' placeholder="20 sacks of rice"'),true)+amt+(L.vat?F('rqfVat','VAT','<select id="rqfVat"><option value="incl"'+(d.vat!=='none'?' selected':'')+'>Amount includes VAT</option><option value="none"'+(d.vat==='none'?' selected':'')+'>No VAT (exempt / zero-rated)</option></select>'):'')+F('rqfNotes','Notes',inp('rqfNotes',d.notes))+photoF('Photo of the invoice copy (optional)');
  if(kind==='collection')body=F('rqfDate','Date received *','<input type="date" id="rqfDate" value="'+esc(d.date||td())+'">')+F('rqfFrom2','Received from *',inp('rqfFrom2',d.from,' list="rqfCustL"')+dl('rqfCustL',L.customers.concat(L.payees).slice(0,800)))
   +F('rqfFor','What is it for? *','<select id="rqfFor">'+opt(COL_FOR,d.forWhat||'sales')+'</select>')+F('rqfAs','Received as *','<select id="rqfAs">'+opt(COL_AS,d.as||'cash')+'</select>')
   +'<div class="form-group" id="rqfColBankW"><label for="rqfBank">Into which account?</label><select id="rqfBank">'+bankOpts(d.acct,L.banks.length?'':'(no bank accounts listed)')+'</select></div>'+amt+F('rqfCwt','Tax withheld by the payer (2307)','<input type="number" id="rqfCwt" min="0" step="0.01" inputmode="decimal" value="'+(d.cwt||'')+'"><small class="bk-mut">Only if they gave a 2307. Amount above = cash actually received.</small>')+F('rqfOr','Official receipt / AR no.',inp('rqfOr',d.orNo))+'<div class="form-group" id="rqfInvW" style="grid-column:1/-1"><label>Invoices being paid</label><div id="rqfInv"></div></div>'+F('rqfNotes','Notes',inp('rqfNotes',d.notes))+photoF('Photo of the receipt or 2307 (optional)');
@@ -6576,7 +6686,7 @@ function openForm(kind,it,pre,keep){
 }
 function encThread(it){const lastAt=((it.thread||[]).slice(-1)[0]||{}).at;if(lastAt)seenSet(it.id,lastAt);
  const m=modal('<h2 style="margin-top:0">'+KIND_LABEL[it.kind]+' – '+n2(c100(it.data.amount))+'</h2><p class="hr-note">'+esc(qSummary(it))+'<br>'+stBadge(it)+(it.note&&(it.status==='RETURNED'||it.status==='REJECTED')?' '+esc(it.note):'')+'</p>'+threadHtml(it,'enc')
-  +'<textarea id="enT" rows="2" maxlength="1000" placeholder="Write to the office…" style="width:100%"></textarea><div class="sy-row" style="justify-content:flex-end;margin-top:.5rem"><button type="button" class="btn btn-outline" data-x>Close</button>'+(it.status==='RETURNED'?'<button type="button" class="btn btn-outline" id="enFix">Fix the entry</button>':'')+'<button type="button" class="btn" id="enSend">Send</button></div>',640);
+  +'<textarea id="enT" rows="2" maxlength="1000" placeholder="Type a message" style="width:100%"></textarea><div class="sy-row" style="justify-content:flex-end;margin-top:.5rem"><button type="button" class="btn btn-outline" data-x>Close</button>'+(it.status==='RETURNED'?'<button type="button" class="btn btn-outline" id="enFix">Fix the entry</button>':'')+'<button type="button" class="btn" id="enSend">Send</button></div>',640);
  const f=m.querySelector('#enFix');if(f)f.onclick=()=>{m.remove();openForm(it.kind,it)};
  m.querySelector('#enSend').onclick=()=>{const t=m.querySelector('#enT').value.trim();if(!t)return toast('Write the message first.');say(it,'enc',t);if(isWS())it.msgOut=true;saveToLocalStorage();m.remove();renderEnc();toast(isWS()&&!(C().chan)?'Message saved. It goes with your next batch.':'Message sent.','success')}}
 // several collections in one go (rent day): shared date / how received, one row per payer
@@ -6593,7 +6703,7 @@ function quickCollect(){const L=lists(),H=L.hints||{},RT=L.rates||{},ws=isWS();
  const tot=()=>{let t=0,n=0;tb.querySelectorAll('tr').forEach(r=>{const a=r2(r.querySelector('[data-f=amt]').value);if(a>0&&r.querySelector('[data-f=nm]').value.trim()){t+=a;n++}});q('#qcTot').textContent=n2(Math.round(t*100));q('#qcCnt').textContent=n?n+' payment'+(n===1?'':'s'):''};
  const inc=v=>{const mm=/^(.*?)(\d+)$/.exec(String(v||''));return mm?mm[1]+String(+mm[2]+1).padStart(mm[2].length,'0'):''};
  const row=focus=>{const last=[...tb.querySelectorAll('tr')].pop(),tr=document.createElement('tr');
-  tr.innerHTML='<td><input data-f="nm" list="qcNames" autocomplete="off" placeholder="Start typing a name"></td><td><select data-f="for">'+opt(COL_FOR,last?last.querySelector('[data-f=for]').value:'rent')+'</select></td><td><input data-f="amt" type="number" min="0" step="0.01" inputmode="decimal" style="text-align:right"></td><td><input data-f="or" autocomplete="off" value="'+esc(last?inc(last.querySelector('[data-f=or]').value):'')+'"></td><td><button type="button" class="btn btn-outline btn-sm" data-rm title="Remove row">✕</button></td>';
+  tr.innerHTML='<td><input data-f="nm" list="qcNames" autocomplete="off" placeholder="Search name"></td><td><select data-f="for">'+opt(COL_FOR,last?last.querySelector('[data-f=for]').value:'rent')+'</select></td><td><input data-f="amt" type="number" min="0" step="0.01" inputmode="decimal" style="text-align:right"></td><td><input data-f="or" autocomplete="off" value="'+esc(last?inc(last.querySelector('[data-f=or]').value):'')+'"></td><td><button type="button" class="btn btn-outline btn-sm" data-rm title="Remove row">✕</button></td>';
   tb.appendChild(tr);const nm=tr.querySelector('[data-f=nm]'),amt=tr.querySelector('[data-f=amt]');
   nm.addEventListener('change',()=>{const r=RT[nm.value.trim()];if(r&&!amt.value){amt.value=r.toFixed(2);tr.querySelector('[data-f=for]').value='rent'}tot();amt.focus();amt.select()});
   tr.querySelectorAll('input').forEach(i=>{i.addEventListener('input',tot);i.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.defaultPrevented){e.preventDefault();const cells=[...tr.querySelectorAll('input')],k=cells.indexOf(i);if(k<cells.length-1){cells[k+1].focus();cells[k+1].select&&cells[k+1].select()}else{const nx=tr.nextElementSibling;if(nx)nx.querySelector('[data-f=nm]').focus();else row(true)}}})});
@@ -6858,10 +6968,13 @@ window.RQTHREAD={threadHtml,bindMsg,msgPanel,unread,seenSet,say};
 function renderQueue(){
  const st=$('rqSt').value,encs=users().filter(u=>u.role==='encoder');
  fillBy(encs);const by=$('rqBy').value;
+ {const SG=[['PENDING','Waiting',it=>it.status==='PENDING'],['MSG','Messages',it=>unread(it,'adm')>0],['RETURNED','Returned',it=>it.status==='RETURNED'],['POSTED','Posted',it=>it.status==='POSTED'],['REJECTED','Not posted',it=>it.status==='REJECTED'],['ALL','All',()=>true]],Qb=Q().filter(it=>by==='ALL'||it.by.id===by);
+  $('rqSeg').innerHTML=SG.map(([v,l,fn])=>{const n=v==='ALL'?0:Qb.filter(fn).length;return '<button type="button" role="tab" aria-selected="'+(v===st)+'" data-seg="'+v+'"'+(v===st?' class="on"':'')+'>'+l+(n&&v!=='POSTED'&&v!=='REJECTED'?'<span class="n'+(v==='PENDING'||v==='MSG'?' hot':'')+'">'+n+'</span>':'')+'</button>'}).join('');
+  $('rqSeg').onclick=e=>{const b=e.target.closest('[data-seg]');if(!b)return;$('rqSt').value=b.dataset.seg;$('rqSt').dispatchEvent(new Event('change'))}}
  const list=Q().filter(it=>(st==='ALL'||(st==='MSG'?unread(it,'adm')>0:it.status===st))&&(by==='ALL'||it.by.id===by)).sort((a,b)=>String(qDate(a)).localeCompare(String(qDate(b)))||String(a.at).localeCompare(String(b.at)));
- $('rqBody').innerHTML=list.map(it=>{const ok=it.status==='PENDING'?appliesOk(it):true;return '<tr><td>'+(it.status==='PENDING'?'<input type="checkbox" data-sel="'+esc(it.id)+'" aria-label="Select">':'')+'</td><td>'+esc(fd(qDate(it)))+'</td><td>'+esc(it.by.name)+'</td><td>'+KIND_LABEL[it.kind]+(it.data.photo?' 📎':'')+'</td><td style="white-space:normal;min-width:240px">'+esc(qSummary(it))+(it.status==='RETURNED'&&it.note?'<div class="rq-note">Returned: '+esc(it.note)+'</div>':'')+(ok!==true?'<div class="rq-note">'+esc(ok)+'</div>':'')+(it.status==='PENDING'&&dupOf(it)?'<div class="rq-note">Possible duplicate: '+esc(dupOf(it))+'</div>':'')+(unread(it,'adm')?'<div class="rq-unread">'+unread(it,'adm')+' new message'+(unread(it,'adm')===1?'':'s')+' from '+esc(it.by.name)+'</div>':'')+'</td><td class="number">'+n2(c100(it.data.amount))+'</td><td style="white-space:normal;min-width:180px;font-size:.82rem">'+(it.status==='POSTED'?esc(it.ref||''):esc(sugText(it)))+'</td><td>'+stBadge(it)+'</td><td style="white-space:nowrap">'+(it.status==='PENDING'?'<button class="btn btn-sm" data-post="'+esc(it.id)+'">Enter in books</button>':'<button class="btn btn-outline btn-sm" data-post="'+esc(it.id)+'">View</button>')+'</td></tr>'}).join('')
+ $('rqBody').innerHTML=list.map(it=>{const ok=it.status==='PENDING'?appliesOk(it):true;return '<tr><td>'+(it.status==='PENDING'?'<input type="checkbox" data-sel="'+esc(it.id)+'" aria-label="Select">':'')+'</td><td>'+esc(fd(qDate(it)))+'</td><td>'+esc(it.by.name)+'</td><td>'+KIND_LABEL[it.kind]+(it.data.photo?' 📎':'')+'</td><td style="white-space:normal;min-width:240px">'+esc(qSummary(it))+(it.status==='RETURNED'&&it.note?'<div class="rq-note">Returned: '+esc(it.note)+'</div>':'')+(ok!==true?'<div class="rq-note">'+esc(ok)+'</div>':'')+(it.status==='PENDING'&&dupOf(it)?'<div class="rq-note">Possible duplicate: '+esc(dupOf(it))+'</div>':'')+(unread(it,'adm')?'<div class="rq-unread">'+unread(it,'adm')+' new message'+(unread(it,'adm')===1?'':'s')+' from '+esc(it.by.name)+'</div>':'')+'</td><td class="number">'+n2(c100(it.data.amount))+'</td><td style="white-space:normal;min-width:180px;font-size:.82rem">'+(it.status==='POSTED'?esc(it.ref||''):esc(sugText(it)))+'</td><td>'+stBadge(it)+'</td><td style="white-space:nowrap">'+(it.status==='PENDING'?'<button class="btn btn-sm" data-post="'+esc(it.id)+'">Review</button>':'<button class="btn btn-outline btn-sm" data-post="'+esc(it.id)+'">View</button>')+'</td></tr>'}).join('')
   ||'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">'+(st==='PENDING'?'Nothing waiting for posting.':'Nothing to show.')+'</td></tr>';
- $('rqAll').checked=false;
+ $('rqBody').closest('table').classList.toggle('rq-nost',st!=='ALL'&&st!=='MSG'); $('rqAll').checked=false;
 }
 function fillBy(encs){const s=$('rqBy'),cur=s.value||'ALL';s.innerHTML='<option value="ALL">All encoders</option>'+encs.map(u=>'<option value="'+esc(u.id)+'">'+esc(u.name)+'</option>').join('');s.value=[...s.options].some(o=>o.value===cur)?cur:'ALL'}
 $('rqSt').onchange=renderQueue;$('rqBy').onchange=renderQueue;$('rqImport').onclick=()=>pickFile('.json,application/json',importBatch);
@@ -6912,7 +7025,7 @@ function openUser(id){
   +'<div class="form-group"><label for="ruName">Full name *</label><input id="ruName" value="'+esc(u?u.name:'')+'" autocomplete="off"></div>'
   +'<div class="form-group"><label for="ruEmail">Google email</label><input id="ruEmail" type="email" value="'+esc(u&&u.email||'')+'" autocomplete="off" autocapitalize="none" placeholder="name@gmail.com"'+(u&&me()&&me().id===u.id&&u.email?' disabled':'')+'><small class="bk-mut">They sign in with this Google account.</small></div>'
   +'<div class="form-group"><label for="ruRole">Role *</label><select id="ruRole"'+(first?' disabled':'')+'>'+Object.keys(ROLES).map(r=>'<option value="'+r+'"'+((u?u.role:first?'admin':'encoder')===r?' selected':'')+'>'+ROLES[r]+'</option>').join('')+'</select><small class="bk-mut" id="ruNote"></small></div>'
-  +'<div class="form-group ru-cust"><label for="ruTitle">Title / position *</label><input id="ruTitle" maxlength="60" value="'+esc(u&&u.title||'')+'" placeholder="e.g. Store Manager, HR Officer"></div>'
+  +'<div class="form-group ru-cust"><label for="ruTitle">Title / position *</label><input id="ruTitle" maxlength="60" value="'+esc(u&&u.title||'')+'" placeholder="Store Manager"></div>'
   +'<div class="form-group"><label for="ruActive">Status</label><select id="ruActive"><option value="1">Active</option><option value="0"'+(u&&u.active===false?' selected':'')+'>Inactive (cannot log in)</option></select></div>'
   +'<details style="grid-column:1/-1"'+(u&&u.pw?' open':'')+'><summary style="cursor:pointer;font-weight:700">Username and password (only for encoder files, or someone without Google)</summary><div class="grid-2" style="margin-top:.6rem"><div class="form-group"><label for="ruUser">Username</label><input id="ruUser" value="'+esc(u&&u.username&&u.username!==u.email?u.username:'')+'" autocomplete="off" autocapitalize="none"></div><div></div>'
   +'<div class="form-group"><label for="ruPw">'+(u&&u.pw?'New password (leave blank to keep)':'Password')+'</label><input type="password" id="ruPw" autocomplete="new-password"></div>'
@@ -7056,7 +7169,7 @@ applyRole();
 function enterAs(comp,u){const was=!$('loginScreen').classList.contains('hidden');window.currentUser={id:u.id,name:u.name,role:u.role};$('loginScreen').classList.add('hidden');switchCompany(comp.id);
  (comp.reportsHistory||[]).forEach(r=>{if(!r.genBy)r.genBy={role:'admin',name:'',legacy:true}});applyRole();showTab(firstTab());saveSess();
  try{if(was&&window.AJWARP)AJWARP.play()}catch(e){}if(u.pw&&!u.email)setTimeout(()=>afterLogin(u,comp),700)}
-window.ROLEMOD={renderEnc:()=>{try{renderEnc()}catch(e){}},renderQueue:()=>{try{renderQueue();updCount()}catch(e){}},chanPkg:(c,u)=>pkgFor(c,u),chanImport:(c,b)=>importInto(c,b),cleanThread,mergeThread,can,suggest:id=>suggest(Q().find(x=>x.id===id)),postItem:(id,codes)=>postItem(Q().find(x=>x.id===id),codes),applyRole,makePw,enterAs,loadPackage:(t,w,q)=>loadPackage(t,w,q)};
+window.ROLEMOD={openSheet:k=>openSheet(k),renderEnc:()=>{try{renderEnc()}catch(e){}},renderQueue:()=>{try{renderQueue();updCount()}catch(e){}},chanPkg:(c,u)=>pkgFor(c,u),chanImport:(c,b)=>importInto(c,b),cleanThread,mergeThread,can,suggest:id=>suggest(Q().find(x=>x.id===id)),postItem:(id,codes)=>postItem(Q().find(x=>x.id===id),codes),applyRole,makePw,enterAs,loadPackage:(t,w,q)=>loadPackage(t,w,q)};
 })();
 
 
@@ -7748,7 +7861,7 @@ function openItem(i){if(!i)return;if(i.page==='tx-pay'){payView=i.annual?'y':'m'
  if(i.page==='tx-ewt'&&(i.yq||i.ym)){ewtY=(i.yq||i.ym)[0];ewtQ_=i.yq?i.yq[1]:Math.ceil(i.ym[1]/3)}if(i.page==='tx-biz'&&i.yq){bizY=i.yq[0];bizQ=i.yq[1]}showTab(i.page)}
 function markDone(i){if(!i)return;const a=amtOf(i),pay=i.kind==='pay',cash=cashAccts(),deb=payDebitDefault(i);
  const m=modal('<h2 style="margin-top:0">'+esc(i.form)+' – '+esc(i.per)+'</h2><p class="hr-note">'+esc(i.title)+' • due '+esc(fdl(i.due))+'</p>'
-  +'<div class="grid-2"><div class="form-group"><label for="txDDate">'+(pay?'Date filed / paid':'Date done')+'</label><input type="date" id="txDDate" value="'+today()+'"></div><div class="form-group"><label for="txDRef">Reference no. (optional)</label><input id="txDRef" maxlength="60" placeholder="e.g. eFPS/eBIRForms reference, PRN, OR no."></div></div>'
+  +'<div class="grid-2"><div class="form-group"><label for="txDDate">'+(pay?'Date filed / paid':'Date done')+'</label><input type="date" id="txDDate" value="'+today()+'"></div><div class="form-group"><label for="txDRef">Reference no. (optional)</label><input id="txDRef" maxlength="60" placeholder="Reference or PRN"></div></div>'
   +(pay?'<div class="form-group"><label for="txDAmt">Amount paid</label><input type="number" step="0.01" min="0" id="txDAmt" value="'+(a!=null?(a/100).toFixed(2):'')+'"></div>'
    +(cash.length?'<label class="hr-chk"><input type="checkbox" id="txDPost"'+(a?' checked':'')+'> Record the payment in the books</label><div id="txDBooks" class="grid-2"><div class="form-group"><label for="txDDr">Debit</label><select id="txDDr">'+acctOpts(deb,x=>x.roleTag!=='cash')+'</select></div><div class="form-group"><label for="txDCr">Paid from</label><select id="txDCr">'+cash.map(x=>'<option value="'+x.code+'">'+esc(x.code+' – '+x.title)+'</option>').join('')+'</select></div></div>':''):'')
   +'<div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="txDGo">Save</button></div>',620);
@@ -7822,7 +7935,7 @@ function ewtForm(x){
   +'<div id="txWNew" style="display:none;border:1px dashed var(--border-color);border-radius:10px;padding:10px 12px;margin-bottom:10px">'+payeeFields('txWN')+'</div>'
   +'<div class="form-group"><label for="txWAtc">Nature of payment (ATC)</label><select id="txWAtc"></select></div>'
   +'<div class="grid-2"><div class="form-group"><label for="txWBase">Income payment (amount before withholding, net of VAT)</label><input type="number" step="0.01" min="0" id="txWBase" value="'+(x.base?(x.base/100).toFixed(2):'')+'"></div><div class="form-group"><label for="txWTax">Tax withheld (<span id="txWRate"></span>)</label><input type="number" step="0.01" min="0" id="txWTax" value="'+(x.tax?(x.tax/100).toFixed(2):'')+'"></div></div>'
-  +'<div class="form-group"><label for="txWDesc">Particulars</label><input id="txWDesc" maxlength="160" value="'+esc(x.desc||'')+'" placeholder="e.g. Store rent for October, Accounting fee Q3"></div>'
+  +'<div class="form-group"><label for="txWDesc">Particulars</label><input id="txWDesc" maxlength="160" value="'+esc(x.desc||'')+'" placeholder="Store rent for October"></div>'
   +'<div class="form-group"><label for="txWMode">Books</label><select id="txWMode"><option value="track">Already recorded in the books (track only)</option>'+(cash.length?'<option value="post"'+(x.jeId?' selected':'')+'>Record the payment in the books now</option>':'')+'</select></div>'
   +'<div id="txWBooks" class="grid-2"><div class="form-group"><label for="txWDr">Expense / account (debit, full amount)</label><select id="txWDr">'+acctOpts(x.dr||'',a=>a.roleTag!=='cash')+'</select></div><div class="form-group"><label for="txWCr">Paid from (credit, net of tax)</label><select id="txWCr">'+cash.map(a=>'<option value="'+a.code+'"'+(a.code===x.cr?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')+'</select></div><p class="hr-note" style="grid-column:1/-1;margin:0" id="txWPrev"></p></div>'
   +'<div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="txWGo">Save</button></div>',680);
@@ -8022,7 +8135,7 @@ function open(){
  +'<div id="hrPIList"></div><h3 id="hrPIFormT" style="margin:1.1rem 0 .5rem;font:700 1.05rem Figtree,\'Segoe UI\',sans-serif">Add an item</h3><form id="hrPIForm" class="grid-2" autocomplete="off">'
  +'<div class="form-group"><label for="hrPIType">Type</label><select id="hrPIType">'+TYPES.map(t=>'<option value="'+t[0]+'">'+t[1]+'</option>').join('')+'</select></div>'
  +'<div class="form-group" id="hrPIPreG" hidden><label for="hrPIPre">De minimis category</label><select id="hrPIPre">'+DM.map(d=>'<option value="'+d[0]+'">'+e(d[1])+'</option>').join('')+'</select></div>'
- +'<div class="form-group"><label for="hrPIName">Name on payslip *</label><input id="hrPIName" maxlength="40" required placeholder="e.g. Transportation allowance"></div>'
+ +'<div class="form-group"><label for="hrPIName">Name on payslip *</label><input id="hrPIName" maxlength="40" required placeholder="Transportation allowance"></div>'
  +'<div class="form-group" id="hrPILimG" hidden><label for="hrPILim">Tax-free ceiling</label><div style="display:flex;gap:6px"><input id="hrPILim" type="number" min="0" step="0.01" style="flex:1 1 45%;min-width:90px;width:auto"><select id="hrPIPer" style="flex:1 1 55%;width:auto">'+Object.keys(PER).map(k=>'<option value="'+k+'">'+PER[k]+'</option>').join('')+'</select></div></div>'
  +'<div class="form-group" id="hrPISssG"><label class="hr-chk" style="margin-top:1.6rem"><input type="checkbox" id="hrPISss"> Include in SSS / PhilHealth / Pag-IBIG salary base</label></div>'
  +'<div class="form-group" style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn btn-outline" data-x>Close</button><button type="button" class="btn btn-outline" id="hrPICancel" hidden>Cancel edit</button><button class="btn" id="hrPISave">Add item</button></div></form></div>';
@@ -8264,7 +8377,7 @@ function assetForm(a){
  const credit=X.byCat('Liability','Equity').concat(X.cashAccts()).sort((x,y)=>x.code-y.code);
  const m=X.modal('<h2 style="margin-top:0">'+(edit?'Edit '+esc(a.tag):'Add asset')+'</h2>'
   +(hasPost?'<div class="rq-note">Depreciation has been posted for this asset. Changing cost, life or method re-computes the schedule; open <b>Depreciation</b> and post again to update the posted months.</div>':'')
-  +'<div class="grid-2"><div class="form-group"><label for="faN">Asset name *</label><input id="faN" maxlength="120" value="'+esc(a.name||'')+'" placeholder="e.g. Toyota Hilux delivery van"></div><div class="form-group"><label for="faC">Category *</label><select id="faC">'+f.cats.map(k=>'<option value="'+k.id+'"'+(a.cat===k.id?' selected':'')+'>'+esc(k.name)+(k.life?' ('+Math.round(k.life/12*10)/10+' yrs)':' (not depreciated)')+'</option>').join('')+'</select></div>'
+  +'<div class="grid-2"><div class="form-group"><label for="faN">Asset name *</label><input id="faN" maxlength="120" value="'+esc(a.name||'')+'" placeholder="Toyota Hilux delivery van"></div><div class="form-group"><label for="faC">Category *</label><select id="faC">'+f.cats.map(k=>'<option value="'+k.id+'"'+(a.cat===k.id?' selected':'')+'>'+esc(k.name)+(k.life?' ('+Math.round(k.life/12*10)/10+' yrs)':' (not depreciated)')+'</option>').join('')+'</select></div>'
   +'<div class="form-group"><label for="faD">Date acquired *</label><input type="date" id="faD" value="'+esc(a.acq)+'"></div><div class="form-group"><label for="faCost">Cost *</label><input type="number" step="0.01" min="0" id="faCost" value="'+(a.cost?X.p2(a.cost):'')+'"></div>'
   +'<div class="form-group"><label for="faSal">Salvage (residual) value</label><input type="number" step="0.01" min="0" id="faSal" value="'+(a.salvage?X.p2(a.salvage):'')+'" placeholder="0.00"></div><div class="form-group"><label for="faLife">Useful life (years)</label><input type="number" step="0.5" min="0" id="faLife" value="'+(a.life/12)+'"></div>'
   +'<div class="form-group"><label for="faM">Method</label><select id="faM"><option value="SL">Straight-line</option><option value="DDB"'+(a.method==='DDB'?' selected':'')+'>Double declining balance</option></select></div><div class="form-group"><label for="faStart">Start depreciating in</label><input type="month" id="faStart" value="'+esc(a.start||ym(a.acq))+'"></div>'
@@ -8532,7 +8645,7 @@ function arCm(){const L=A().cm.slice().sort((x,y)=>y.date.localeCompare(x.date))
  +(L.length?L.map(x=>'<tr class="'+(x.void?'off':'')+'"><td><b>'+esc(x.no)+'</b></td><td>'+esc(X.fdl(x.date))+'</td><td>'+esc(cust(x.cust).name)+'</td><td>'+esc((A().inv.find(i=>i.id===x.inv)||{}).no||'')+'</td><td class="wrap">'+esc(x.reason||'')+'</td><td class="number">'+n2(x.amt)+'</td><td>'+(x.void?'<span class="st void">Void</span>':'<button class="btn btn-outline btn-sm btn-danger" data-void="'+x.id+'">Void</button>')+'</td></tr>').join(''):'<tr><td colspan="7" class="erp-empty">No credit memos. Open an unpaid invoice and press <b>Credit memo</b>.</td></tr>')+'</tbody></table></div>'}
 $('ar-cm').addEventListener('click',e=>{const b=e.target.closest('[data-void]');if(!b)return;const x=A().cm.find(y=>y.id===b.dataset.void);if(X.locked(x.date))return toast(X.lockMsg());if(!confirm('Void credit memo '+x.no+'?'))return;x.void=true;X.drop(x.jeId);x.jeId='';X.save();X.refresh();arCm();X.badges()});
 function cmForm(d){const o=openAR(d);
- const m=X.modal('<h2 style="margin-top:0">Credit memo for '+esc(d.no)+'</h2><p class="hr-note">Balance '+fm(o)+'. The amount includes VAT if the invoice had VAT.</p><div class="grid-2"><div class="form-group"><label for="cmD">Date</label><input type="date" id="cmD" value="'+X.today()+'"></div><div class="form-group"><label for="cmA">Amount</label><input type="number" step="0.01" min="0" id="cmA" value="'+X.p2(o)+'"></div><div class="form-group" style="grid-column:1/-1"><label for="cmR">Reason</label><input id="cmR" maxlength="120" placeholder="e.g. Returned 2 cases, damaged"></div></div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="cmGo">Save</button></div>',560);
+ const m=X.modal('<h2 style="margin-top:0">Credit memo for '+esc(d.no)+'</h2><p class="hr-note">Balance '+fm(o)+'. The amount includes VAT if the invoice had VAT.</p><div class="grid-2"><div class="form-group"><label for="cmD">Date</label><input type="date" id="cmD" value="'+X.today()+'"></div><div class="form-group"><label for="cmA">Amount</label><input type="number" step="0.01" min="0" id="cmA" value="'+X.p2(o)+'"></div><div class="form-group" style="grid-column:1/-1"><label for="cmR">Reason</label><input id="cmR" maxlength="120" placeholder="Returned 2 cases"></div></div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="cmGo">Save</button></div>',560);
  const q=s=>m.querySelector(s);q('#cmGo').onclick=()=>{const amt=X.c100(q('#cmA').value),date=q('#cmD').value;if(amt<=0||amt>o)return toast('Amount must be more than zero and not more than the balance.');if(!X.D.test(date))return toast('Enter the date.');if(X.locked(date))return toast(X.lockMsg());
   const a=A(),x={id:'cm_'+X.uid(),no:X.next(a,'CM'),cust:d.cust,inv:d.id,date,amt,reason:q('#cmR').value.trim().slice(0,120)};a.cm.push(x);postCm(x);X.save();X.refresh();m.remove();X.rerender();toast('Credit memo '+x.no+' saved.','success')}}
 
@@ -8775,7 +8888,7 @@ function jobForm(j,cb){const edit=!!j,ls=myLines();if(!ls.length)return toast('C
  j=j||{line:ls[0].id,date:X.today(),status:'open',bill:LN(ls[0].id).sv.bill};
  const m=X.modal('<h2 style="margin-top:0">'+(edit?'Edit '+esc(j.no):'New job / engagement')+'</h2><div class="grid-2">'
   +fg('Service line *',sel('jbL',j.line,lineOpts()))+fg('Type','<select id="jbT"></select>')
-  +fg('Client *','<select id="jbC">'+custOpts(j.cust)+'</select>')+fg('Title / description *','<input id="jbN" maxlength="120" value="'+esc(j.title||'')+'" placeholder="e.g. Annual audit 2026, Toyota Vios – brake job">')
+  +fg('Client *','<select id="jbC">'+custOpts(j.cust)+'</select>')+fg('Title / description *','<input id="jbN" maxlength="120" value="'+esc(j.title||'')+'" placeholder="Annual audit 2026">')
   +fg('Start / date opened *','<input type="date" id="jbD" value="'+esc(j.date||X.today())+'">')+fg('Target completion / end','<input type="date" id="jbE" value="'+esc(j.end||'')+'">')
   +fg('Status',sel('jbS',j.status||'open',STAT))+fg('Assigned staff / handled by','<input id="jbStf" list="svStaff" maxlength="80" value="'+esc(j.staff||'')+'">')
   +fg('How is it billed? *',sel('jbB',j.bill||'items',BILLM),true)
@@ -8853,7 +8966,7 @@ function billForm(j){const L=LN(j.line).sv,c=cust(j.cust),ub=unbilled(j),aL=advL
   +fg('Invoice date *','<input type="date" id="blD" value="'+X.today()+'">')+vatChoice('blV',L.exempt&&L.exempt.length&&revOf(j)===L.exempt[0]?'none':'excl')+'</div>';
  if(j.bill==='fixed'){const done=billedNet(j),left=j.contract-done,pct=j.contract?Math.round(done/j.contract*1000)/10:0;
   h+='<div class="bk-kpis">'+K('Contract',fm(j.contract))+K('Billed so far',fm(done),pct+'%')+K('Left to bill',fm(left))+(retHeld(j)?K('Retention held by client',fm(retHeld(j))):'')+(aL?K('Advance not yet applied',fm(aL)):'')+'</div>'
-   +'<div class="grid-2">'+fg('Milestone / installment label *','<input id="blM" maxlength="100" placeholder="e.g. Progress billing #'+(billsOf(j).length+1)+', 2nd installment, Balance">')
+   +'<div class="grid-2">'+fg('Milestone / installment label *','<input id="blM" maxlength="100" placeholder="Progress billing #'+(billsOf(j).length+1)+'">')
    +fg('Bill by','<select id="blBy"><option value="pct">Percent of contract</option><option value="cum">Cumulative % complete (progress)</option><option value="amt">Amount</option></select>')
    +fg('Value *','<input type="number" step="0.01" min="0" id="blX">')+'<div class="form-group"><label>&nbsp;</label><button type="button" class="btn btn-outline btn-sm" id="blRest">Bill the remaining '+fm(left)+'</button></div></div>';}
  h+=ub.length?'<h3 style="margin:.6rem 0 .3rem;font-size:1rem">Unbilled activity</h3><div class="hr-scroll"><table class="hr-tbl erp-lines"><thead><tr><th></th><th>Date</th><th>Description</th><th class="number">Qty</th><th class="number">Rate</th><th class="number">Amount</th>'+(j.payer2?'<th class="number">HMO share</th>':'')+'</tr></thead><tbody>'
@@ -9125,11 +9238,11 @@ const leasedArea=pid=>S().leases.filter(L=>L.status==='active'&&L.start<=X.today
 const unitLease=id=>S().leases.find(L=>(L.units||[]).includes(id)&&L.status==='active'&&L.start<=X.today()&&(!endOf(L)||endOf(L)>=X.today()));
 
 // ---------- spaces ----------
-function propForm(p){const edit=!!p;p=p||{};const m=X.modal('<h2 style="margin-top:0">'+(edit?'Edit':'New')+' building / property</h2><div class="grid-2">'+fg('Name *','<input id="cpN" maxlength="100" value="'+esc(p.name||'')+'" placeholder="e.g. AJ Commercial Center">')+fg('Address','<input id="cpA" maxlength="200" value="'+esc(p.addr||'')+'">')+'</div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="cpGo">Save</button></div>',560);
+function propForm(p){const edit=!!p;p=p||{};const m=X.modal('<h2 style="margin-top:0">'+(edit?'Edit':'New')+' building / property</h2><div class="grid-2">'+fg('Name *','<input id="cpN" maxlength="100" value="'+esc(p.name||'')+'" placeholder="AJ Commercial Center">')+fg('Address','<input id="cpA" maxlength="200" value="'+esc(p.addr||'')+'">')+'</div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="cpGo">Save</button></div>',560);
  const q=s=>m.querySelector(s);q('#cpGo').onclick=()=>{const n=q('#cpN').value.trim();if(!n)return toast('Enter the name.');const s=S();if(s.props.some(x=>x.id!==p.id&&x.name.toLowerCase()===n.toLowerCase()))return toast('That property already exists.');
   const r=edit?p:{id:'cp_'+X.uid()};Object.assign(r,{name:n.slice(0,100),addr:q('#cpA').value.trim().slice(0,200)});if(!edit)s.props.push(r);save();m.remove();X.rerender()}}
 function unitForm(u){const s=S();if(!s.props.length)return toast('Add a building or property first.');const edit=!!u;u=u||{prop:s.props[0].id,type:'retail'};
- const m=X.modal('<h2 style="margin-top:0">'+(edit?'Edit':'New')+' leasable space</h2><div class="grid-2">'+fg('Property *',sel('cuP',u.prop,s.props.map(p=>[p.id,p.name])))+fg('Unit / stall code *','<input id="cuC" maxlength="30" value="'+esc(u.code||'')+'" placeholder="e.g. G-101, Stall 12">')
+ const m=X.modal('<h2 style="margin-top:0">'+(edit?'Edit':'New')+' leasable space</h2><div class="grid-2">'+fg('Property *',sel('cuP',u.prop,s.props.map(p=>[p.id,p.name])))+fg('Unit / stall code *','<input id="cuC" maxlength="30" value="'+esc(u.code||'')+'" placeholder="G-101">')
   +fg('Type',sel('cuT',u.type,UTYPES))+fg('Floor area (sq m)','<input type="number" step="0.01" min="0" id="cuA" value="'+(u.area||'')+'">')+fg('Asking rent / month','<input type="number" step="0.01" min="0" id="cuR" value="'+(u.ask?X.p2(u.ask):'')+'">')+fg('Floor / location','<input id="cuF" maxlength="60" value="'+esc(u.floor||'')+'">')
   +'</div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="cuGo">Save</button></div>',620);
  const q=x=>m.querySelector(x);q('#cuGo').onclick=()=>{const code=q('#cuC').value.trim(),pid=q('#cuP').value;if(!code)return toast('Enter the unit code.');if(s.units.some(x=>x.id!==u.id&&x.prop===pid&&x.code.toLowerCase()===code.toLowerCase()))return toast('That unit already exists in this property.');
@@ -9162,7 +9275,7 @@ function leaseForm(L){const s=S();if(!s.units.length)return toast('Add the leasa
   +'<div class="form-group" style="grid-column:1/-1"><label>Other fixed monthly charges (billed with the rent)</label><div id="lsO"></div><button type="button" class="btn btn-outline btn-sm" id="lsOa" style="margin-top:4px">+ Add charge</button></div>'
   +'</div><p class="hr-note" id="lsSum"></p><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="lsGo">Save lease</button></div>',900);
  const q=x=>m.querySelector(x),revs=C().chartOfAccounts.filter(a=>a.category==='Revenue'&&!a.isContra);
- const orow=o=>'<div class="nc-row" style="display:grid;grid-template-columns:2fr 1fr 1.6fr 34px;gap:6px;margin-bottom:4px"><input data-o="desc" maxlength="80" placeholder="e.g. Signage fee, Parking slot" value="'+esc(o.desc||'')+'"><input type="number" step="0.01" min="0" data-o="amt" placeholder="Amount" value="'+(o.amt?X.p2(o.amt):'')+'"><select data-o="acct">'+X.opts(revs,o.acct||A_UTIL())+'</select><button type="button" class="btn btn-outline btn-sm" data-rm>×</button></div>';
+ const orow=o=>'<div class="nc-row" style="display:grid;grid-template-columns:2fr 1fr 1.6fr 34px;gap:6px;margin-bottom:4px"><input data-o="desc" maxlength="80" placeholder="Signage fee" value="'+esc(o.desc||'')+'"><input type="number" step="0.01" min="0" data-o="amt" placeholder="Amount" value="'+(o.amt?X.p2(o.amt):'')+'"><select data-o="acct">'+X.opts(revs,o.acct||A_UTIL())+'</select><button type="button" class="btn btn-outline btn-sm" data-rm>×</button></div>';
  q('#lsO').innerHTML=(L.other||[]).map(orow).join('');q('#lsOa').onclick=()=>q('#lsO').insertAdjacentHTML('beforeend',orow({}));q('#lsO').addEventListener('click',e=>{if(e.target.closest('[data-rm]'))e.target.closest('.nc-row').remove()});
  const cw=()=>{const c=q('#lsC').value&&cust(q('#lsC').value);q('#lsW').value=c&&c.cwt>0?'5':'0'};cw();
  q('#lsC').onchange=()=>{if(q('#lsC').value==='__new'){q('#lsC').value='';return window.ARAPMOD.partyForm('ar',null,c=>{q('#lsC').innerHTML=custOpts(c.id);cw()})}cw()};
@@ -9497,11 +9610,11 @@ function addForm(){const cs=AM().A().customers.filter(c=>!c.inactive).sort((a,b)
  const leases=window.CLMOD&&CLMOD.on()&&C().cl?CLMOD.S().leases.filter(l=>l.status==='active'):[];
  const m=X.modal('<h2 style="margin-top:0">Record checks received</h2><p class="hr-note">For a series of post-dated checks (e.g. 12 monthly rent checks), enter the first check and how many.</p><div class="grid-2">'
   +(leases.length?'<div class="form-group" style="grid-column:1/-1"><label>For a lease (optional)</label><select id="pkL"><option value="">–</option>'+leases.map(l=>'<option value="'+l.id+'">'+esc(l.no+' – '+cust(l.cust).name)+'</option>').join('')+'</select></div>':'')
-  +'<div class="form-group"><label>From (customer / tenant) *</label><select id="pkC">'+cs.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('')+'</select></div><div class="form-group"><label>Drawee bank</label><input id="pkB" maxlength="60" placeholder="e.g. BDO, BPI"></div>'
+  +'<div class="form-group"><label>From (customer / tenant) *</label><select id="pkC">'+cs.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('')+'</select></div><div class="form-group"><label>Drawee bank</label><input id="pkB" maxlength="60" placeholder="BDO"></div>'
   +'<div class="form-group"><label>First check number *</label><input id="pkN" maxlength="20"></div><div class="form-group"><label>First check date *</label><input type="date" id="pkD" value="'+X.today()+'"></div>'
   +'<div class="form-group"><label>Amount per check *</label><input type="number" step="0.01" min="0" id="pkA"></div><div class="form-group"><label>Number of checks</label><input type="number" min="1" max="60" id="pkQ" value="1"></div>'
   +'<div class="form-group"><label>Interval</label><select id="pkI"><option value="1">Monthly</option><option value="3">Quarterly</option><option value="0">All the same date</option></select></div><div class="form-group"><label>Tax withheld per check (2307)</label><input type="number" step="0.01" min="0" id="pkW" value="0"></div>'
-  +'<div class="form-group" style="grid-column:1/-1"><label>For / note</label><input id="pkT" maxlength="120" placeholder="e.g. Rent Jan–Dec 2027"></div></div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="pkGo">Save</button></div>',720);
+  +'<div class="form-group" style="grid-column:1/-1"><label>For / note</label><input id="pkT" maxlength="120" placeholder="Rent Jan–Dec 2027"></div></div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="pkGo">Save</button></div>',720);
  const q=s=>m.querySelector(s);if(q('#pkL'))q('#pkL').onchange=()=>{const l=CLMOD.S().leases.find(x=>x.id===q('#pkL').value);if(!l)return;q('#pkC').value=l.cust;const ym=X.today().slice(0,7),c=CLMOD.charges(l,ym>l.start.slice(0,7)?ym:l.start.slice(0,7),{pen:0,noAdv:true}),vat=window.TAXMOD&&TAXMOD.T().profile.biz==='VAT'&&l.vat!=='none'?1+(+TAXMOD.T().profile.vatRate||12)/100:1,cw=cust(l.cust).cwt||0,net=c.gross,w=Math.round(net*cw/100);q('#pkA').value=X.p2(Math.round(net*vat)-w);q('#pkW').value=X.p2(w);q('#pkQ').value=12;q('#pkT').value='Lease '+l.no};
  q('#pkGo').onclick=()=>{const cid=q('#pkC').value,no=q('#pkN').value.trim(),d=q('#pkD').value,amt=X.c100(q('#pkA').value),qn=Math.min(60,Math.max(1,X.I(q('#pkQ').value)||1)),iv=X.I(q('#pkI').value);if(!no||!X.D.test(d)||amt<=0)return toast('Enter the check number, date and amount.');
   const P=PD(),num=/^(.*?)(\d+)$/.exec(no),out=[];for(let i=0;i<qn;i++){const dd=iv?(()=>{const[y,mm,dy]=d.split('-').map(Number),ym=X.addMonths(y+'-'+String(mm).padStart(2,'0'),i*iv),[y2,m2]=ym.split('-').map(Number);return X.ymd(y2,m2,Math.min(dy,X.lastDay(y2,m2)))})():d;
@@ -9520,7 +9633,7 @@ function depForm(k){const cash=X.cashAccts();if(!cash.length)return toast('Tag a
   Object.assign(k,{status:'dep',depDate:date,depAcct:cash,pay:p?p.id:''});X.save();X.refresh();m.remove();render();X.badges();toast('Deposited.'+(p?' Collection '+p.no+' recorded in Receivables.':'')+(rest>0?' '+n2(rest)+' is held as a customer advance (Customer Advances).':''),'success')}
  const rs=()=>{const tot=[...m.querySelectorAll('[data-ap]')].reduce((s,i)=>s+X.c100(i.value),0),cw=k.cwt||0,r=k.amt+cw-tot-(tot?0:cw);q('#dpRest').innerHTML=r>0?'<b>'+n2(r)+'</b> not applied to invoices will be recorded as a customer advance (liability) until you bill it.':''};m.addEventListener('input',rs);rs()}
 function bounce(k){const p=AM().A().pay.find(x=>x.id===k.pay);
- const m=X.modal('<h2 style="margin-top:0">Check '+esc(k.chk)+' bounced</h2><p class="hr-note">The collection '+esc(p?p.no:'')+' is voided, so the invoices it paid become unpaid again. You can also record the bank’s charge and bill the customer a returned-check fee.</p><div class="grid-2"><div class="form-group"><label>Date returned by the bank</label><input type="date" id="bnD" value="'+X.today()+'"></div><div class="form-group"><label>Bank charge (optional)</label><input type="number" step="0.01" min="0" id="bnC" value="0"></div><div class="form-group"><label>Returned-check fee to bill the customer (optional)</label><input type="number" step="0.01" min="0" id="bnF" value="0"></div><div class="form-group"><label>Reason</label><input id="bnR" maxlength="80" placeholder="e.g. DAIF, account closed"></div></div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn btn-danger" id="bnGo">Mark bounced</button></div>',680);
+ const m=X.modal('<h2 style="margin-top:0">Check '+esc(k.chk)+' bounced</h2><p class="hr-note">The collection '+esc(p?p.no:'')+' is voided, so the invoices it paid become unpaid again. You can also record the bank’s charge and bill the customer a returned-check fee.</p><div class="grid-2"><div class="form-group"><label>Date returned by the bank</label><input type="date" id="bnD" value="'+X.today()+'"></div><div class="form-group"><label>Bank charge (optional)</label><input type="number" step="0.01" min="0" id="bnC" value="0"></div><div class="form-group"><label>Returned-check fee to bill the customer (optional)</label><input type="number" step="0.01" min="0" id="bnF" value="0"></div><div class="form-group"><label>Reason</label><input id="bnR" maxlength="80" placeholder="DAIF"></div></div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn btn-danger" id="bnGo">Mark bounced</button></div>',680);
  const q=s=>m.querySelector(s);q('#bnGo').onclick=()=>{const d=q('#bnD').value,ch=X.c100(q('#bnC').value),fee=X.c100(q('#bnF').value);if(!X.D.test(d))return toast('Enter the date.');if(p&&X.locked(p.date))return toast(X.lockMsg());
   if(p&&!p.void){p.void=true;X.drop(p.jeId);p.jeId=''}if(k.advJe){X.drop(k.advJe);k.advJe='';k.adv=0}
   if(ch>0&&k.depAcct){X.post('entry_pdc_chg_'+k.id,d,'RTN-'+k.chk,'Bank charge on returned check '+k.chk+' – '+cust(k.cust).name,[[X.ensureAcct(6150,'Bank Charges','Expense'),ch,0],[k.depAcct,0,ch]],'pdc')}
@@ -9620,7 +9733,7 @@ $('bx-recur').addEventListener('click',e=>{const b=e.target.closest('button');if
 function recurForm(r){const edit=!!r;r=r||{freq:'M',day:new Date().getDate()>28?28:new Date().getDate(),start:X.today(),lines:[{acct:'',dr:0,cr:0},{acct:'',dr:0,cr:0}]};
  const all=C().chartOfAccounts.slice().sort((a,b)=>a.code-b.code);
  const row=l=>'<tr><td><select data-f="acct">'+X.opts(all,l.acct,'– account –')+'</select></td><td style="width:140px"><input type="number" step="0.01" min="0" data-f="dr" value="'+(l.dr?X.p2(l.dr):'')+'"></td><td style="width:140px"><input type="number" step="0.01" min="0" data-f="cr" value="'+(l.cr?X.p2(l.cr):'')+'"></td><td class="x"><button type="button" class="btn btn-outline btn-sm" data-rm>✕</button></td></tr>';
- const m=X.modal('<h2 style="margin-top:0">'+(edit?'Edit':'New')+' recurring entry</h2><div class="grid-2"><div class="form-group"><label for="rnN">Name *</label><input id="rnN" maxlength="80" value="'+esc(r.name||'')+'" placeholder="e.g. Store rent"></div><div class="form-group"><label for="rnR">Reference prefix</label><input id="rnR" maxlength="12" value="'+esc(r.ref||'RJE')+'"></div>'
+ const m=X.modal('<h2 style="margin-top:0">'+(edit?'Edit':'New')+' recurring entry</h2><div class="grid-2"><div class="form-group"><label for="rnN">Name *</label><input id="rnN" maxlength="80" value="'+esc(r.name||'')+'" placeholder="Store rent"></div><div class="form-group"><label for="rnR">Reference prefix</label><input id="rnR" maxlength="12" value="'+esc(r.ref||'RJE')+'"></div>'
   +'<div class="form-group" style="grid-column:1/-1"><label for="rnD">Particulars</label><input id="rnD" maxlength="160" value="'+esc(r.desc||'')+'"></div>'
   +'<div class="form-group"><label for="rnF">Repeats</label><select id="rnF">'+Object.keys(FREQ).map(k=>'<option value="'+k+'"'+(r.freq===k?' selected':'')+'>'+FREQ[k][0]+'</option>').join('')+'</select></div><div class="form-group"><label for="rnDay">On day of month</label><input type="number" min="1" max="31" id="rnDay" value="'+r.day+'"><small class="bk-mut">31 = last day of the month</small></div>'
   +'<div class="form-group"><label for="rnS">First entry on or after</label><input type="date" id="rnS" value="'+esc(r.start)+'"'+(edit&&r.count?' disabled':'')+'></div><div class="form-group"><label for="rnE">Last date (optional)</label><input type="date" id="rnE" value="'+esc(r.end||'')+'"></div></div>'
@@ -9929,9 +10042,9 @@ function billForm(id){
  const pv=b?b.provider:'Electricity',d=b?String(b.dr):defExp(pv);
  const expOpts=sel=>{const nw=sel.startsWith('new:')?sel.slice(4):null;return (nw?'<option value="'+sel+'" selected>+ New account: '+esc((PROV.find(x=>x[0]===nw)||PROV[3])[3])+'</option>':'')+X.opts(exp,sel)};
  const m=X.modal('<h2 style="margin-top:0">'+(b?'Edit':'Post')+' property bill</h2><p class="hr-note">The provider’s bill for the whole property (electricity, water, internet). It is recorded as an expense; meter readings billed to tenants are recorded separately as income.</p>'
-  +'<div class="grid-2"><div class="form-group"><label for="pbD">Bill date *</label><input type="date" id="pbD" value="'+(b?b.date:X.today())+'"></div><div class="form-group"><label for="pbR">Statement / account no.</label><input id="pbR" maxlength="40" value="'+esc(b?b.ref:'')+'" placeholder="e.g. ELEC-OCT-2026"></div>'
+  +'<div class="grid-2"><div class="form-group"><label for="pbD">Bill date *</label><input type="date" id="pbD" value="'+(b?b.date:X.today())+'"></div><div class="form-group"><label for="pbR">Statement / account no.</label><input id="pbR" maxlength="40" value="'+esc(b?b.ref:'')+'" placeholder="ELEC-OCT-2026"></div>'
   +'<div class="form-group"><label for="pbP">Property *</label><select id="pbP">'+ps.map(p=>'<option value="'+p.id+'"'+(b&&b.prop===p.id?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div><div class="form-group"><label for="pbV">Provider *</label><select id="pbV">'+PROV.map(p=>'<option value="'+p[0]+'"'+(pv===p[0]?' selected':'')+'>'+p[1]+'</option>').join('')+'</select></div>'
-  +'<div class="form-group" style="grid-column:1/-1"><label for="pbN">Particulars *</label><input id="pbN" maxlength="140" value="'+esc(b?b.desc:'')+'" placeholder="e.g. October electricity, main building"></div>'
+  +'<div class="form-group" style="grid-column:1/-1"><label for="pbN">Particulars *</label><input id="pbN" maxlength="140" value="'+esc(b?b.desc:'')+'" placeholder="October electricity"></div>'
   +'<div class="form-group"><label for="pbF">Billing period from</label><input type="date" id="pbF" value="'+(b&&b.from||'')+'"></div><div class="form-group"><label for="pbT">to</label><input type="date" id="pbT" value="'+(b&&b.to||'')+'"></div>'
   +'<div class="form-group"><label for="pbU">Units on the bill (kWh / m³, optional)</label><input type="number" step="any" min="0" id="pbU" value="'+(b&&b.units||'')+'"></div><div class="form-group"><label for="pbA">Amount *</label><input type="number" step="0.01" min="0" id="pbA" value="'+(b?X.p2(b.amt):'')+'"></div>'
   +'<div class="form-group"><label for="pbDr">Expense account (debit)</label><select id="pbDr">'+expOpts(d)+'</select></div><div class="form-group"><label for="pbCr">Paid from / owed (credit)</label><select id="pbCr">'+X.opts(cr,b?b.cr:(cr[0]||{}).code)+'</select></div>'
@@ -10197,6 +10310,7 @@ document.addEventListener('ajwarpdone',()=>setTimeout(run,50));
 (function(){
 const $=id=>document.getElementById(id);
 const STYLES=[
+ {id:'professional',name:'Professional',note:'Calm and clear: light surfaces, one accent colour. Recommended',own:false,pv:{bg:'#f6f7f9',side:'#ffffff',card:'#ffffff',btn:'var(--btn-bg,#13735f)',line:'#e3e6ea',txt:'#18212b'}},
  {id:'standard',name:'Standard',note:'Clean cards in your colour theme',own:false,pv:{bg:'#f4f8f6',side:'var(--frame,#016351)',card:'#fff',btn:'var(--btn-bg,#13735f)',line:'#dfe8e4',txt:'#223'}},
  {id:'liquid-glass',name:'Liquid Glass',note:'Frosted, iridescent glass. Dark mode: glass over vivid colour',own:true,pv:{bg:'linear-gradient(135deg,#e9e4ff,#dff0ff 55%,#ffe3f3)',side:'rgba(255,255,255,.45)',card:'rgba(255,255,255,.55)',btn:'linear-gradient(135deg,#bba8ff,#9fb8ff)',line:'rgba(255,255,255,.9)',txt:'#3b4a72',glass:1}},
  {id:'aurora',name:'Aurora',note:'Deep night with neon gradient edges and glow',own:true,pv:{bg:'radial-gradient(circle at 20% 20%,#2a1f6b,#070b1a 60%)',side:'#0b1022',card:'#121a30',btn:'linear-gradient(90deg,#2ef2c8,#7c5cff,#ff5fa2)',line:'linear-gradient(90deg,#2ef2c8,#7c5cff,#ff5fa2)',txt:'#e8ecff'}},
@@ -10542,15 +10656,14 @@ function crumb(){const a=document.querySelector('.tab-section.active');if(!a)ret
  document.title=(page?page+' • ':'')+'AJ ERP System'}
 // ---------- alerts ----------
 function alerts(){const out=[],c=C();if(!c||c.workspace==='encoder')return out;const role=window.currentUser?window.currentUser.role:'admin';
- const pend=(c.queue||[]).filter(x=>x.status==='PENDING').length;if(pend&&role==='admin')out.push({c:'y',t:pend+' encoder entr'+(pend===1?'y':'ies')+' waiting in For Posting',go:()=>showTab('posting')});
  try{if(window.TAXMOD&&(window.ROLECAN?ROLECAN('tax'):['admin','bookkeeper'].includes(role))){const od=TAXMOD.overdue().length,t=localDateStr(new Date()),d=new Date();d.setDate(d.getDate()+7);
   const soon=TAXMOD.itemsBetween(t,localDateStr(d)).filter(i=>!(TAXMOD.T().filed||{})[i.key]).length;
   if(od)out.push({c:'',t:od+' filing'+(od===1?'':'s')+' overdue',s:'Taxes & Filings',go:()=>showTab('tx-cal')});
   if(soon)out.push({c:'y',t:soon+' filing'+(soon===1?'':'s')+' due in the next 7 days',s:'Taxes & Filings',go:()=>showTab('tx-cal')})}}catch(e){}
  try{const k=(window.CLOSEMOD&&c.closings||[]).length;}catch(e){}
  try{if(window.ERPX&&(role==='admin'||role==='bookkeeper'||role==='custom'))ERPX.alerts().forEach(a=>out.push(a))}catch(e){}
- const br=$('backupReminder');if(br&&!br.classList.contains('hidden'))out.push({c:'g',t:'Time to download a backup',s:'Dashboard reminder',go:()=>showTab('home')});
  return out}
+window.AJALERTS=alerts;
 function syncBell(){$('tbDot').hidden=!alerts().length}
 let pop=null;
 function closePop(){if(pop){pop.remove();pop=null}}
@@ -11205,7 +11318,7 @@ function edit(r){const man=!r||r.src==='man',atcs=T().atc||[];r=r||{src:'man',y:
  +'<div class="grid-2">'+(man&&!r.id&&custs.length?'<div class="form-group"><label for="cwC">Customer</label><select id="cwC"><option value="">– type below –</option>'+custs.map(c=>'<option value="'+e(c.id)+'">'+e(c.name)+'</option>').join('')+'</select></div>':'')
  +'<div class="form-group"><label for="cwP">Payor name (as on the 2307)</label><input id="cwP" maxlength="120" value="'+e(r.payor||'')+'"></div><div class="form-group"><label for="cwT">Payor TIN</label><input id="cwT" maxlength="20" value="'+e(r.tin||'')+'" placeholder="000-000-000-00000"></div>'
  +'<div class="form-group"><label for="cwAd">Payor address</label><input id="cwAd" maxlength="200" value="'+e(r.addr||'')+'"></div>'
- +'<div class="form-group"><label for="cwA">ATC</label><input id="cwA" list="cwAL" maxlength="10" value="'+e(r.atc||'')+'" placeholder="e.g. WC158"><datalist id="cwAL">'+atcs.map(a=>'<option value="'+e(a.atc)+'">'+e(a.desc+' ('+a.rate+'%)')+'</option>').join('')+'</datalist></div>'
+ +'<div class="form-group"><label for="cwA">ATC</label><input id="cwA" list="cwAL" maxlength="10" value="'+e(r.atc||'')+'" placeholder="WC158"><datalist id="cwAL">'+atcs.map(a=>'<option value="'+e(a.atc)+'">'+e(a.desc+' ('+a.rate+'%)')+'</option>').join('')+'</datalist></div>'
  +'<div class="form-group"><label for="cwK">Credit it on</label><select id="cwK">'+Object.keys(KIND).map(k=>'<option value="'+k+'"'+(r.kind===k?' selected':'')+'>'+KIND[k]+'</option>').join('')+'</select></div>'
  +(man?'<div class="form-group"><label for="cwYQ">Quarter</label><select id="cwYQ">'+[cy-1,cy].flatMap(y=>[1,2,3,4].map(q=>'<option value="'+y+'-'+q+'"'+(y===r.y&&q===r.q?' selected':'')+'>Q'+q+' '+y+'</option>')).join('')+'</select></div>':'')
  +'<div class="form-group"><label for="cwI">Income payment</label><input id="cwI" type="number" step="0.01" min="0" value="'+(r.income!=null?(r.income/100).toFixed(2):'')+'"></div>'
@@ -11371,7 +11484,7 @@ function empForm(e){const edit=!!e;e=e||{y:Y};
 // ---------- owner's capital from salary ----------
 function depForm(){const cash=X.cashAccts();if(!cash.length)return toast('Tag a cash or bank account as Cash in Settings › Chart of Accounts first.');
  const m=X.modal('<h2 style="margin-top:0">Salary put into the business</h2><p class="hr-note">When you deposit part of your salary into the business account, it is your additional investment, not business income. Posts Dr '+esc(X.cashAccts()[0].title)+' (or the account you choose), Cr '+esc(X.title(capAcct()))+'.</p><div class="grid-2">'
-  +fg('Date *','<input type="date" id="mdD" value="'+X.today()+'">')+fg('Deposited to *','<select id="mdC">'+X.opts(cash,cash[0].code)+'</select>')+fg('Amount *','<input type="number" step="0.01" min="0" id="mdA">')+fg('Reference','<input id="mdR" maxlength="60" placeholder="e.g. Payroll credit 15 Oct">')+'</div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="mdGo">Record</button></div>',620);
+  +fg('Date *','<input type="date" id="mdD" value="'+X.today()+'">')+fg('Deposited to *','<select id="mdC">'+X.opts(cash,cash[0].code)+'</select>')+fg('Amount *','<input type="number" step="0.01" min="0" id="mdA">')+fg('Reference','<input id="mdR" maxlength="60" placeholder="Payroll credit 15 Oct">')+'</div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn" id="mdGo">Record</button></div>',620);
  const q=s=>m.querySelector(s);q('#mdGo').onclick=()=>{const d=q('#mdD').value,a=X.c100(q('#mdA').value);if(!X.D.test(d))return toast('Enter the date.');if(a<=0)return toast('Enter the amount.');if(X.locked(d))return toast(X.lockMsg());
   const r={id:'md_'+X.uid(),date:d,amt:a,cash:+q('#mdC').value,ref:q('#mdR').value.trim().slice(0,60)};const mm=M();mm.seq=(mm.seq||0)+1;r.no='CAP-'+String(mm.seq).padStart(4,'0');r.jeId=X.post('entry_mix_'+r.id,d,r.no,"Owner's additional investment from salary"+(r.ref?' ('+r.ref+')':''),[[r.cash,a,0],[capAcct(),0,a]],'mix',{mixDoc:r.id});
   M().dep.push(r);X.save();X.refresh();m.remove();render();toast('Recorded as owner’s capital.','success')}}
@@ -11459,12 +11572,12 @@ function recForm(s){const emps=EMP().filter(x=>x.active!==false||(s&&x.id===s.em
  const m=X.modal('<h2 style="margin-top:0">'+(s.id?'Edit recurring item':'Add recurring item')+'</h2><div class="grid-2">'
  +'<div class="form-group"><label for="rcE">Employee</label><select id="rcE">'+emps.map(x=>'<option value="'+x.id+'"'+(x.id===s.empId?' selected':'')+'>'+e(x.last+', '+x.first)+'</option>').join('')+'</select></div>'
  +'<div class="form-group"><label for="rcI">Pay item</label><select id="rcI">'+its.map(i=>'<option value="'+i.id+'"'+(i.id===s.item?' selected':'')+'>'+e(i.name)+(i.kind==='D'?' (deduction)':'')+'</option>').join('')+'<option value="__new">+ New deduction (loan)…</option></select></div>'
- +'<div class="form-group" id="rcNG" hidden><label for="rcN">Name of the new deduction</label><input id="rcN" maxlength="40" placeholder="e.g. Salary loan, SSS loan, Pag-IBIG loan"></div>'
+ +'<div class="form-group" id="rcNG" hidden><label for="rcN">Name of the new deduction</label><input id="rcN" maxlength="40" placeholder="Salary loan"></div>'
  +'<div class="form-group"><label for="rcA">Amount per payroll</label><input id="rcA" type="number" step="0.01" min="0" value="'+(s.amt?(s.amt/100).toFixed(2):'')+'"></div>'
  +'<div class="form-group"><label for="rcT">Total to deduct / pay (optional)</label><input id="rcT" type="number" step="0.01" min="0" value="'+(s.total?(s.total/100).toFixed(2):'')+'" placeholder="Leave blank for no end"><small class="bk-mut">For loans: the amount borrowed.'+(used?' Already paid: '+X.n2(used)+'.':'')+'</small></div>'
  +'<div class="form-group"><label for="rcC">Which cutoffs</label><select id="rcC"><option value="B">Every payroll (1st and 2nd)</option><option value="1"'+(s.cut==='1'?' selected':'')+'>1st cutoff only</option><option value="2"'+(s.cut==='2'?' selected':'')+'>2nd cutoff only</option></select></div>'
  +'<div class="form-group"><label>Start from</label><div style="display:flex;gap:6px"><select id="rcM">'+MN.map((n,i)=>'<option value="'+(i+1)+'"'+(i+1===s.sm?' selected':'')+'>'+n.slice(0,3)+'</option>').join('')+'</select><select id="rcQ"><option value="1">1st</option><option value="2"'+(s.sq===2?' selected':'')+'>2nd</option></select><input id="rcY" type="number" value="'+s.sy+'" style="width:90px"></div></div>'
- +'<div class="form-group"><label for="rcNo">Note</label><input id="rcNo" maxlength="120" value="'+e(s.note||'')+'" placeholder="e.g. Loan approved Oct 2026"></div>'
+ +'<div class="form-group"><label for="rcNo">Note</label><input id="rcNo" maxlength="120" value="'+e(s.note||'')+'" placeholder="Loan approved Oct 2026"></div>'
  +'<div class="form-group"><label class="hr-chk" style="margin-top:1.6rem"><input type="checkbox" id="rcOn"'+(s.active!==false?' checked':'')+'> Active</label></div></div>'
  +'<div style="display:flex;justify-content:space-between;gap:8px;margin-top:1rem"><span>'+(s.id?'<button class="btn btn-outline btn-danger" id="rcDel" type="button">Delete</button>':'')+'</span><span><button class="btn btn-outline" data-x type="button">Cancel</button> <button class="btn" id="rcSave" type="button">Save</button></span></div>',760);
  const q=x=>m.querySelector(x);q('#rcI').onchange=()=>q('#rcNG').hidden=q('#rcI').value!=='__new';q('#rcNG').hidden=q('#rcI').value!=='__new'||!!its.length;if(!its.length){q('#rcI').value='__new';q('#rcNG').hidden=false}
@@ -11905,7 +12018,7 @@ window.MOBUI={scan,setPref};
 (function(){
 // Paste your Google OAuth client ID between the quotes so new devices don't have to type it, e.g.
 // const AJ_CLIENT_ID='1234567890-abc123.apps.googleusercontent.com';
-const AJ_CLIENT_ID='';
+const AJ_CLIENT_ID='807122609780-4cato48g9qnukoq6e669cpp7bk32qus3.apps.googleusercontent.com';
 const $=id=>document.getElementById(id),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // ---------- IndexedDB key-value store ----------
@@ -12050,7 +12163,7 @@ const pad=(n,w)=>String(n).padStart(w,'0'),stamp=()=>{const d=new Date();return 
 // ---------- a company as a flat map of records (for merging) ----------
 const idOf=x=>x&&typeof x==='object'&&!Array.isArray(x)?(typeof x.id==='string'||typeof x.id==='number'?'i:'+x.id:(typeof x.code==='number'||typeof x.code==='string')?'c:'+x.code:null):null;
 function isColl(a){const s=new Set();for(const x of a){const k=idOf(x);if(!k||s.has(k))return false;s.add(k)}return true}
-const LOCAL=new Set(['pkgAt']);
+const LOCAL=new Set(['pkgAt','sheetDraft']);
 function flat(o,pre,out){for(const k of Object.keys(o)){const v=o[k];if(v===undefined||(!pre&&LOCAL.has(k)))continue;const p=pre?pre+SEP+k:k;
  if(Array.isArray(v)){if(v.length&&isColl(v))v.forEach(x=>out.set(p+SEP+'#'+idOf(x),x));else out.set(p,v)}
  else if(v&&typeof v==='object'){if(Object.keys(v).length)flat(v,p,out);else out.set(p,v)}else out.set(p,v)}return out}
@@ -12371,9 +12484,9 @@ async function rStart(){const L=await accts(),online=navigator.onLine!==false;
  +(L.length?L.map(a=>'<div class="ag-accw"><button type="button" class="ag-acc" data-aid="'+esc(a.aid)+'">'+av(a.name,a.pic)+'<span><b>'+esc(a.name)+'</b><small>'+esc(a.email)+'</small></span></button><button type="button" class="ag-x" data-rm="'+esc(a.aid)+'" title="Remove this account from this device" aria-label="Remove '+esc(a.email)+' from this device">✕</button></div>').join('')+'<div class="ag-sep">or</div>':'')
  +'<button type="button" class="btn ag-g" id="agG">'+GICON+'<span>Continue with Google</span></button>'
  +'<p class="ag-err"></p><p class="ag-note" style="text-align:center;margin:.6rem 0 0">'+(online?(L.length?'':'<b>First time?</b> The same button creates your account. Then create your company, or open one someone shared with you.'):'You are offline. Choose your account above and use this device’s passcode. A first sign-in needs internet.')+'</p>'
- +'<div class="ag-foot"><span>Google sign-in key: <b>'+(clientId()?'set':'not set')+'</b> <button type="button" class="ag-link" id="agSet">'+(clientId()?'Change':'Set up')+'</button></span></div>';
+ +(AJ_CLIENT_ID?'':'<div class="ag-foot"><span>Google sign-in key: <b>'+(clientId()?'set':'not set')+'</b> <button type="button" class="ag-link" id="agSet">'+(clientId()?'Change':'Set up')+'</button></span></div>');
  card.querySelectorAll('[data-aid]').forEach(b=>b.onclick=()=>{const a=L.find(x=>x.aid===b.dataset.aid);gate('pass',a)});card.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>removeFromDevice(L.find(x=>x.aid===b.dataset.rm)));
- card.querySelector('#agG').onclick=e=>google_(null,e.currentTarget);card.querySelector('#agSet').onclick=()=>gate('setup')}
+ card.querySelector('#agG').onclick=e=>google_(null,e.currentTarget);const st=card.querySelector('#agSet');if(st)st.onclick=()=>gate('setup')}
 function rNoKey(){card.innerHTML=head('Almost there','This copy of the app needs its Google sign-in key before anyone can sign in.')
  +'<p class="ag-note"><b>Joining someone’s team?</b> Ask them for the app’s <b>invite link</b> (on their company list) and open it on this device. It sets the key for you.</p><p class="ag-note"><b>Setting up the app yourself?</b> Enter your Google OAuth client ID once.</p><div class="ag-acts"><button type="button" class="btn" id="agSet">Enter the sign-in key</button></div>';card.querySelector('#agSet').onclick=()=>gate('setup')}
 function rSetup(){card.innerHTML=head('Google sign-in key','Needed once per device. Opening the invite link sets it automatically.')
@@ -12617,6 +12730,198 @@ function fixMacNames(c){let n=0;const f=(o,k)=>{if(o&&typeof o[k]==='string'){co
 window.AJACCT={lock,deleteCompany,me:()=>ACC&&{email:ACC.email,name:ACC.name,pic:ACC.pic},emails,membersChanged,gate,enter};
 window.AJSYNC={syncCo,startSync,openShared,joinV1,upgrade,rotate,readInfo,flatC,setAt,delAt,H,st:cid=>ST[cid],useTransport:t=>{TEST=t},key,kget,kset,kkeys,flush:()=>flushNow(),DEV,setCfg:c=>Object.assign(CFG,c),conflicts,FS,GD,
  useIdp:(i,a,d)=>{IDPX=i;ADX=a;if(d)DRVX=d},boot,cycle,afterUnlockForTest:async(acc)=>{ACC=acc;await afterUnlock()},acc:()=>ACC,legacyList,gateState:()=>gateState,devSet:c=>{try{localStorage.setItem('aj_dev_id',c)}catch(e){}}};
+})();
+
+// ===== Design system: one look and one set of rules for every module =====
+// Tokens (colour, type, spacing, radius) + shared components (buttons, fields, tables, pills, windows, tabs)
+// + the Professional style (calm light surfaces, one accent) + one date format + the Dashboard overview.
+(function(){
+const $=id=>document.getElementById(id),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const P='html body.theme-professional';
+const css=`
+/* ---------- shared rules (every style) ---------- */
+:root{--ds-r:8px;--ds-r-lg:12px;--ds-gap:12px;--ds-ok:#0f7b55;--ds-ok-bg:#e8f6ef;--ds-warn:#a35c00;--ds-warn-bg:#fff4e3;--ds-bad:#b42318;--ds-bad-bg:#fdecec;--ds-info:#1d5fd0;--ds-info-bg:#e9f1fd;--ds-mute-bg:#eef0f3;--ds-mute:#4b5563}
+body.dark-mode{--ds-ok:#4cd39b;--ds-ok-bg:rgba(76,211,155,.13);--ds-warn:#f3b45b;--ds-warn-bg:rgba(243,180,91,.13);--ds-bad:#ff8a80;--ds-bad-bg:rgba(255,138,128,.13);--ds-info:#8db8ff;--ds-info-bg:rgba(141,184,255,.13);--ds-mute-bg:rgba(255,255,255,.07);--ds-mute:#b8c0cc}
+::placeholder{color:var(--text-muted)!important;opacity:.6!important;font-style:normal!important}
+input[type=file]{font:inherit;color:var(--text-muted);max-width:100%}
+input[type=file]::file-selector-button{font:inherit;font-weight:600;font-size:.85rem;margin-right:10px;padding:7px 14px;border-radius:var(--ds-r);border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-main);cursor:pointer}
+input[type=file]::file-selector-button:hover{border-color:var(--accent-primary,#0e7a5f)}
+.modal h2,.modal h3,.modal h4{font-family:inherit}
+td.number,th.number,.number,.r{font-variant-numeric:tabular-nums}
+td.number{white-space:nowrap}
+#fullJournalBody td:nth-child(-n+2),#dashJournalBody td:nth-child(-n+2){white-space:nowrap}
+.ds-date{white-space:nowrap}
+.ds-seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;border-radius:calc(var(--ds-r) + 2px);background:var(--tint,rgba(0,0,0,.04));border:1px solid var(--border-color)}
+.ds-seg button{border:0;background:transparent;color:var(--text-muted);font:inherit;font-weight:600;font-size:.86rem;padding:6px 12px;border-radius:var(--ds-r);cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.ds-seg button.on{background:var(--bg-card);color:var(--text-main);box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.ds-seg button .n{font-size:.72rem;font-weight:700;padding:0 6px;border-radius:999px;background:var(--ds-mute-bg);color:var(--ds-mute)}
+.ds-seg button .n.hot{background:var(--ds-bad-bg);color:var(--ds-bad)}
+.ds-pill{display:inline-flex;align-items:center;gap:5px;font-size:.74rem;font-weight:650;padding:2px 9px;border-radius:999px;white-space:nowrap;background:var(--ds-mute-bg);color:var(--ds-mute)}
+.ds-seg button .n.warn{background:var(--ds-warn-bg);color:var(--ds-warn)}.ds-seg button .dot{width:7px;height:7px;border-radius:50%;background:var(--accent-primary);display:inline-block}
+.rq-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:.9rem}.rq-toolbar .hr-bar{margin:0!important;align-items:center}.rq-toolbar .form-group{margin:0!important}.rq-toolbar label{display:none}
+#tab-posting .hr-tbl td:nth-child(2),#tab-posting .hr-tbl td:nth-child(8),#tab-enc .hr-tbl td:last-child{white-space:nowrap}#tab-posting .hr-tbl td:nth-child(5){min-width:180px!important}#tab-posting .hr-tbl :is(td,th):first-child{width:36px;padding-left:12px!important;padding-right:4px!important}#tab-posting .hr-tbl td:nth-child(7){max-width:190px;white-space:normal}
+.rq-nost th:nth-child(8),.rq-nost td:nth-child(8){display:none}
+.rq-h{margin:1.1rem 0 .6rem;font-size:.95rem;font-weight:650;color:var(--text-main);font-family:inherit}
+#tab-enc .rq-forms{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+#tab-enc .rq-form-btn{flex-direction:row;align-items:center;gap:12px;padding:12px 14px;min-height:64px}
+#tab-enc .rq-form-btn .rq-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+#tab-enc .rq-form-btn .rq-tx b{font-size:.94rem;font-weight:650}
+#tab-enc .rq-form-btn .rq-tx>span{font-size:.8rem;color:var(--text-muted);line-height:1.35}
+#tab-enc .rq-form-btn em{font-style:normal;color:var(--accent-primary);font-weight:600}
+.rq-ico{flex:0 0 38px;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--ds-mute-bg);color:var(--text-main)}
+#tab-enc .rq-feature{grid-column:1/-1;border-color:color-mix(in srgb,var(--accent-primary) 45%,var(--border-color))}
+#tab-enc .rq-feature .rq-ico{background:var(--accent-primary);color:#fff}
+body.sheet-open{overflow:hidden}
+.sheet-ov{position:fixed;inset:0;z-index:2500;background:var(--bg-main);display:flex;flex-direction:column;color:var(--text-main)}
+.sheet-top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border-color);background:var(--bg-card);flex-wrap:wrap}
+.sheet-title{display:flex;flex-direction:column;gap:2px;min-width:0}.sheet-title h2{margin:0;font-size:1.15rem;font-family:inherit}.sheet-title .bk-mut{font-size:.82rem}
+.sheet-acts{display:flex;gap:8px}
+.sheet-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 20px;border-bottom:1px solid var(--border-color);background:var(--bg-card)}
+.sheet-sum{font-size:.86rem;color:var(--text-muted)}.sheet-tools{margin-left:auto;display:flex;gap:6px}
+.sheet-wrap{flex:1;overflow:auto;padding:0}
+table.sheet{border-collapse:separate;border-spacing:0;min-width:100%;font-size:.88rem;background:var(--bg-card)}
+table.sheet th{position:sticky;top:0;z-index:2;background:var(--bg-main);color:var(--text-muted);font-weight:600;font-size:.76rem;text-align:left;padding:7px 8px;border-bottom:1px solid var(--border-color);border-right:1px solid var(--border-color);white-space:nowrap;text-transform:none;letter-spacing:0}
+table.sheet th.number{text-align:right}
+table.sheet td{padding:0;border-bottom:1px solid var(--border-color);border-right:1px solid var(--border-color);height:34px;vertical-align:middle}
+table.sheet td.rn,table.sheet th.rn{width:42px;min-width:42px;text-align:center;color:var(--text-muted);font-size:.75rem;background:var(--bg-main);position:sticky;left:0;z-index:1}
+table.sheet th.rn{z-index:3}
+table.sheet td.sh-st,table.sheet th.sh-st{padding:0 8px;min-width:128px;white-space:nowrap;position:sticky;right:34px;z-index:1;background:var(--bg-card);box-shadow:-1px 0 0 var(--border-color)}table.sheet td.x,table.sheet th.x{width:34px;min-width:34px;text-align:center;border-right:0;position:sticky;right:0;z-index:1;background:var(--bg-card)}table.sheet th.sh-st,table.sheet th.x{z-index:3;background:var(--bg-main)}
+html body #ajSheet table.sheet td input,html body #ajSheet table.sheet td select{width:100%;min-width:120px;height:34px!important;min-height:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:0 8px!important;margin:0!important;font:inherit;color:inherit;outline:none}
+html body #ajSheet table.sheet td input.num{text-align:right;font-variant-numeric:tabular-nums;min-width:110px}
+html body #ajSheet table.sheet td input[type=date]{min-width:140px}
+table.sheet td:focus-within{box-shadow:inset 0 0 0 2px var(--accent-primary);background:color-mix(in srgb,var(--accent-primary) 5%,var(--bg-card))}
+html body #ajSheet table.sheet td .bad{background:color-mix(in srgb,var(--ds-bad) 10%,transparent)!important;box-shadow:inset 0 -2px 0 var(--ds-bad)!important}
+html body #ajSheet table.sheet td.na{background:repeating-linear-gradient(135deg,transparent 0 6px,var(--ds-mute-bg) 6px 7px)!important}table.sheet td.na select,table.sheet td.na input{opacity:.45}
+table.sheet tr:hover td{background-color:color-mix(in srgb,var(--text-main) 2%,transparent)}
+html body #ajSheet .sheet-x{border:0!important;background:transparent!important;box-shadow:none!important;color:var(--text-muted)!important;cursor:pointer;font-size:.8rem;width:28px!important;height:28px!important;min-height:0!important;min-width:0!important;padding:0!important;border-radius:6px!important}html body #ajSheet .sheet-x:hover{color:var(--ds-bad);background:var(--ds-bad-bg)!important}
+html body #ajSheet table.sheet td input[list]{min-width:200px}
+.sheet-foot{padding:8px 20px;border-top:1px solid var(--border-color);font-size:.78rem;background:var(--bg-card)}
+@media(max-width:700px){.sheet-top,.sheet-bar{padding:10px 12px}.sheet-tools{margin-left:0}.sheet-title .bk-mut{display:none}.sheet-foot{display:none}}
+.ds-pill.ok{background:var(--ds-ok-bg);color:var(--ds-ok)}.ds-pill.warn{background:var(--ds-warn-bg);color:var(--ds-warn)}.ds-pill.bad{background:var(--ds-bad-bg);color:var(--ds-bad)}.ds-pill.info{background:var(--ds-info-bg);color:var(--ds-info)}
+/* ---------- Dashboard overview ---------- */
+#dsOv{display:grid;gap:16px;margin-bottom:16px}
+#dsOv .ds-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+#dsOv .ds-head h1{margin:0;font-size:1.55rem;letter-spacing:-.01em;line-height:1.2}
+#dsOv .ds-head p{margin:4px 0 0;color:var(--text-muted);font-size:.9rem}
+#dsOv .ds-acts{display:flex;gap:8px;flex-wrap:wrap}
+#dsOv .ds-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+#dsOv .ds-kpi{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--ds-r-lg);padding:14px 16px;text-align:left;font:inherit;color:inherit;cursor:pointer;min-width:0}
+#dsOv .ds-kpi:hover{border-color:var(--accent-primary,#0e7a5f)}
+#dsOv .ds-kpi span{display:block;font-size:.8rem;color:var(--text-muted);font-weight:600}
+#dsOv .ds-kpi b{display:block;font-size:1.45rem;font-weight:750;letter-spacing:-.01em;margin:4px 0 2px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#dsOv .ds-kpi small{display:block;color:var(--text-muted);font-size:.78rem}
+#dsOv .ds-kpi small .up{color:var(--ds-ok);font-weight:700}#dsOv .ds-kpi small .down{color:var(--ds-bad);font-weight:700}
+#dsOv .ds-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:12px}
+@media (max-width:900px){#dsOv .ds-row{grid-template-columns:minmax(0,1fr)}}
+#dsOv .ds-card{background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--ds-r-lg);padding:14px 16px;min-width:0}
+#dsOv .ds-card h3{margin:0 0 10px;font-size:1rem}
+#dsOv .ds-att{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+#dsOv .ds-att li button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;color:inherit;font:inherit;padding:9px 8px;border-radius:var(--ds-r);cursor:pointer}
+#dsOv .ds-att li button:hover{background:var(--tint,rgba(0,0,0,.04))}
+#dsOv .ds-att i{width:8px;height:8px;border-radius:50%;flex:0 0 8px;background:var(--ds-info)}#dsOv .ds-att i.y{background:var(--ds-warn)}#dsOv .ds-att i.r{background:var(--ds-bad)}
+#dsOv .ds-att span{flex:1;min-width:0}#dsOv .ds-att small{display:block;color:var(--text-muted);font-size:.76rem}
+#dsOv .ds-att .go{color:var(--text-muted);font-size:1.1rem}
+#dsOv .ds-ok{color:var(--text-muted);font-size:.9rem;padding:6px 8px}
+#dsOv .ds-legend{display:flex;gap:14px;font-size:.78rem;color:var(--text-muted);margin:-4px 0 6px}#dsOv .ds-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+#dsOv svg text{fill:var(--text-muted);font-size:11px;font-family:inherit}
+#tab-home>.welcome-banner,#backupReminder{display:none!important}
+/* ---------- Professional style ---------- */
+${P}{--bg-main:#f6f7f9;--bg-card:#ffffff;--field-bg:#ffffff;--text-main:#18212b;--text-muted:#5f6b7a;--border-color:#e3e6ea;--tint:rgba(24,33,43,.035);--on-frame:#18212b;--frame-muted:#5f6b7a;--frame-muted2:#7b8693;--ring:color-mix(in srgb,var(--btn-bg,#0e7a5f) 22%,transparent)}
+${P}.dark-mode{--bg-main:#0f1216;--bg-card:#171b21;--field-bg:#12161b;--text-main:#e7eaee;--text-muted:#9aa4b1;--border-color:#272d35;--tint:rgba(255,255,255,.04);--on-frame:#e7eaee;--frame-muted:#9aa4b1;--frame-muted2:#7c8693}
+${P}{background:var(--bg-main)!important;font-size:14px}${P}::before{display:none}
+${P} header{background:var(--bg-card)!important;border-bottom:1px solid var(--border-color)!important;box-shadow:none!important}
+${P} aside#mainSidebar{background:var(--bg-card)!important;border-right:1px solid var(--border-color);box-shadow:none}
+${P} :is(.card,.modal,#cmdk .box,.calm-pop,.login-card,.toast){background:var(--bg-card)!important;border:1px solid var(--border-color)!important;border-radius:var(--ds-r-lg)!important;box-shadow:0 1px 2px rgba(16,24,40,.04)!important}
+${P} .modal,${P} #cmdk .box{box-shadow:0 24px 60px -24px rgba(16,24,40,.35)!important}
+${P} .toast{box-shadow:0 10px 30px -12px rgba(16,24,40,.35)!important;color:var(--text-main)!important}
+${P} :is(.card .card,.metric-card,.bk-kpi,#sbCo,.pal-opt,.ajst){background:var(--bg-card)!important;border:1px solid var(--border-color)!important;border-radius:var(--ds-r)!important;box-shadow:none!important}
+${P} :is(.metric-card,.bk-kpi):hover{transform:none!important;border-color:var(--btn-bg)!important;box-shadow:none!important}
+${P} .btn{border-radius:var(--ds-r)!important;box-shadow:none!important;background-image:none!important;font-weight:600;min-height:36px}
+${P} .btn.btn-sm{min-height:30px}
+${P} .btn:not(:disabled):hover{transform:none!important;filter:brightness(1.05)}
+${P} .btn.btn-outline{background:var(--bg-card)!important;color:var(--text-main)!important;border:1px solid var(--border-color)!important}
+${P} .btn.btn-outline:not(:disabled):hover{border-color:color-mix(in srgb,var(--text-main) 35%,var(--border-color))!important;filter:none}
+${P} .btn.btn-danger:not(.btn-outline){background:var(--ds-bad)!important;color:#fff!important;border-color:var(--ds-bad)!important}
+${P} td .btn.btn-danger,${P} .btn.btn-outline.btn-danger,${P} .btn-danger.btn-outline{background:var(--bg-card)!important;color:var(--ds-bad)!important;border-color:color-mix(in srgb,var(--ds-bad) 35%,var(--border-color))!important}
+${P} :is(input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea){border-radius:var(--ds-r)!important;border:1px solid var(--border-color)!important;box-shadow:none!important;background-color:var(--field-bg)!important}
+${P} :is(input:not([type=checkbox]):not([type=radio]):not([type=file]),select){min-height:38px}
+${P} :is(input,select,textarea):focus{border-color:var(--btn-bg)!important;box-shadow:0 0 0 3px var(--ring)!important;outline:none}
+${P} .hr-scroll{border-radius:var(--ds-r)!important}
+${P} th{background:var(--bg-card)!important;color:var(--text-muted)!important;text-transform:none!important;letter-spacing:0!important;font-size:.78rem!important;font-weight:650!important;padding-top:9px!important;padding-bottom:9px!important;border-bottom:1px solid var(--border-color)!important}
+${P} td{padding-top:9px!important;padding-bottom:9px!important;border-bottom:1px solid var(--border-color)}
+${P} tbody tr:hover td{background:var(--tint)}
+${P} tbody tr:nth-child(even) td{background:transparent}${P} tbody tr:nth-child(even):hover td{background:var(--tint)}
+${P} nav.sidebar-nav>li.active{background:color-mix(in srgb,var(--btn-bg) 10%,transparent)!important;color:var(--text-main)!important;box-shadow:inset 3px 0 0 var(--btn-bg)!important;border-radius:var(--ds-r)}
+${P} nav.sidebar-nav .sub-menu li.active{background:var(--tint)!important;color:var(--text-main)!important}${P} nav.sidebar-nav .sub-menu li.active::after{background:var(--btn-bg)}
+${P} #sbSearch{background:var(--tint)!important;border:1px solid var(--border-color)!important}
+${P} .tb-ib,${P} .sb-ib{border-color:var(--border-color)!important;border-radius:var(--ds-r)!important}
+${P} .sub-nav button{border-radius:var(--ds-r)!important}
+${P} .badge{border-radius:999px!important;font-weight:650!important;font-size:.72rem!important;padding:2px 9px!important;border:0!important}
+${P} .badge-vat{background:var(--ds-ok-bg)!important;color:var(--ds-ok)!important}
+${P} .badge-nonvat{background:var(--ds-mute-bg)!important;color:var(--ds-mute)!important}
+${P} .badge-contra{background:var(--ds-bad-bg)!important;color:var(--ds-bad)!important}
+${P} .badge-debit{background:var(--ds-info-bg)!important;color:var(--ds-info)!important}
+${P} .badge-credit{background:var(--ds-warn-bg)!important;color:var(--ds-warn)!important}
+${P} :is(.hr-note,.inv-note,.bk-mut){color:var(--text-muted)!important}
+${P} :is(.rq-note){background:var(--ds-warn-bg)!important;color:var(--text-main)!important;border:0!important;border-left:3px solid var(--ds-warn)!important;border-radius:var(--ds-r)!important}
+${P} :is(.rq-ok){background:var(--ds-ok-bg)!important;color:var(--text-main)!important;border:0!important;border-left:3px solid var(--ds-ok)!important;border-radius:var(--ds-r)!important}
+${P} .tab-section.active,${P} .tab-section.active *{animation-duration:.16s!important}
+${P} #loginScreen{background:var(--bg-main)!important}
+`;
+const st=document.createElement('style');st.id='ajDesign';st.textContent=css;document.head.appendChild(st);
+// ---------- the Professional style is the default (once; Appearance can switch back) ----------
+try{if(window.AJSTYLES&&!localStorage.getItem('aj_ds_v1')){localStorage.setItem('aj_ds_v1','1');changeSystemTheme('professional')}}catch(e){}
+// ---------- one date format everywhere: Oct 26, 2026 ----------
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtD=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?MON[+m[2]-1]+' '+(+m[3])+', '+m[1]:iso};window.AJDATE=fmtD;
+const ISO=/^\s*\d{4}-\d{2}-\d{2}\s*$/;
+function fixDates(root){if(!root||!root.querySelectorAll)return;root.querySelectorAll('td').forEach(td=>{if(td.children.length||!ISO.test(td.textContent))return;const v=td.textContent.trim();td.textContent=fmtD(v);td.title=v;td.classList.add('ds-date')})}
+let fq=0;const main=document.querySelector('main')||document.body;new MutationObserver(()=>{if(fq)return;fq=requestAnimationFrame(()=>{fq=0;fixDates(main);document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(fixDates)})}).observe(document.body,{childList:true,subtree:true});
+// ---------- input hints: format examples only, never "e.g." clutter ----------
+document.addEventListener('focusin',e=>{const t=e.target;if(!t||!t.placeholder)return;if(/^e\.?g\.?\s*/i.test(t.placeholder))t.placeholder=t.placeholder.replace(/^e\.?g\.?\s*/i,'')},true);
+// ---------- Dashboard overview ----------
+const C=()=>window.activeCompany&&activeCompany();
+const money=v=>{const c=C();try{return formatMoney(v,(c&&c.currency)||'PHP')}catch(e){return '₱'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}};
+const short=v=>{const a=Math.abs(v),s=v<0?'−':'';return a>=1e6?s+'₱'+(a/1e6).toFixed(a>=1e7?1:2)+'M':a>=1e3?s+'₱'+(a/1e3).toFixed(a>=1e5?0:1)+'K':s+'₱'+a.toFixed(0)};
+const can=m=>!window.ROLECAN||ROLECAN(m);
+function figures(c){const acc=new Map(c.chartOfAccounts.map(a=>[a.code,a]));const bal=new Map();const now=new Date(),ym=now.toISOString().slice(0,7);
+ const months=[];for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'))}
+ const inc={},exp={};months.forEach(m=>{inc[m]=0;exp[m]=0});let ytdI=0,ytdE=0;const yr=String(now.getFullYear());
+ const isRev=a=>/revenue|income/i.test(a.category),isExp=a=>/expense|cost/i.test(a.category);
+ c.journalEntries.forEach(e=>{const m=String(e.date||'').slice(0,7);e.lines.forEach(l=>{const a=acc.get(l.accountCode);if(!a)return;const d=Math.round((+l.debit||0)*100)-Math.round((+l.credit||0)*100);bal.set(a.code,(bal.get(a.code)||0)+d);
+  if(isRev(a)){if(m in inc)inc[m]-=d;if(m.slice(0,4)===yr)ytdI-=d}else if(isExp(a)){if(m in exp)exp[m]+=d;if(m.slice(0,4)===yr)ytdE+=d}})});
+ const sum=pred=>[...acc.values()].filter(pred).reduce((s,a)=>s+(bal.get(a.code)||0),0)/100;
+ const cash=sum(a=>a.roleTag==='cash'),ar=sum(a=>a.category==='Asset'&&(a.roleTag==='ar'||/^(accounts|tenant|rent|rental|trade) receivables?/i.test(a.title))),ap=-sum(a=>a.category==='Liability'&&(a.roleTag==='ap'||/^(accounts|trade) payables?/i.test(a.title)));
+ const prev=months[4];return{cash,ar,ap,months,inc,exp,ni:(inc[ym]-exp[ym])/100,niPrev:(inc[prev]-exp[prev])/100,ytd:(ytdI-ytdE)/100,ym}}
+function trendSvg(f){const W=520,H=170,L=46,B=22,T=8,mx=Math.max(1,...f.months.map(m=>Math.max(f.inc[m],f.exp[m])))/100;const step=(W-L-8)/f.months.length,bw=Math.min(18,step/3);
+ const nice=v=>{const p=Math.pow(10,Math.floor(Math.log10(v)));return Math.ceil(v/p)*p},top=nice(mx),y=v=>T+(H-T-B)*(1-v/top);
+ let g='';[0,.5,1].forEach(k=>{const v=top*k;g+='<line x1="'+L+'" x2="'+(W-4)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--border-color)" stroke-width="1"/><text x="'+(L-6)+'" y="'+(y(v)+4)+'" text-anchor="end">'+short(v)+'</text>'});
+ f.months.forEach((m,i)=>{const x=L+step*i+step/2,iv=f.inc[m]/100,ev=f.exp[m]/100;g+='<rect x="'+(x-bw-1)+'" y="'+y(Math.max(0,iv))+'" width="'+bw+'" height="'+Math.max(0,(H-B)-y(Math.max(0,iv)))+'" rx="3" fill="var(--btn-bg,#0e7a5f)"><title>Income '+money(iv)+'</title></rect><rect x="'+(x+1)+'" y="'+y(Math.max(0,ev))+'" width="'+bw+'" height="'+Math.max(0,(H-B)-y(Math.max(0,ev)))+'" rx="3" fill="color-mix(in srgb,var(--text-muted) 45%,transparent)"><title>Expenses '+money(ev)+'</title></rect><text x="'+x+'" y="'+(H-6)+'" text-anchor="middle">'+MON[+m.slice(5)-1]+'</text>'});
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Income and expenses, last 6 months">'+g+'</svg>'}
+function hello(){const h=new Date().getHours();return h<12?'Good morning':h<18?'Good afternoon':'Good evening'}
+function renderOv(){const home=$('tab-home'),c=C();if(!home||!c)return;let ov=$('dsOv');if(!ov){ov=document.createElement('section');ov.id='dsOv';home.insertBefore(ov,home.firstChild)}
+ const f=figures(c),u=window.currentUser||{},first=String(u.name||'').split(/\s+/)[0];
+ const al=(window.AJALERTS?AJALERTS():window.ERPX&&ERPX.alerts?ERPX.alerts():[]).slice(0,7);
+ try{const s=window.AJSYNC&&AJSYNC.st(c.id);if(!(s&&s.on)&&!c.workspace&&(!window.ROLECAN||ROLECAN('settings')))al.push({c:'y',t:'This company is only on this device',s:'Turn on Sync & Backup so it is also kept safely in Google Drive',go:()=>{showTab('settings');showSettingsSubTab('sync')}})}catch(e){}
+ const d=f.ni-f.niPrev,acts=[];
+ if(can('ar')&&c.ar)acts.push(['ar','New invoice',()=>{showTab('ar-inv');setTimeout(()=>{const b=document.querySelector('#ar-inv [data-a=new]');if(b)b.click()},60)}]);
+ if(can('realestate')&&c.re&&window.RE)acts.push(['re','Receive rent',()=>{showTab('realestate');setTimeout(()=>RE.payOpen(),60)}]);
+ if(can('ap')&&c.ap)acts.push(['ap','New bill',()=>{showTab('ap-bill');setTimeout(()=>{const b=document.querySelector('#ap-bill [data-a=new]');if(b)b.click()},60)}]);
+ if(can('books'))acts.push(['je','Journal entry',()=>openJournalModal()]);
+ ov.innerHTML='<div class="ds-head"><div><h1>'+hello()+(first?', '+esc(first):'')+'</h1><p>'+esc(c.name)+' · '+new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</p></div><div class="ds-acts">'+acts.map((a,i)=>'<button type="button" class="btn'+(i?' btn-outline':'')+'" data-qa="'+i+'">'+(i?'':'+ ')+esc(a[1])+'</button>').join('')+'</div></div>'
+  +'<div class="ds-kpis">'
+  +'<button type="button" class="ds-kpi" data-go="cash"><span>Cash and bank</span><b>'+money(f.cash)+'</b><small>All cash and bank accounts</small></button>'
+  +'<button type="button" class="ds-kpi" data-go="ar"><span>Owed to you</span><b>'+money(f.ar)+'</b><small>Customer and tenant receivables</small></button>'
+  +'<button type="button" class="ds-kpi" data-go="ap"><span>You owe</span><b>'+money(f.ap)+'</b><small>Supplier payables</small></button>'
+  +'<button type="button" class="ds-kpi" data-go="pl"><span>Net income · '+MON[+f.ym.slice(5)-1]+'</span><b>'+money(f.ni)+'</b><small>'+(f.niPrev||f.ni?'<span class="'+(d>=0?'up':'down')+'">'+(d>=0?'▲ ':'▼ ')+short(Math.abs(d))+'</span> vs last month · ':'')+'Year to date '+short(f.ytd)+'</small></button></div>'
+  +'<div class="ds-row"><div class="ds-card"><h3>Needs attention</h3>'+(al.length?'<ul class="ds-att">'+al.map((a,i)=>'<li><button type="button" data-al="'+i+'"><i class="'+(a.c==='y'?'y':a.c===''?'r':'')+'"></i><span>'+esc(a.t)+(a.s?'<small>'+esc(a.s)+'</small>':'')+'</span><b class="go" aria-hidden="true">›</b></button></li>').join('')+'</ul>':'<p class="ds-ok">You are all caught up.</p>')+'</div>'
+  +'<div class="ds-card"><h3>Income and expenses</h3><div class="ds-legend"><span><i style="background:var(--btn-bg,#0e7a5f)"></i>Income</span><span><i style="background:color-mix(in srgb,var(--text-muted) 45%,transparent)"></i>Expenses</span><span>Last 6 months</span></div>'+trendSvg(f)+'</div></div>';
+ ov.querySelectorAll('[data-qa]').forEach(b=>b.onclick=()=>acts[+b.dataset.qa][2]());
+ ov.querySelectorAll('[data-al]').forEach(b=>b.onclick=()=>{try{al[+b.dataset.al].go()}catch(e){}});
+ ov.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const g=b.dataset.go;if(g==='ar'&&can('ar')&&c.ar)showTab('ar-age');else if(g==='ap'&&can('ap')&&c.ap)showTab('ap-bill');else if(g==='pl'&&can('reports'))showTab('reports');else if(can('books')){showTab('books')}})}
+{const o=window.calculateDashboardMetrics;window.calculateDashboardMetrics=function(){const r=o.apply(this,arguments);try{renderOv()}catch(e){console.error(e)}return r}}
+{const o=window.showTab;window.showTab=function(t){const r=o.apply(this,arguments);if(t==='home')try{renderOv()}catch(e){console.error(e)}return r}}
+window.AJDS={renderOv,fmtD};
 })();
 
 </script>
