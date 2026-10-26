@@ -6386,7 +6386,7 @@ function can(m){
  if(r==='admin')return m!=='enc'&&m!=='rptlib'&&(m!=='posting'||encOn());
  if(r==='accountant')return m==='rptlib';
  if(r==='encoder')return m==='enc';
- if(r==='bookkeeper')return m!=='posting'&&m!=='enc'&&m!=='rptlib'&&m!=='users'&&!!bkPerms()[m];
+ if(r==='bookkeeper')return m==='posting'?!!(C()&&C().bkPost)&&encOn():m!=='posting'&&m!=='enc'&&m!=='rptlib'&&m!=='users'&&!!bkPerms()[m];
  if(r==='custom'){const p=(userRec()||{}).perms||{};if(m==='enc'||m==='users')return false;if(m==='posting')return !!p.posting&&encOn();return !!p[m]}
  return false;
 }
@@ -6442,12 +6442,12 @@ $('setTab-theme').insertAdjacentHTML('afterend','<div id="setTab-users" class="s
 document.querySelector('main.main-content').insertAdjacentHTML('beforeend',
  '<div id="tab-posting" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">For Posting</h2><div class="hr-acts"><button class="btn btn-outline" id="rqImport">Import encoder batch</button></div></div>'
  +'<p class="hr-note">Entries made by encoders wait here. Nothing reaches the books until you press <b>Enter in books</b>. Suggested accounts learn from your past choices.</p>'
- +'<div class="hr-bar"><div class="form-group"><label for="rqSt">Show</label><select id="rqSt"><option value="PENDING">Waiting for posting</option><option value="RETURNED">Returned to encoder</option><option value="POSTED">Posted</option><option value="ALL">All</option></select></div><div class="form-group"><label for="rqBy">Encoder</label><select id="rqBy"></select></div><button class="btn" id="rqBulk" type="button">Enter selected in books</button></div>'
+ +'<div class="hr-bar"><div class="form-group"><label for="rqSt">Show</label><select id="rqSt"><option value="PENDING">Waiting for posting</option><option value="RETURNED">Returned to encoder</option><option value="POSTED">Posted</option><option value="REJECTED">Not posted (rejected)</option><option value="MSG">Unread messages</option><option value="ALL">All</option></select></div><div class="form-group"><label for="rqBy">Encoder</label><select id="rqBy"></select></div><button class="btn" id="rqBulk" type="button">Enter selected in books</button></div>'
  +'<div class="hr-scroll"><table class="hr-tbl hr-hist"><thead><tr><th><input type="checkbox" id="rqAll" aria-label="Select all"></th><th>Date</th><th>Encoder</th><th>Type</th><th>Details</th><th class="number">Amount</th><th>Suggested entry</th><th>Status</th><th></th></tr></thead><tbody id="rqBody"></tbody></table></div></div></div>'
  +'<div id="tab-rptlib" class="tab-section"><div class="card" id="rqLibList"><h2 style="margin-top:0">Saved Reports</h2><p class="hr-note" id="rqLibNote"></p><div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Report</th><th>Period</th><th>Basis</th><th>Prepared by</th><th>Saved</th><th></th></tr></thead><tbody id="rqLibBody"></tbody></table></div></div>'
  +'<div class="card hidden" id="rqLibPaper"><div class="filter-bar" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:1rem"><button class="btn btn-outline btn-sm" id="rqLibBack">Back to list</button><b id="rqLibMeta"></b><button class="btn btn-sm" onclick="window.print()">Print / Export PDF</button></div><div class="report-paper"><div id="rqLibArea"></div></div></div></div>'
  +'<div id="tab-enc" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Data Entry</h2><div class="hr-acts" id="rqWsActs"></div></div><p class="hr-note" id="rqEncNote"></p><div id="rqEncKpi"></div><div class="rq-forms" id="rqForms"></div>'
- +'<h3 style="margin:.4rem 0 .6rem;font-size:1.05rem">My entries</h3><div class="hr-bar"><div class="form-group"><label for="rqMySt">Show</label><select id="rqMySt"><option value="OPEN">Not yet posted</option><option value="RETURNED">Returned to me</option><option value="POSTED">Posted</option><option value="ALL">All</option></select></div></div>'
+ +'<h3 style="margin:.4rem 0 .6rem;font-size:1.05rem">My entries</h3><div class="hr-bar"><div class="form-group"><label for="rqMySt">Show</label><select id="rqMySt"><option value="OPEN">Waiting for posting</option><option value="RETURNED">Needs fixing</option><option value="POSTED">Posted</option><option value="REJECTED">Not posted</option><option value="ALL">All</option></select></div></div>'
  +'<div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Entered</th><th>Type</th><th>Details</th><th class="number">Amount</th><th>Status</th><th></th></tr></thead><tbody id="rqMyBody"></tbody></table></div></div></div>');
 
 // ---------- lists the encoder chooses from (live in the admin copy, from the package in a workspace) ----------
@@ -6485,26 +6485,28 @@ function dupOf(it){const d=it.data||{},amt=c100(d.amount),same=x=>x.id!==it.id&&
  if(!isWS()&&it.kind==='sale'&&d.orNo&&window.ARAPMOD&&C().ar){const v=ARAPMOD.A().inv.find(x=>!x.void&&(nk(x.ref)===nk(d.orNo)||nk(x.no)===nk(d.orNo)));if(v)return 'Invoice '+v.no+' in Receivables ('+(v.ref||'')+')'}
  return ''}
 const qDate=it=>{const d=it.data||{};return it.kind==='check'?(d.issued||d.due):d.date};window.ENCDUP=it=>dupOf(it);
-const stBadge=it=>it.status==='POSTED'?'<span class="badge badge-vat">Posted</span>':it.status==='RETURNED'?'<span class="badge badge-contra">Returned</span>':(isWS()&&!it.sent?'<span class="badge badge-credit">Not sent yet</span>':'<span class="badge badge-debit">Waiting for posting</span>');
+const stBadge=it=>it.status==='POSTED'?'<span class="badge badge-vat">Posted</span>':it.status==='REJECTED'?'<span class="badge badge-nonvat">Not posted</span>':it.status==='RETURNED'?'<span class="badge badge-contra">Needs fixing</span>':(isWS()&&!it.sent?'<span class="badge badge-credit">'+(C()&&C().chan?'Sending…':'Not sent yet')+'</span>':'<span class="badge badge-debit">Waiting for posting</span>');
 
 // ---------- Encoder: Data Entry ----------
 function renderEnc(){
  const ws=isWS(),f=encForms(),mine=Q().filter(it=>it.by&&it.by.id===me().id);
  const unsent=mine.filter(it=>!it.sent&&it.status==='PENDING').length;
  const others=ws?companies.filter(x=>x.workspace==='encoder'&&x.id!==C().id&&(x.users||[]).some(u=>u.username===(userRec()||{}).username)):[],allUnsent=unsent+others.reduce((a,x)=>a+(x.queue||[]).filter(it=>!it.sent&&it.status==='PENDING').length,0);
- $('rqWsActs').innerHTML='<button class="btn btn-outline" id="rqCsv">Import from spreadsheet</button>'+(ws?'<button class="btn btn-outline" id="rqLoadPkg">Load update from admin</button><button class="btn" id="rqSend"'+(unsent?'':' disabled')+'>Send batch ('+unsent+')</button>'+(others.length?'<button class="btn" id="rqSendAll"'+(allUnsent?'':' disabled')+' title="One file with the entries of all your businesses">Send all businesses ('+allUnsent+')</button>':''):'');
+ const chan=ws&&!!C().chan;
+ $('rqWsActs').innerHTML='<button class="btn btn-outline" id="rqCsv">Import from spreadsheet</button>'+(ws&&!chan?'<button class="btn btn-outline" id="rqLoadPkg">Load update from admin</button><button class="btn" id="rqSend"'+(unsent?'':' disabled')+'>Send batch ('+unsent+')</button>'+(others.length?'<button class="btn" id="rqSendAll"'+(allUnsent?'':' disabled')+' title="One file with the entries of all your businesses">Send all businesses ('+allUnsent+')</button>':''):'');
  const ret=mine.filter(it=>it.status==='RETURNED').length,ym=td().slice(0,7),postedM=mine.filter(it=>it.status==='POSTED'&&String(it.postedAt||'').slice(0,7)===ym).length,todayN=mine.filter(it=>String(it.at).slice(0,10)===td());
  $('rqEncKpi').innerHTML='<div class="bk-kpis"><div class="bk-kpi"><span>Entered today</span><b>'+todayN.length+'</b><small>'+n2(todayN.reduce((a,it)=>a+c100(it.data.amount),0))+'</small></div><div class="bk-kpi'+(ret?' warn':'')+'"><span>Returned to fix</span><b>'+ret+'</b><small>'+(ret?'see notes below':'none')+'</small></div><div class="bk-kpi"><span>Waiting for posting</span><b>'+mine.filter(it=>it.status==='PENDING').length+'</b><small>'+(ws?unsent+' not sent yet':'')+'</small></div><div class="bk-kpi"><span>Posted this month</span><b>'+postedM+'</b><small></small></div></div>';
- $('rqEncNote').innerHTML=ws?'You are working in your own copy for <b>'+esc(C().name)+'</b>. Entries stay here until you press <b>Send batch</b>, which saves a file to send to the admin (for example through a shared Google Drive folder). Load the admin’s update file to see which entries were posted or returned.'+(C().pkgAt?' Last update from admin: '+esc(fdt(C().pkgAt))+'.':''):'Your entries go to the admin’s For Posting list. The admin chooses the accounts and enters them in the books.';
+ $('rqEncNote').innerHTML=chan?'Your entries go to the office automatically whenever you are online, and their replies come back the same way. You only see your own entries; the books stay with the office.'+(C().pkgAt?' Last update from the office: '+esc(fdt(C().pkgAt))+'.':''):ws?'You are working in your own copy for <b>'+esc(C().name)+'</b>. Entries stay here until you press <b>Send batch</b>, which saves a file to send to the admin (for example through a shared Google Drive folder). Load the admin’s update file to see which entries were posted or returned.'+(C().pkgAt?' Last update from admin: '+esc(fdt(C().pkgAt))+'.':''):'Your entries go to the admin’s For Posting list. The admin chooses the accounts and enters them in the books.';
  const FD={check:'Payee, check number, amount and check date',deposit:'Cash or check deposits, transfers between accounts, withdrawals',expense:'Bills and receipts paid or to be paid, with a photo of the receipt',collection:'Payments received from customers or tenants, and the invoices they pay',sale:'Invoices given to customers who will pay later'};
  $('rqForms').innerHTML=FORMS.filter(x=>f[x[0]]).map(x=>'<button type="button" class="rq-form-btn" data-new="'+x[0]+'"><b>+ '+x[1]+'</b><span>'+FD[x[0]]+'</span></button>').join('')+(f.collection?'<button type="button" class="rq-form-btn" data-quick="1"><b>+ Many payments at once</b><span>Rent or collections from several people: type a name, the amount fills in, press Enter for the next row</span></button>':'')||'<p class="bk-mut">No entry forms are turned on for encoders. Ask the admin.</p>';
- if(ws){$('rqLoadPkg').onclick=()=>pickFile('.json,application/json',t=>loadPackage(t,true));$('rqSend').onclick=sendBatch;if($('rqSendAll'))$('rqSendAll').onclick=sendAll}$('rqCsv').onclick=csvImport;
+ if(ws&&!chan){$('rqLoadPkg').onclick=()=>pickFile('.json,application/json',t=>loadPackage(t,true));$('rqSend').onclick=sendBatch;if($('rqSendAll'))$('rqSendAll').onclick=sendAll}$('rqCsv').onclick=csvImport;
  const st=$('rqMySt').value,list=mine.filter(it=>st==='ALL'||(st==='OPEN'?it.status==='PENDING':it.status===st)).sort((a,b)=>String(b.at).localeCompare(String(a.at)));
- $('rqMyBody').innerHTML=list.map(it=>'<tr><td>'+esc(fdt(it.at))+'</td><td>'+KIND_LABEL[it.kind]+'</td><td class="wrap" style="white-space:normal;min-width:240px">'+esc(qSummary(it))+(it.status==='RETURNED'&&it.note?'<div class="rq-note">Admin: '+esc(it.note)+'</div>':'')+'</td><td class="number">'+n2(c100(it.data.amount))+'</td><td>'+stBadge(it)+'</td><td style="white-space:nowrap">'+(it.status==='RETURNED'||(it.status==='PENDING'&&(!ws||!it.sent))?'<button class="btn btn-outline btn-sm" data-edit="'+esc(it.id)+'">'+(it.status==='RETURNED'?'Fix and resend':'Edit')+'</button> ':'')+(it.status==='PENDING'&&(!ws||!it.sent)?'<button class="btn btn-danger btn-outline btn-sm" data-del="'+esc(it.id)+'">Delete</button> ':'')+'<button class="btn btn-outline btn-sm" data-copy="'+esc(it.id)+'" title="Start a new entry from this one">Copy</button></td></tr>').join('')
+ $('rqMyBody').innerHTML=list.map(it=>'<tr><td>'+esc(fdt(it.at))+'</td><td>'+KIND_LABEL[it.kind]+'</td><td class="wrap" style="white-space:normal;min-width:240px">'+esc(qSummary(it))+((it.status==='RETURNED'||it.status==='REJECTED')&&it.note?'<div class="rq-note">'+(it.status==='REJECTED'?'Not posted: ':'To fix: ')+esc(it.note)+'</div>':'')+'</td><td class="number">'+n2(c100(it.data.amount))+'</td><td>'+stBadge(it)+'</td><td style="white-space:nowrap">'+(it.status==='RETURNED'||(it.status==='PENDING'&&(!ws||!it.sent))?'<button class="btn btn-outline btn-sm" data-edit="'+esc(it.id)+'">'+(it.status==='RETURNED'?'Fix and resend':'Edit')+'</button> ':'')+(it.status==='PENDING'&&(!ws||!it.sent)?'<button class="btn btn-danger btn-outline btn-sm" data-del="'+esc(it.id)+'">Delete</button> ':'')+'<button class="btn btn-outline btn-sm" data-copy="'+esc(it.id)+'" title="Start a new entry from this one">Copy</button> <button class="btn btn-sm '+(unread(it,'enc')?'':'btn-outline')+'" data-msg="'+esc(it.id)+'">'+(unread(it,'enc')?unread(it,'enc')+' new message'+(unread(it,'enc')===1?'':'s'):'Messages'+((it.thread||[]).length?' ('+it.thread.length+')':''))+'</button></td></tr>').join('')
   ||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">Nothing here yet. Choose a form above to enter a transaction.</td></tr>';
 }
 $('tab-enc').addEventListener('click',e=>{
  const qk=e.target.closest('[data-quick]');if(qk)return quickCollect();
+ const mg=e.target.closest('[data-msg]');if(mg){const it=Q().find(x=>x.id===mg.dataset.msg);if(it)encThread(it);return}
  const n=e.target.closest('[data-new]');if(n)return openForm(n.dataset.new);
  const ed=e.target.closest('[data-edit]');if(ed){const it=Q().find(x=>x.id===ed.dataset.edit);if(it)openForm(it.kind,it);return}
  const cp=e.target.closest('[data-copy]');if(cp){const it=Q().find(x=>x.id===cp.dataset.copy);if(it){if(!encForms()[it.kind])return toast('That form is turned off.');openForm(it.kind,null,JSON.parse(JSON.stringify(it.data)))}return}
@@ -6572,6 +6574,11 @@ function openForm(kind,it,pre,keep){
    const inc=v=>{const mm=/^(.*?)(\d+)$/.exec(String(v||''));return mm?mm[1]+String(+mm[2]+1).padStart(mm[2].length,'0'):''};if(out.orNo)nx.orNo=inc(out.orNo);if(kind==='check'&&out.number)nx.number=inc(out.number);openForm(kind,null,nx,true)}
  };
 }
+function encThread(it){const lastAt=((it.thread||[]).slice(-1)[0]||{}).at;if(lastAt)seenSet(it.id,lastAt);
+ const m=modal('<h2 style="margin-top:0">'+KIND_LABEL[it.kind]+' – '+n2(c100(it.data.amount))+'</h2><p class="hr-note">'+esc(qSummary(it))+'<br>'+stBadge(it)+(it.note&&(it.status==='RETURNED'||it.status==='REJECTED')?' '+esc(it.note):'')+'</p>'+threadHtml(it,'enc')
+  +'<textarea id="enT" rows="2" maxlength="1000" placeholder="Write to the office…" style="width:100%"></textarea><div class="sy-row" style="justify-content:flex-end;margin-top:.5rem"><button type="button" class="btn btn-outline" data-x>Close</button>'+(it.status==='RETURNED'?'<button type="button" class="btn btn-outline" id="enFix">Fix the entry</button>':'')+'<button type="button" class="btn" id="enSend">Send</button></div>',640);
+ const f=m.querySelector('#enFix');if(f)f.onclick=()=>{m.remove();openForm(it.kind,it)};
+ m.querySelector('#enSend').onclick=()=>{const t=m.querySelector('#enT').value.trim();if(!t)return toast('Write the message first.');say(it,'enc',t);if(isWS())it.msgOut=true;saveToLocalStorage();m.remove();renderEnc();toast(isWS()&&!(C().chan)?'Message saved. It goes with your next batch.':'Message sent.','success')}}
 // several collections in one go (rent day): shared date / how received, one row per payer
 function quickCollect(){const L=lists(),H=L.hints||{},RT=L.rates||{},ws=isWS();
  const opt=(arr,cur)=>arr.map(o=>'<option value="'+esc(o[0])+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>').join('');
@@ -6600,28 +6607,37 @@ function quickCollect(){const L=lists(),H=L.hints||{},RT=L.rates||{},ws=isWS();
   const at=new Date().toISOString();rows.forEach(x=>Q().push({id:'q_'+uid(),kind:'collection',data:x.data,by:{id:me().id,name:me().name},at,status:'PENDING',note:'',sent:!isWS(),rev:0}));
   saveToLocalStorage();m.remove();renderEnc();updCount();toast(rows.length+' payment'+(rows.length===1?'':'s')+' saved ('+n2(Math.round(rows.reduce((a,x)=>a+x.amount,0)*100))+').'+(isWS()?' Press Send batch when ready.':' Sent for posting.'),'success')}}
 function sendBatch(){
- const c=C(),items=Q().filter(it=>it.by&&it.by.id===me().id&&it.status==='PENDING'&&!it.sent);
+ const c=C(),items=Q().filter(it=>it.by&&it.by.id===me().id&&((it.status==='PENDING'&&!it.sent)||it.msgOut));
  if(!items.length)return toast('Nothing new to send.');
  download('ENCODER-BATCH_'+slug(c.name)+'_'+slug(me().name)+'_'+td()+'_'+items.length+'-entries.json',{type:'gsvc-encoder-batch',v:1,companyId:c.sourceCompanyId,companyName:c.name,user:{id:me().id,name:me().name},at:new Date().toISOString(),items});
- items.forEach(it=>it.sent=true);saveToLocalStorage();renderEnc();toast('Batch file saved with '+items.length+' entr'+(items.length===1?'y':'ies')+'. Send it to the admin.','success');
+ items.forEach(it=>{it.sent=true;delete it.msgOut});saveToLocalStorage();renderEnc();toast('Batch file saved with '+items.length+' entr'+(items.length===1?'y':'ies')+'. Send it to the admin.','success');
 }
 
 // ---------- one file for all businesses (encoders who work for several companies) ----------
 function withCo(id,f){const prev=activeCompanyId;activeCompanyId=id;try{return f()}finally{activeCompanyId=prev}}
-function pkgFor(c,u){return withCo(c.id,()=>{const L=lists(),statuses=Q().filter(it=>it.by&&it.by.id===u.id).map(it=>({id:it.id,status:it.status,note:it.note,postedAt:it.postedAt,ref:it.ref||''}));
+const stOut=it=>Object.assign({id:it.id,status:it.status,note:it.note,postedAt:it.postedAt,ref:it.ref||'',rev:it.rev||0,thread:it.thread||[]},it.status==='POSTED'||it.status==='REJECTED'?{data:it.data,kind:it.kind}:{});
+function pkgFor(c,u){return withCo(c.id,()=>{const L=lists(),statuses=Q().filter(it=>it.by&&it.by.id===u.id).map(stOut);
  return{type:'gsvc-encoder-package',v:1,at:new Date().toISOString(),company:{id:c.id,name:c.name,currency:c.currency,logo:null},user:{id:u.id,name:u.name,username:u.username,role:'encoder',pw:u.pw,active:u.active!==false},forms:encForms(),lists:L,statuses}})}
 const encCos=un=>companies.filter(c=>!c.workspace&&users(c).some(x=>x.role==='encoder'&&x.username.toLowerCase()===String(un).toLowerCase()));
 function encoderFileAll(uId){const u=users().find(x=>x.id===uId);if(!u)return;const cos=encCos(u.username),packages=cos.map(c=>pkgFor(c,users(c).find(x=>x.role==='encoder'&&x.username.toLowerCase()===u.username.toLowerCase())));
  download('ENCODER-FILE_ALL_'+slug(u.name)+'_'+td()+'.json',{type:'gsvc-encoder-multi',v:1,at:new Date().toISOString(),packages});
  toast('One encoder file with '+packages.length+' businesses saved for '+u.name+' ('+cos.map(c=>c.name).join(', ')+'). Each business must use the same encoder username.','success')}
 function sendAll(){const un=(userRec()||{}).username,ws=companies.filter(x=>x.workspace==='encoder'&&(x.users||[]).some(u=>u.username===un)),batches=[];let n=0;
- ws.forEach(w=>{const u=(w.users||[]).find(x=>x.username===un),items=(w.queue||[]).filter(it=>it.by&&it.by.id===u.id&&it.status==='PENDING'&&!it.sent);if(!items.length)return;
-  batches.push({type:'gsvc-encoder-batch',v:1,companyId:w.sourceCompanyId,companyName:w.name,user:{id:u.id,name:u.name},at:new Date().toISOString(),items:JSON.parse(JSON.stringify(items))});items.forEach(it=>it.sent=true);n+=items.length});
+ ws.forEach(w=>{const u=(w.users||[]).find(x=>x.username===un),items=(w.queue||[]).filter(it=>it.by&&it.by.id===u.id&&((it.status==='PENDING'&&!it.sent)||it.msgOut));if(!items.length)return;
+  batches.push({type:'gsvc-encoder-batch',v:1,companyId:w.sourceCompanyId,companyName:w.name,user:{id:u.id,name:u.name},at:new Date().toISOString(),items:JSON.parse(JSON.stringify(items))});items.forEach(it=>{it.sent=true;delete it.msgOut});n+=items.length});
  if(!n)return toast('Nothing new to send.');download('ENCODER-BATCH_ALL_'+slug(me().name)+'_'+td()+'_'+n+'-entries.json',{type:'gsvc-encoder-multibatch',v:1,at:new Date().toISOString(),batches});
  saveToLocalStorage();renderEnc();toast('One file with '+n+' entr'+(n===1?'y':'ies')+' from '+batches.length+' business'+(batches.length===1?'':'es')+' saved. Send it to the admin.','success')}
 function importInto(comp,b){if(!comp)return{err:'"'+String(b.companyName||'a company')+'" is not in this browser'};const u=b.user&&users(comp).find(x=>x.id===b.user.id&&x.role==='encoder');if(!u)return{err:'the encoder is not a user of '+comp.name};
- if(!Array.isArray(comp.queue))comp.queue=[];let add=0,upd=0,skip=0;(b.items||[]).forEach(raw=>{const it=cleanItem(raw);if(!it)return skip++;it.by={id:u.id,name:u.name};it.sent=true;const ex=comp.queue.find(x=>x.id===it.id);
-  if(ex){if(ex.status==='POSTED')return skip++;Object.assign(ex,{data:it.data,status:'PENDING',note:'',rev:it.rev,at:it.at});upd++}else{it.status='PENDING';it.note='';comp.queue.push(it);add++}});return{add,upd,skip,name:comp.name}}
+ if(!Array.isArray(comp.queue))comp.queue=[];let add=0,upd=0,skip=0,msgs=0;(b.items||[]).forEach(raw=>{const it=cleanItem(raw);if(!it)return skip++;it.by={id:u.id,name:u.name};it.sent=true;
+  const r=mergeIn(comp.queue,it);if(r==='add')add++;else if(r==='upd')upd++;else if(r==='msg')msgs++;else skip++});return{add,upd,skip,msgs,name:comp.name}}
+// one entry arriving from an encoder: new, resubmitted after a fix, or just a new message.
+// Posted and rejected entries never go back to waiting (no double posting).
+function mergeIn(queue,it){const ex=queue.find(x=>x.id===it.id);
+ if(!ex){it.status='PENDING';it.note='';queue.push(it);return 'add'}
+ const before=(ex.thread||[]).length;ex.thread=mergeThread(ex.thread,it.thread);const newMsg=ex.thread.length>before;
+ if(ex.status==='POSTED'||ex.status==='REJECTED')return newMsg?'msg':'skip';
+ if((it.rev||0)>(ex.rev||0)){Object.assign(ex,{data:it.data,status:'PENDING',note:'',rev:it.rev,at:it.at});return 'upd'}
+ return newMsg?'msg':'skip'}
 // ---------- spreadsheet (CSV) import for encoders ----------
 const CSVT={expense:{h:['Date','Paid to','Category','Description','Amount','Paid with (cash / unpaid / owner)','Receipt no.'],ex:['2026-10-05','Meralco','Utilities (electricity, water)','October bill','5230.50','cash','OR-1234']},
  collection:{h:['Date','Received from','For (sales / rent / balance / other)','Received as (cash / check / bank)','Amount','Tax withheld (2307)','OR no.','Invoice nos. (separate with ;)','Notes'],ex:['2026-10-05','ABC Corporation','balance','check','9800','200','AR-551','INV-0012;INV-0013','']},
@@ -6668,6 +6684,13 @@ async function afterLogin(u,c){if(!u)return;if(document.getElementById('ajWarp')
  if(u.role==='admin'&&!u.rk&&!c.workspace&&!sessionStorage.getItem('aj_rk_'+u.id)){try{sessionStorage.setItem('aj_rk_'+u.id,'1')}catch(e){}setTimeout(()=>{const m=modal('<h2 style="margin-top:0">Protect your Admin login</h2><p>If you forget your password and there is no other Admin, nobody can reset it. Create a one-time <b>recovery key</b> and keep it somewhere safe.</p><div style="text-align:right"><button class="btn btn-outline" data-x>Later</button> <button class="btn" id="rkMk">Create recovery key</button></div>',520);m.querySelector('#rkMk').onclick=()=>{m.remove();rkCreate(u,c)}},900)}}
 
 // ---------- item cleaning (for batch files and backups) ----------
+// conversation on an entry: [{side:'enc'|'adm', by, at, text}]
+function cleanThread(t){return Array.isArray(t)?t.slice(-100).map(m=>m&&typeof m==='object'?{side:m.side==='adm'?'adm':'enc',by:String(m.by||'').slice(0,80),at:String(m.at||'').slice(0,40),text:String(m.text||'').slice(0,1000)}:null).filter(m=>m&&m.text):[]}
+function mergeThread(a,b){const k=m=>m.side+'|'+m.at+'|'+m.text,seen=new Set((a||[]).map(k)),out=(a||[]).slice();cleanThread(b).forEach(m=>{if(!seen.has(k(m))){seen.add(k(m));out.push(m)}});out.sort((x,y)=>String(x.at).localeCompare(String(y.at)));return out.slice(-100)}
+function say(it,side,text){it.thread=mergeThread(it.thread,[{side,by:me()?me().name:'',at:new Date().toISOString(),text:String(text).slice(0,1000)}])}
+// what this device has read (per entry), for the unread markers
+const SEENK='aj_seen_msgs',seenGet=()=>{try{return JSON.parse(localStorage.getItem(SEENK)||'{}')}catch(e){return{}}},seenSet=(id,at)=>{try{const o=seenGet();o[id]=at;const ks=Object.keys(o);if(ks.length>3000)ks.slice(0,1000).forEach(k=>delete o[k]);localStorage.setItem(SEENK,JSON.stringify(o))}catch(e){}};
+const unread=(it,mySide)=>{const L=(it.thread||[]).filter(m=>m.side!==mySide);if(!L.length)return 0;const s=seenGet()[it.id]||'';return L.filter(m=>m.at>s).length};
 function cleanItem(x){
  if(!x||typeof x!=='object'||!KIND_LABEL[x.kind]||!x.data||typeof x.data!=='object')return null;
  const S=(v,n)=>String(v==null?'':v).slice(0,n||200),D=v=>DT.test(v||'')?v:'',d=x.data,o={amount:r2(d.amount)};
@@ -6678,7 +6701,7 @@ function cleanItem(x){
  if(x.kind==='collection')Object.assign(o,{date:D(d.date),from:S(d.from),forWhat:COL_FOR.some(f=>f[0]===d.forWhat)?d.forWhat:'other',as:COL_AS.some(f=>f[0]===d.as)?d.as:'cash',acct:S(d.acct,60),orNo:S(d.orNo,60),notes:S(d.notes),cwt:Math.max(0,r2(d.cwt)),invs:Array.isArray(d.invs)?d.invs.map(v=>S(v,20)).slice(0,50):[]});
  if(x.kind==='sale')Object.assign(o,{date:D(d.date),due:D(d.due),from:S(d.from),orNo:S(d.orNo,60),desc:S(d.desc),vat:d.vat==='none'?'none':'incl',notes:S(d.notes)});
  if(x.kind!=='expense')o.photo=typeof d.photo==='string'&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d.photo)&&d.photo.length<3e6?d.photo:'';
- return{id:safeId(x.id)||'q_'+uid(),kind:x.kind,data:o,by:{id:safeId(x.by&&x.by.id),name:S(x.by&&x.by.name,80)},at:S(x.at,40),status:['PENDING','RETURNED','POSTED'].includes(x.status)?x.status:'PENDING',note:S(x.note,500),sent:!!x.sent,rev:parseInt(x.rev,10)||0,postedBy:S(x.postedBy,80),postedAt:S(x.postedAt,40),jeId:safeId(x.jeId),ref:S(x.ref,80)};
+ return{id:safeId(x.id)||'q_'+uid(),kind:x.kind,data:o,by:{id:safeId(x.by&&x.by.id),name:S(x.by&&x.by.name,80)},at:S(x.at,40),status:['PENDING','RETURNED','POSTED','REJECTED'].includes(x.status)?x.status:'PENDING',note:S(x.note,500),thread:cleanThread(x.thread),sent:!!x.sent,rev:parseInt(x.rev,10)||0,postedBy:S(x.postedBy,80),postedAt:S(x.postedAt,40),jeId:safeId(x.jeId),ref:S(x.ref,80)};
 }
 
 // ---------- Admin: import batch, encoder files ----------
@@ -6691,34 +6714,38 @@ function importBatch(text){
  const u=b.user&&users().find(x=>x.id===b.user.id&&x.role==='encoder');if(!u)return toast('This batch is from an encoder who is not in this company’s users.');
  let add=0,upd=0,skip=0;
  b.items.forEach(raw=>{const it=cleanItem(raw);if(!it)return skip++;it.by={id:u.id,name:u.name};it.sent=true;
-  const ex=Q().find(x=>x.id===it.id);
-  if(ex){if(ex.status==='POSTED')return skip++;Object.assign(ex,{data:it.data,status:'PENDING',note:'',rev:it.rev,at:it.at});upd++}else{it.status='PENDING';it.note='';Q().push(it);add++}});
+  const r=mergeIn(Q(),it);if(r==='add')add++;else if(r==='upd')upd++;else if(r!=='msg')skip++});
  saveToLocalStorage();renderQueue();updCount();toast('Imported; '+add+' new'+(upd?', '+upd+' resubmitted':'')+(skip?', '+skip+' skipped (already posted or unreadable)':'')+'.','success');
 }
 async function encoderFile(uId){
  const c=C(),u=users().find(x=>x.id===uId);if(!u)return;
- const L=lists(),statuses=Q().filter(it=>it.by&&it.by.id===u.id).map(it=>({id:it.id,status:it.status,note:it.note,postedAt:it.postedAt,ref:it.ref||''}));
+ const L=lists(),statuses=Q().filter(it=>it.by&&it.by.id===u.id).map(stOut);
  download('ENCODER-FILE_'+slug(c.name)+'_'+slug(u.name)+'_'+td()+'.json',{type:'gsvc-encoder-package',v:1,at:new Date().toISOString(),company:{id:c.id,name:c.name,currency:c.currency,logo:null},user:{id:u.id,name:u.name,username:u.username,role:'encoder',pw:u.pw,active:u.active!==false},forms:encForms(),lists:L,statuses});
  toast('Encoder file saved for '+u.name+'. Send it to them; they open it from the login screen ("Open encoder file").','success');
 }
+// a status coming back from the admin side onto the encoder's copy of an entry; returns what changed
+function applyStatus(it,s){const st=['PENDING','RETURNED','POSTED','REJECTED'].includes(s.status)?s.status:null;if(!st)return '';
+ const before=(it.thread||[]).length;it.thread=mergeThread(it.thread,s.thread);let what=it.thread.length>before?'msg':'';
+ if(st==='PENDING'&&!it.sent)return what;if((it.rev||0)>(parseInt(s.rev,10)||0)&&st!=='POSTED'&&st!=='REJECTED')return what;
+ if(it.status!==st||it.note!==String(s.note||'').slice(0,500)){it.status=st;it.note=String(s.note||'').slice(0,500);it.postedAt=String(s.postedAt||'').slice(0,40);it.ref=String(s.ref||'').slice(0,80);what=st}
+ if((st==='POSTED'||st==='REJECTED')&&s.data){const cl=cleanItem({kind:it.kind,data:s.data});if(cl)it.data=cl.data;it.sent=true}
+ return what}
 function loadPackage(text,inWorkspace,quiet){
  let p;try{p=JSON.parse(text)}catch(e){return toast('That file is not an encoder file from the admin.')}
  if(p&&p.type==='gsvc-encoder-multi'&&Array.isArray(p.packages)){const ids=p.packages.map(x=>loadPackage(JSON.stringify(x),false,true)).filter(Boolean);if(!ids.length)return toast('That file has no businesses in it.');
   if(inWorkspace)renderEnc();else{try{closeCreateCompanyModal()}catch(e){}renderLoginCompanySelector();$('loginCompanySelect').value=ids.includes(($('loginCompanySelect')||{}).value)?$('loginCompanySelect').value:ids[0];handleLoginCompanySelectChange()}
   return toast('Loaded '+ids.length+' business'+(ids.length===1?'':'es')+': '+ids.map(i=>(companies.find(c=>c.id===i)||{}).name).join(', ')+'. Log in to each with the same username.','success')}
- if(!p||p.type!=='gsvc-encoder-package'||!p.company||!p.user||!p.user.pw)return toast('That file is not an encoder file from the admin.');
+ if(!p||p.type!=='gsvc-encoder-package'||!p.company||!p.user||(!p.user.pw&&!p.chan))return quiet?'':toast('That file is not an encoder file from the admin.');
  const wid='ws_'+safeId(p.company.id);let w=companies.find(x=>x.id===wid);
  if(inWorkspace&&!quiet&&C()&&C().id!==wid)return toast('This file is for "'+String(p.company.name)+'", not this workspace.');
  const S=(v,n)=>String(v==null?'':v).slice(0,n||200),arr=(a,n)=>Array.isArray(a)?a.map(x=>S(x)).slice(0,n||500):[];
  const L=p.lists||{},lists2={banks:(Array.isArray(L.banks)?L.banks:[]).filter(b=>b&&b.id).map(b=>({id:S(b.id,60),label:S(b.label)})),payees:arr(L.payees),particulars:arr(L.particulars,200),customers:arr(L.customers,800),openInv:(Array.isArray(L.openInv)?L.openInv:[]).filter(x=>x&&x.no).slice(0,400).map(x=>({c:S(x.c,120),no:S(x.no,20),bal:r2(x.bal),due:DT.test(x.due||'')?x.due:''})),vat:!!L.vat,hints:{},rates:{}};Object.keys(L.hints||{}).slice(0,800).forEach(k=>{lists2.hints[S(k,120)]=S(L.hints[k],120)});Object.keys(L.rates||{}).slice(0,800).forEach(k=>{const v=r2(L.rates[k]);if(v>0)lists2.rates[S(k,120)]=v});
- const user={id:safeId(p.user.id),name:S(p.user.name,80),username:S(p.user.username,60),role:'encoder',active:p.user.active!==false,pw:{salt:S(p.user.pw.salt,64),hash:S(p.user.pw.hash,128),iter:parseInt(p.user.pw.iter,10)||150000}};
+ const user={id:safeId(p.user.id),name:S(p.user.name,80),username:S(p.user.username||p.user.email,80),email:/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.user.email||'')?String(p.user.email).toLowerCase():undefined,role:'encoder',active:p.user.active!==false,pw:p.user.pw&&p.user.pw.salt?{salt:S(p.user.pw.salt,64),hash:S(p.user.pw.hash,128),iter:parseInt(p.user.pw.iter,10)||150000}:undefined};
  const forms={};FORMS.forEach(f=>forms[f[0]]=!p.forms||p.forms[f[0]]!==false);
  if(!w){w={id:wid,workspace:'encoder',sourceCompanyId:S(p.company.id,80),name:S(p.company.name,120),tin:'',entity:'',currency:p.company.currency==='USD'?'USD':'PHP',vat:'Non-VAT Registered',vatRate:12,line:'',contact:'',address:'',passwordHash:null,logo:null,coaSetupDone:true,basis:'accrual',serviceLines:[],otherLine:'',chartOfAccounts:[],journalEntries:[],reportsHistory:[],queue:[]};companies.push(w)}
- w.name=S(p.company.name,120);w.users=[user];w.encForms=forms;w.lists=lists2;w.pkgAt=S(p.at,40);
+ w.name=S(p.company.name,120);w.users=[user];w.encForms=forms;w.lists=lists2;w.pkgAt=S(p.at,40);if(p.chan)w.chan=true;
  let changed=0;(Array.isArray(p.statuses)?p.statuses:[]).forEach(s=>{const it=(w.queue||[]).find(x=>x.id===safeId(s.id));if(!it)return;
-  const st=['PENDING','RETURNED','POSTED'].includes(s.status)?s.status:null;if(!st)return;
-  if(st==='PENDING'&&!it.sent)return;if(st==='RETURNED'&&it.status==='PENDING'&&(it.rev||0)>0&&!it.sent)return;
-  if(it.status!==st||it.note!==S(s.note,500)){it.status=st;it.note=S(s.note,500);it.postedAt=S(s.postedAt,40);it.ref=S(s.ref,80);changed++}});
+  const r=applyStatus(it,s);if(r)changed++});
  saveToLocalStorage();
  if(quiet)return wid;
  if(inWorkspace){renderEnc();toast('Update loaded'+(changed?': '+changed+' entr'+(changed===1?'y':'ies')+' changed status':'')+'.','success')}
@@ -6781,7 +6808,7 @@ function postItem(it,codes,date){
  if(it.kind==='check'){const b=c.bank;b.seq=b.seq||{txn:0};b.seq.txn=(b.seq.txn||0)+1;b.checks.push({id:'chk_'+uid(),txn:b.seq.txn,issued:d.issued,number:d.number,acct:d.acct,particulars:d.particulars,payee:d.payee,amount:amt,due:d.due,status:'OUTSTANDING',cleared:'',debit:dr,encodedBy:it.by.name,postedBy:who,qId:it.id});ref='CHK-'+d.number}
  else if(it.kind==='deposit'){const counter=L[0].fixed&&L[1].fixed?null:(L[0].fixed?cr:dr);c.bank.txns.push({id:'btx_'+uid(),date:d.date,type:d.type,acct:d.acct,source:d.source||'',amount:amt,ref:d.ref,notes:[d.notes,d.from?lbl(DEP_FROM,d.from):''].filter(Boolean).join(' – '),counter,encodedBy:it.by.name,postedBy:who,qId:it.id});ref=d.ref||d.type}
  else{
-  const id='entry_q_'+it.id;ref=(it.kind==='expense'?'EXP':'OR')+(d.orNo?'-'+d.orNo:'-'+String(c.journalEntries.length+1).padStart(4,'0'));
+  const id='entry_q_'+it.id;ref=d.orNo?(/^[A-Za-z]/.test(d.orNo)?d.orNo:(it.kind==='expense'?'EXP':'OR')+'-'+d.orNo):(it.kind==='expense'?'EXP':'OR')+'-'+String(c.journalEntries.length+1).padStart(4,'0');
   c.journalEntries.push({id,date:date||d.date,ref:ref.slice(0,40),desc:it.kind==='expense'?(d.payee+' – '+d.category+(d.desc?': '+d.desc:'')):('Received from '+d.from+' – '+lbl(COL_FOR,d.forWhat)+(d.notes?' – '+d.notes:'')),lines:[{accountCode:dr,debit:amt,credit:0},{accountCode:cr,debit:0,credit:amt}],
    fileAttachment:d.photo?{name:'receipt-'+(d.orNo||it.id)+'.jpg',type:'image/jpeg',size:Math.max(1,Math.round(d.photo.length*.75/1024))+' KB',data:d.photo}:null,encodedBy:it.by.name,postedBy:who,postedAt:now,qId:it.id});it.jeId=id}
  if(window.BANKMOD&&(it.kind==='check'||it.kind==='deposit'))window.BANKMOD.sync();
@@ -6795,16 +6822,18 @@ function openPost(id){
  const rows=Object.entries({check:[['Bank account',bankLabel(d.acct)],['Check number',d.number],['Pay to',d.payee],['For',d.particulars],['Date issued',fd(d.issued)],['Check date',fd(d.due)],['Notes',d.notes]],deposit:[['Type',d.type],[d.type==='Fund Transfer'?'To account':'Bank account',bankLabel(d.acct)],['From account',d.type==='Fund Transfer'?(d.source?bankLabel(d.source):'Outside account'):''],['Money came from',lbl(DEP_FROM,d.from)],['Date',fd(d.date)],['Reference',d.ref],['Notes',d.notes]],expense:[['Paid to',d.payee],['For',d.category],['Description',d.desc],['Paid with',lbl(PAID_WITH,d.paid)],['Date',fd(d.date)],['Receipt no.',d.orNo]],collection:[['Received from',d.from],['For',lbl(COL_FOR,d.forWhat)],['Received as',lbl(COL_AS,d.as)+(d.as==='bank'?' – '+bankLabel(d.acct):'')],['Date',fd(d.date)],['OR / AR no.',d.orNo],['Notes',d.notes]]}).find(e=>e[0]===it.kind)[1].filter(r=>r[1]);
  const allowed=l=>l.side==='D'?coa():coa();
  const sel=(l,i)=>l.fixed?'<b>'+(l.code?esc(l.code+' – '+acctName(l.code)):'–')+'</b>'+(l.note?'<div class="bk-mut">'+esc(l.note)+'</div>':''):'<select data-i="'+i+'" aria-label="Account">'+(l.code?'':'<option value="">Choose an account</option>')+allowed(l).sort((a,b)=>a.code-b.code).map(a=>'<option value="'+a.code+'"'+(a.code===l.code?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')+(l.tpl?'<option value="new"'+(l.code?'':' selected')+'>+ New account: '+esc(l.tpl[0])+'</option>':'')+'</select>';
- const m=modal('<h2 style="margin-top:0">'+KIND_LABEL[it.kind]+' – '+n2(c100(d.amount))+'</h2><p class="hr-note">Entered by <b>'+esc(it.by.name)+'</b> on '+esc(fdt(it.at))+(it.rev?' • resubmitted '+it.rev+'×':'')+'</p>'
+ const lastAt=((it.thread||[]).slice(-1)[0]||{}).at;if(lastAt)seenSet(it.id,lastAt);
+ const m=modal('<h2 style="margin-top:0">'+KIND_LABEL[it.kind]+' – '+n2(c100(d.amount))+'</h2><p class="hr-note">Entered by <b>'+esc(it.by.name)+'</b> on '+esc(fdt(it.at))+(it.rev?' • resubmitted '+it.rev+'×':'')+(it.status==='REJECTED'?' • <b>not posted</b>':'')+'</p>'
   +'<div class="rq-kv">'+rows.map(r=>'<span>'+esc(r[0])+'</span><b style="font-weight:500">'+esc(r[1])+'</b>').join('')+'</div>'+(d.photo?'<img class="rq-photo" src="'+d.photo+'" alt="Receipt photo" style="margin-bottom:1rem">':'')
   +(ok!==true?'<div class="rq-note">'+esc(ok)+' Return it to the encoder to fix.</div>':'')
-  +(it.status==='POSTED'?'<div class="rq-ok">Posted by '+esc(it.postedBy)+' on '+esc(fdt(it.postedAt))+(it.ref?' as '+esc(it.ref):'')+'.</div><div style="text-align:right"><button type="button" class="btn" data-x>Close</button></div>':'<h3 style="font-size:1rem;margin:.6rem 0 .3rem">Entry to the books</h3><table class="hr-tbl rq-lines"><thead><tr><th></th><th>Account</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead><tbody>'
+  +'<h3 style="font-size:1rem;margin:.6rem 0 .2rem">Conversation with '+esc(it.by.name)+'</h3>'+threadHtml(it,'adm')+msgPanel(it)
+  +(it.status==='POSTED'||it.status==='REJECTED'?(it.status==='POSTED'?'<div class="rq-ok">Posted by '+esc(it.postedBy)+' on '+esc(fdt(it.postedAt))+(it.ref?' as '+esc(it.ref):'')+'.</div>':'<div class="rq-note">Not posted: '+esc(it.note||'')+'</div>')+'<div style="text-align:right"><button type="button" class="btn" data-x>Close</button></div>':'<h3 style="font-size:1rem;margin:.6rem 0 .3rem">Entry to the books</h3><table class="hr-tbl rq-lines"><thead><tr><th></th><th>Account</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead><tbody>'
   +L.map((l,i)=>'<tr><td>'+(l.side==='D'?'Dr':'Cr')+'</td><td>'+sel(l,i)+'</td><td class="number">'+(l.side==='D'?n2(l.amount):'')+'</td><td class="number">'+(l.side==='C'?n2(l.amount):'')+'</td></tr>').join('')+'</tbody></table>'
   +(it.kind==='check'?'<p class="hr-note">Recorded in Banking as an outstanding check; it posts on the check date per your Banking setting.</p>':it.kind==='deposit'?'<p class="hr-note">Recorded in Banking; it posts from the bank account’s posting start date.</p>':'')
   +(window.ENCX?window.ENCX.extra(it):'')
-  +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:1rem"><span><button type="button" class="btn btn-danger btn-outline" id="rqRet">Return to encoder</button></span><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="rqGo"'+(ok!==true?' disabled':'')+'>Enter in books</button></span></div>'),820);
- if(it.status==='POSTED')return;
- m.querySelector('#rqRet').onclick=()=>{const note=prompt('What should the encoder fix?');if(note===null)return;Object.assign(it,{status:'RETURNED',note:note.trim()||'Please check this entry.'});saveToLocalStorage();m.remove();renderQueue();updCount();toast('Returned to '+it.by.name+'.'+(hasRemote(it)?' It goes back with the next encoder file you send them.':''),'success')};
+  +'<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:1rem"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="rqGo"'+(ok!==true?' disabled':'')+'>Enter in books</button></div>'),820);
+ bindMsg(m,it,()=>{m.remove();renderQueue();updCount()});
+ if(it.status==='POSTED'||it.status==='REJECTED')return;
  m.querySelector('#rqGo').onclick=()=>{const codes=L.map((l,i)=>{const s=m.querySelector('select[data-i="'+i+'"]');return s?s.value:null});if(codes.some((v,i)=>!L[i].fixed&&!v))return toast('Choose an account for every line.');
   if(window.ENCX&&window.ENCX.want(it,m)){const ok=appliesOk(it);if(ok!==true)return toast(ok);
    const fin=L.map((l,i)=>{if(l.fixed)return l.code;const v=codes[i]!=null?codes[i]:(l.code||(l.tpl?'new':null));if(v==='new')return newAcct(l.tpl);return okc(v)});if(fin.some((v,i)=>!v&&!L[i].fixed))return toast('Choose an account for every line.');
@@ -6814,11 +6843,23 @@ function openPost(id){
   const err=postItem(it,codes);if(err)return toast(err);saveToLocalStorage();refreshBooks();m.remove();renderQueue();updCount();toast('Entered in the books ('+it.ref+').','success')};
 }
 const hasRemote=it=>!!it.sent&&!!(users().find(u=>u.id===it.by.id));
+const viaFile=it=>{const u=users().find(x=>x.id===it.by.id);return !!u&&!u.email};
+function threadHtml(it,mySide){const T=it.thread||[];return '<div class="rq-thread">'+(T.length?T.map(m=>'<div class="rq-msg '+(m.side===mySide?'me':'them')+'"><div>'+esc(m.text)+'</div><small>'+esc(m.by||(m.side==='adm'?'Office':'Encoder'))+' · '+esc(fdt(m.at))+'</small></div>').join(''):'<p class="bk-mut" style="margin:0">No messages yet.</p>')+'</div>'}
+const REASONS=['Wrong amount','Wrong date','Wrong name or payee','Receipt photo missing or unclear','Receipt / OR number missing','Already entered (duplicate)','Wrong bank account'];
+function msgPanel(it){const open=it.status==='PENDING'||it.status==='RETURNED';return '<div class="rq-msgp"><div class="rq-chips">'+(open?REASONS.map(r=>'<button type="button" class="rq-chip" data-rs="'+esc(r)+'">'+esc(r)+'</button>').join(''):'')+'</div><textarea id="rqMsgT" rows="2" maxlength="1000" placeholder="Write to '+esc(it.by.name)+'…"></textarea>'
+ +'<div class="sy-row" style="justify-content:flex-end;margin-top:.45rem"><button type="button" class="btn btn-outline btn-sm" data-act="ask">Send message</button>'+(open?'<button type="button" class="btn btn-outline btn-sm" data-act="return">Return to fix</button><button type="button" class="btn btn-outline btn-danger btn-sm" data-act="reject">Don’t post</button>':'')+'</div></div>'}
+function bindMsg(m,it,after){const t=m.querySelector('#rqMsgT');if(!t)return;
+ m.querySelectorAll('[data-rs]').forEach(b=>b.onclick=()=>{const v=t.value.trim();t.value=(v?v+(/[.!?]$/.test(v)?' ':'. '):'')+b.dataset.rs+'.';t.focus()});
+ m.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{const a=b.dataset.act,txt=t.value.trim();
+  if(a==='ask'){if(!txt)return toast('Write the message first.');say(it,'adm',txt);saveToLocalStorage();toast('Message sent to '+it.by.name+'.'+(viaFile(it)?' It goes with the next encoder file.':''),'success');after();return}
+  if(a==='return'){const note=txt||'Please check this entry.';Object.assign(it,{status:'RETURNED',note});say(it,'adm',note);saveToLocalStorage();toast('Returned to '+it.by.name+' to fix.'+(viaFile(it)?' It goes with the next encoder file.':''),'success');after();return}
+  if(a==='reject'){if(!txt)return toast('Say why it won’t be posted, e.g. tap “Already entered (duplicate)”.');if(!confirm('Mark this entry as not to be posted? '+it.by.name+' sees the reason and cannot resubmit it.'))return;Object.assign(it,{status:'REJECTED',note:txt});say(it,'adm',txt);saveToLocalStorage();toast('Marked as not posted.','success');after()}})}
+window.RQTHREAD={threadHtml,bindMsg,msgPanel,unread,seenSet,say};
 function renderQueue(){
  const st=$('rqSt').value,encs=users().filter(u=>u.role==='encoder');
  fillBy(encs);const by=$('rqBy').value;
- const list=Q().filter(it=>(st==='ALL'||it.status===st)&&(by==='ALL'||it.by.id===by)).sort((a,b)=>String(qDate(a)).localeCompare(String(qDate(b)))||String(a.at).localeCompare(String(b.at)));
- $('rqBody').innerHTML=list.map(it=>{const ok=it.status==='PENDING'?appliesOk(it):true;return '<tr><td>'+(it.status==='PENDING'?'<input type="checkbox" data-sel="'+esc(it.id)+'" aria-label="Select">':'')+'</td><td>'+esc(fd(qDate(it)))+'</td><td>'+esc(it.by.name)+'</td><td>'+KIND_LABEL[it.kind]+(it.data.photo?' 📎':'')+'</td><td style="white-space:normal;min-width:240px">'+esc(qSummary(it))+(it.status==='RETURNED'&&it.note?'<div class="rq-note">Returned: '+esc(it.note)+'</div>':'')+(ok!==true?'<div class="rq-note">'+esc(ok)+'</div>':'')+(it.status==='PENDING'&&dupOf(it)?'<div class="rq-note">Possible duplicate: '+esc(dupOf(it))+'</div>':'')+'</td><td class="number">'+n2(c100(it.data.amount))+'</td><td style="white-space:normal;min-width:180px;font-size:.82rem">'+(it.status==='POSTED'?esc(it.ref||''):esc(sugText(it)))+'</td><td>'+stBadge(it)+'</td><td style="white-space:nowrap">'+(it.status==='PENDING'?'<button class="btn btn-sm" data-post="'+esc(it.id)+'">Enter in books</button>':'<button class="btn btn-outline btn-sm" data-post="'+esc(it.id)+'">View</button>')+'</td></tr>'}).join('')
+ const list=Q().filter(it=>(st==='ALL'||(st==='MSG'?unread(it,'adm')>0:it.status===st))&&(by==='ALL'||it.by.id===by)).sort((a,b)=>String(qDate(a)).localeCompare(String(qDate(b)))||String(a.at).localeCompare(String(b.at)));
+ $('rqBody').innerHTML=list.map(it=>{const ok=it.status==='PENDING'?appliesOk(it):true;return '<tr><td>'+(it.status==='PENDING'?'<input type="checkbox" data-sel="'+esc(it.id)+'" aria-label="Select">':'')+'</td><td>'+esc(fd(qDate(it)))+'</td><td>'+esc(it.by.name)+'</td><td>'+KIND_LABEL[it.kind]+(it.data.photo?' 📎':'')+'</td><td style="white-space:normal;min-width:240px">'+esc(qSummary(it))+(it.status==='RETURNED'&&it.note?'<div class="rq-note">Returned: '+esc(it.note)+'</div>':'')+(ok!==true?'<div class="rq-note">'+esc(ok)+'</div>':'')+(it.status==='PENDING'&&dupOf(it)?'<div class="rq-note">Possible duplicate: '+esc(dupOf(it))+'</div>':'')+(unread(it,'adm')?'<div class="rq-unread">'+unread(it,'adm')+' new message'+(unread(it,'adm')===1?'':'s')+' from '+esc(it.by.name)+'</div>':'')+'</td><td class="number">'+n2(c100(it.data.amount))+'</td><td style="white-space:normal;min-width:180px;font-size:.82rem">'+(it.status==='POSTED'?esc(it.ref||''):esc(sugText(it)))+'</td><td>'+stBadge(it)+'</td><td style="white-space:nowrap">'+(it.status==='PENDING'?'<button class="btn btn-sm" data-post="'+esc(it.id)+'">Enter in books</button>':'<button class="btn btn-outline btn-sm" data-post="'+esc(it.id)+'">View</button>')+'</td></tr>'}).join('')
   ||'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">'+(st==='PENDING'?'Nothing waiting for posting.':'Nothing to show.')+'</td></tr>';
  $('rqAll').checked=false;
 }
@@ -6856,8 +6897,8 @@ function renderUsers(){
   +'<p><b>Admin.</b> '+ROLE_NOTE.admin+'</p><p style="margin-bottom:.3rem"><b>Bookkeeper.</b> '+ROLE_NOTE.bookkeeper+'</p><div class="rq-perm">'+MODS.map(x=>'<label><input type="checkbox" data-bk="'+x[0]+'"'+(bp[x[0]]?' checked':'')+'> '+x[1]+'</label>').join('')+'</div>'
   +'<p style="margin-bottom:.3rem"><b>Accountant.</b> '+ROLE_NOTE.accountant+'</p><div class="form-group" style="max-width:420px"><label for="rqAccSees">Accountant can see reports saved by</label><select id="rqAccSees"><option value="bookkeepers">Bookkeepers only</option><option value="all">Bookkeepers and admins</option></select></div>'
   +(encOn()?'<p style="margin-bottom:.3rem"><b>Encoder.</b> '+ROLE_NOTE.encoder+'</p><div class="rq-perm">'+FORMS.map(x=>'<label><input type="checkbox" data-ef="'+x[0]+'"'+(ef[x[0]]?' checked':'')+'> '+x[1]+'</label>').join('')+'</div>'
-  +'<p class="hr-note" style="margin:0">Encoders on another computer: press <b>Encoder file</b> and send it to them. They open it from the login screen, enter transactions, and send you batch files that you import under <b>For Posting</b>. Send a new encoder file whenever bank accounts or suppliers change, or after you post or return their entries.</p>':'<p class="hr-note" style="margin:0"><b>Encoder.</b> Not used yet. Add a user with the Encoder role if someone will only enter transactions (in plain forms, without debits and credits) for you to post.</p>')+'</div>';
- $('rqAccSees').value=c.accountantSees==='all'?'all':'bookkeepers';
+  +'<label class="hr-chk" style="margin:.2rem 0 .6rem"><input type="checkbox" id="rqBkPost"'+(c.bkPost?' checked':'')+'> Bookkeepers can post encoder entries and reply to encoders</label>'+'<p class="hr-note" style="margin:0">Encoders with a Google email send their entries automatically through the sync folder (no files) and never receive the books. Encoders without a Google email: press <b>Encoder file</b> and send it to them. They open it from the login screen, enter transactions, and send you batch files that you import under <b>For Posting</b>. Send a new encoder file whenever bank accounts or suppliers change, or after you post or return their entries.</p>':'<p class="hr-note" style="margin:0"><b>Encoder.</b> Not used yet. Add a user with the Encoder role if someone will only enter transactions (in plain forms, without debits and credits) for you to post.</p>')+'</div>';
+ $('rqAccSees').value=c.accountantSees==='all'?'all':'bookkeepers';if($('rqBkPost'))$('rqBkPost').onchange=e=>{c.bkPost=e.target.checked||undefined;saveToLocalStorage();applyRole()};
  $('rqAccSees').onchange=e=>{c.accountantSees=e.target.value;saveToLocalStorage()};
  $('rqUsers').querySelectorAll('[data-bk]').forEach(x=>x.onchange=()=>{c.rolePerms=c.rolePerms||{};c.rolePerms.bookkeeper=Object.assign({},bkPerms(),{[x.dataset.bk]:x.checked});saveToLocalStorage()});
  $('rqUsers').querySelectorAll('[data-ef]').forEach(x=>x.onchange=()=>{c.encForms=Object.assign({},encForms(),{[x.dataset.ef]:x.checked});saveToLocalStorage()});
@@ -7005,7 +7046,7 @@ const sc=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=sc(d)
  const us=cleanUsers(d.users);if(us.length&&us.some(u=>u.role==='admin'))o.users=us;
  if(d.rolePerms&&d.rolePerms.bookkeeper){o.rolePerms={bookkeeper:{}};MODS.forEach(m=>o.rolePerms.bookkeeper[m[0]]=!!d.rolePerms.bookkeeper[m[0]])}
  if(d.encForms){o.encForms={};FORMS.forEach(f=>o.encForms[f[0]]=d.encForms[f[0]]!==false)}
- o.accountantSees=d.accountantSees==='all'?'all':'bookkeepers';
+ o.accountantSees=d.accountantSees==='all'?'all':'bookkeepers';if(d.bkPost)o.bkPost=true;
  if(Array.isArray(d.queue))o.queue=d.queue.map(cleanItem).filter(Boolean);
  if(d.postMemo&&typeof d.postMemo==='object'){o.postMemo={};Object.keys(d.postMemo).slice(0,5000).forEach(k=>{const v=d.postMemo[k]||{};o.postMemo[String(k).slice(0,200)]={dr:parseInt(v.dr,10)||null,cr:parseInt(v.cr,10)||null,paid:String(v.paid||'').slice(0,10)}})}
  (o.reportsHistory||[]).forEach(r=>{const x=(d.reportsHistory||[]).find(y=>safeId(y.id)===r.id);if(x&&x.genBy&&ROLES[x.genBy.role])r.genBy={id:safeId(x.genBy.id),name:String(x.genBy.name||'').slice(0,80),role:x.genBy.role}});
@@ -7015,7 +7056,7 @@ applyRole();
 function enterAs(comp,u){const was=!$('loginScreen').classList.contains('hidden');window.currentUser={id:u.id,name:u.name,role:u.role};$('loginScreen').classList.add('hidden');switchCompany(comp.id);
  (comp.reportsHistory||[]).forEach(r=>{if(!r.genBy)r.genBy={role:'admin',name:'',legacy:true}});applyRole();showTab(firstTab());saveSess();
  try{if(was&&window.AJWARP)AJWARP.play()}catch(e){}if(u.pw&&!u.email)setTimeout(()=>afterLogin(u,comp),700)}
-window.ROLEMOD={can,suggest:id=>suggest(Q().find(x=>x.id===id)),postItem:(id,codes)=>postItem(Q().find(x=>x.id===id),codes),applyRole,makePw,enterAs,loadPackage:(t,w)=>loadPackage(t,w)};
+window.ROLEMOD={renderEnc:()=>{try{renderEnc()}catch(e){}},renderQueue:()=>{try{renderQueue();updCount()}catch(e){}},chanPkg:(c,u)=>pkgFor(c,u),chanImport:(c,b)=>importInto(c,b),cleanThread,mergeThread,can,suggest:id=>suggest(Q().find(x=>x.id===id)),postItem:(id,codes)=>postItem(Q().find(x=>x.id===id),codes),applyRole,makePw,enterAs,loadPackage:(t,w,q)=>loadPackage(t,w,q)};
 })();
 
 
@@ -12023,7 +12064,9 @@ function delAt(root,key){const S=key.split(SEP);let o=root;for(let i=0;i<S.lengt
 function baseOf(c){const b={};flatC(c).forEach((v,k)=>b[k]=H(v));return b}
 function normalize(c){try{if(c.coaSetupDone===undefined)c.coaSetupDone=true;if(!Array.isArray(c.serviceLines)){const m=deriveServiceLines(c);c.serviceLines=m.serviceLines;c.otherLine=m.otherLine}backfillContraLinks(c);rebuildAllBeginningBalances(c)}catch(e){console.error(e)}}
 // ---------- members: people with a Google email in Users & Access ----------
-const members=c=>(Array.isArray(c&&c.users)?c.users:[]).filter(u=>u&&u.active!==false&&EMAIL.test(u.email||'')).map(u=>({email:u.email.toLowerCase(),role:u.role,name:u.name}));
+const withEmail=c=>(Array.isArray(c&&c.users)?c.users:[]).filter(u=>u&&u.active!==false&&EMAIL.test(u.email||''));
+const members=c=>withEmail(c).filter(u=>u.role!=='encoder').map(u=>({email:u.email.toLowerCase(),role:u.role,name:u.name}));
+const encs=c=>withEmail(c).filter(u=>u.role==='encoder').map(u=>({email:u.email.toLowerCase(),id:u.id,name:u.name}));
 const myUser=c=>ACC&&Array.isArray(c&&c.users)?c.users.find(u=>u&&u.active!==false&&String(u.email||'').toLowerCase()===ACC.email):null;
 const amAdmin=c=>{const u=myUser(c);return !!u&&u.role==='admin'};
 const AIDS={};async function aidCached(e){return AIDS[e]||(AIDS[e]=await aidOf(e))}
@@ -12043,7 +12086,7 @@ async function latestSnap(cid,keys){const L=(await T().list(cid+'/backups')).fil
 async function wrapsFor(c,raw){const keys={};for(const m of members(c)){const aid=await aidCached(m.email);const pub=aid===ACC.aid?{pub:ACC.pub}:await readPub(aid);if(pub)keys[aid]=Object.assign({e:m.email},await wrapFor(pub.pub,raw))}return keys}
 async function startSync(c){const cid=c.id;if(!amAdmin(c))throw new Error('Only an Admin can start syncing.');if(await readInfo(cid))throw new Error('This company is already in the sync folder. Open it from the company list instead.');
  await ensureMarker();await publishMe();const raw=rnd(32),ck=await aesRaw(raw);
- const info={app:'AJ ERP System',v:2,id:cid,name:c.name,epoch:1,created:new Date().toISOString(),by:ACC.email,members:members(c).map(m=>m.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:null};
+ const info={app:'AJ ERP System',v:2,id:cid,name:c.name,epoch:1,created:new Date().toISOString(),by:ACC.email,members:members(c).map(m=>m.email).sort(),encoders:encs(c).map(e=>e.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:null};
  await writeInfo(cid,info);await setKey(cid,{v:2,epoch:1,cur:b64e(raw),old:[]});
  ST[cid]={on:true,seq:0,applied:{},devs:{},conflicts:[],sent:[],lastSnap:0,lastSync:0};BASE[cid]=baseOf(c);
  await snapshot(cid,true);await putSt(cid);await putBase(cid);return true}
@@ -12064,11 +12107,11 @@ async function joinV1(cid,pass){const info=await readInfo(cid);if(!info)throw ne
 async function upgrade(cid,pass){const c=comp(cid);if(!amAdmin(c))throw new Error('Only an Admin can do this.');const info=await readInfo(cid);if(!info)throw new Error('This company is not in the sync folder.');if(info.v===2)return true;
  let K=await key(cid),raw1=K&&K.raw1;if(!raw1){if(!pass)throw Object.assign(new Error('Enter the sync passphrase once.'),{needPass:true});const r=await pbkRaw(pass,b64d(info.salt),210000);try{await unseal(await aesRaw(r),b64d(info.check))}catch(e){throw new Error('Wrong passphrase.')}raw1=b64e(r)}
  await ensureMarker();await publishMe();const raw=rnd(32),ck=await aesRaw(raw);
- const ni={app:'AJ ERP System',v:2,id:cid,name:c.name,epoch:1,created:info.created||new Date().toISOString(),by:ACC.email,members:members(c).map(m=>m.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:b64e(await seal(ck,{keys:[raw1]})),upgraded:new Date().toISOString()};
+ const ni={app:'AJ ERP System',v:2,id:cid,name:c.name,epoch:1,created:info.created||new Date().toISOString(),by:ACC.email,members:members(c).map(m=>m.email).sort(),encoders:encs(c).map(e=>e.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:b64e(await seal(ck,{keys:[raw1]})),upgraded:new Date().toISOString()};
  await writeInfo(cid,ni);await setKey(cid,{v:2,epoch:1,cur:b64e(raw),old:[raw1]});try{await kdel('synck:'+cid)}catch(e){}const s=await st(cid);if(s){s.v1=false;await putSt(cid)}await snapshot(cid,true);return true}
 // replace the company key (after someone is removed)
 async function rotate(cid,info){const c=comp(cid),K=await key(cid);if(!c||!K||K.v!==2)return;const raw=rnd(32),ck=await aesRaw(raw),olds=[K.raw].concat(K.old||[]).slice(0,40);
- const ni=Object.assign({},info,{name:c.name,epoch:(info.epoch||1)+1,members:members(c).map(m=>m.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:b64e(await seal(ck,{keys:olds})),rotated:new Date().toISOString(),by:ACC.email});
+ const ni=Object.assign({},info,{name:c.name,epoch:(info.epoch||1)+1,members:members(c).map(m=>m.email).sort(),encoders:encs(c).map(e=>e.email).sort(),keys:await wrapsFor(c,raw),check:b64e(await seal(ck,{ok:'ajerp'})),old:b64e(await seal(ck,{keys:olds})),rotated:new Date().toISOString(),by:ACC.email});
  await writeInfo(cid,ni);await setKey(cid,{v:2,epoch:ni.epoch,cur:b64e(raw),old:olds});await snapshot(cid,true);return ni}
 // every sync round: follow key changes; Admins hand the key to new members and replace it when someone leaves
 async function checkInfo(cid,s){const info=await readInfo(cid);if(!info)return;const c=comp(cid);if(info.deleted)return removed(cid,info,true);
@@ -12078,13 +12121,15 @@ async function checkInfo(cid,s){const info=await readInfo(cid);if(!info)return;c
   if(!w){if((K&&K.v===2&&info.epoch>K.epoch)||(K&&K.v===1)){if(!(info.members||[]).includes(ACC.email))return removed(cid,info)}await publishMe();throw Object.assign(new Error('Waiting for an Admin to approve this account.'),{wait:true})}
   const raw=await unwrap(ACC.priv,w);K=await setKey(cid,{v:2,epoch:info.epoch,cur:b64e(raw),old:await openOld(raw,info.old)})}
  if(c&&c.name!==info.name&&!amAdmin(c))info.name=c.name;
- if(c&&amAdmin(c))await adminDuty(cid,info,K)}
+ if(c&&amAdmin(c))await adminDuty(cid,info,K);
+ if(c&&myUser(c)&&myUser(c).role!=='encoder')await serveChannels(cid,c,s)}
 async function adminDuty(cid,info,K){const c=comp(cid),mem=members(c),want=new Set();for(const m of mem)want.add(await aidCached(m.email));
  const keys=info.keys||{};if(Object.keys(keys).some(a=>!want.has(a)))return rotate(cid,info);
  let ch=false;const raw=b64d(K.raw);
  for(const m of mem){const a=await aidCached(m.email);if(keys[a])continue;const pub=a===ACC.aid?{pub:ACC.pub}:await readPub(a);if(pub){keys[a]=Object.assign({e:m.email},await wrapFor(pub.pub,raw));ch=true}}
  const ml=mem.map(m=>m.email).sort();if(JSON.stringify(ml)!==JSON.stringify(info.members||[])){info.members=ml;ch=true}
  if(info.name!==c.name){info.name=c.name;ch=true}
+ const el=encs(c).map(e=>e.email).sort();if(JSON.stringify(el)!==JSON.stringify(info.encoders||[])){info.encoders=el;ch=true}
  if(ch){info.keys=keys;await writeInfo(cid,info)}}
 async function removed(cid,info,del){const c=comp(cid);const s=ST[cid];if(s){s.on=false;s.removed=true}
  if(c){companies.splice(companies.indexOf(c),1);if(activeCompanyId===cid){try{logOff()}catch(e){}}}
@@ -12093,6 +12138,7 @@ async function removed(cid,info,del){const c=comp(cid);const s=ST[cid];if(s){s.o
 // ---------- one sync round for a company: pull everyone else's changes, then push ours ----------
 const busy={};
 async function syncCo(cid){if(busy[cid])return busy[cid];return busy[cid]=(async()=>{try{if(!ACC)return;const s=await st(cid);if(!s||!s.on)return;if(!(await T().ready()))throw Object.assign(new Error('needs-access'),{access:true});
+  if(s.chan){await syncChan(cid,s);s.lastSync=Date.now();s.err='';await putSt(cid);return}
   await checkInfo(cid,s);const K=await key(cid);if(!K)throw new Error('This device does not have the key for this company yet.');
   await pull(cid,s,K);await push(cid,s,K);if(Date.now()-(s.lastSnap||0)>20*3600e3)await snapshot(cid);s.lastSync=Date.now();s.err='';await putSt(cid)}
  catch(e){const s=ST[cid];if(s&&!e.quiet){s.err=e.access?'access':e.wait?'wait':e.message;try{await putSt(cid)}catch(x){}}if(!e.access&&!e.wait&&!e.quiet)console.error(e)}finally{busy[cid]=null;paint()}})()}
@@ -12119,6 +12165,61 @@ async function snapshot(cid,force){const s=ST[cid],K=await key(cid),c=comp(cid);
  await T().write(cid+'/backups',DEV+'_'+stamp()+'.ajs',await seal(K.cur,{v:1,cid,dev:DEV,devName:devName(),ts:Date.now(),applied:ap,company:c}));s.lastSnap=Date.now();
  try{const mine=(await T().list(cid+'/backups')).filter(n=>n.startsWith(DEV+'_')&&/\.ajs$/.test(n)).sort();for(const n of mine.slice(0,Math.max(0,mine.length-30)))await T().del(cid+'/backups',n);
   const old=Date.now()-45*864e5,keep=(s.sent||[]).filter(x=>x[1]>=old);for(const x of(s.sent||[]).filter(x=>x[1]<old))await T().del(cid+'/changes',DEV+'_'+pad(x[0],6)+'.ajc');s.sent=keep}catch(e){}}
+// ---------- encoder channels: each encoder's private, encrypted mailbox in the folder ----------
+// <company>/enc/<encoder account>/key.json      the channel key, wrapped for the encoder and for the office members
+//                                 up_000001.ajc  entries and messages from the encoder
+//                                 down.ajs       statuses, messages, pick lists and the form setup from the office
+// Encoders never receive the company key, so the books never reach their devices.
+const kidOf=async b=>(await sha('kid:'+b)).slice(0,16);
+const chDir=(cid,eaid)=>cid+'/enc/'+eaid;
+async function readJ(path,name){try{return JSON.parse(tdc.decode(await T().read(path,name)))}catch(e){return null}}
+async function chanKeys(rec){return Promise.all([rec.cur].concat(rec.old||[]).map(x=>aesRaw(b64d(x))))}
+async function officeChan(cid,c,e){const eaid=await aidCached(e.email),dir=chDir(cid,eaid),admin=amAdmin(c),vk='chank:'+cid+':'+eaid;let kj=await readJ(dir,'key.json'),rec=await vget(vk);
+ if(kj&&kj.kid&&kj.wraps&&kj.wraps[ACC.aid]&&(!rec||(await kidOf(rec.cur))!==kj.kid)){const cur=b64e(await unwrap(ACC.priv,kj.wraps[ACC.aid]));rec={cur,old:rec?[rec.cur].concat(rec.old||[]).filter(x=>x!==cur).slice(0,20):[]};await vset(vk,rec)}
+ if(!rec){if(!admin||(kj&&kj.kid))return null;rec={cur:b64e(rnd(32)),old:[]};await vset(vk,rec);kj=null}
+ const kid=await kidOf(rec.cur);if(!kj||kj.kid!==kid){if(!admin)return null;kj={v:1,wraps:{}}}
+ if(admin){let ch=!kj.kid;const raw=b64d(rec.cur),want=[{aid:eaid,email:e.email}];for(const m of members(c))want.push({aid:await aidCached(m.email),email:m.email});
+  for(const w of want){if(kj.wraps[w.aid])continue;const pub=w.aid===ACC.aid?{pub:ACC.pub}:await readPub(w.aid);if(!pub)continue;kj.wraps[w.aid]=Object.assign({e:w.email},await wrapFor(pub.pub,raw));ch=true}
+  for(const a of Object.keys(kj.wraps))if(!want.some(w=>w.aid===a)){delete kj.wraps[a];ch=true}
+  if(kj.name!==c.name||kj.email!==e.email)ch=true;Object.assign(kj,{v:1,cid,name:c.name,email:e.email,kid});if(ch)await T().write(dir,'key.json',te.encode(JSON.stringify(kj)))}
+ if(!kj.wraps||!kj.wraps[eaid])return null;const keys=await chanKeys(rec);return{eaid,dir,cur:keys[0],keys}}
+async function serveChannels(cid,c,s){const list=encs(c);s.chanSeen=s.chanSeen||{};s.chanH=s.chanH||{};let changed=false;const news=[];
+ for(const e of list){let ch;try{ch=await officeChan(cid,c,e)}catch(x){console.error(x);continue}if(!ch)continue;const u=(c.users||[]).find(x=>x.id===e.id);
+  let seen=s.chanSeen[ch.eaid]||0;const ups=(await T().list(ch.dir)).map(n=>{const m=/^up_(\d+)\.ajc$/.exec(n);return m?[n,+m[1]]:null}).filter(Boolean).sort((a,b)=>a[1]-b[1]);const got={add:0,upd:0,msgs:0};
+  for(const [n,q] of ups){if(q<=seen)continue;let p;try{p=await unsealAny(ch.keys,await T().read(ch.dir,n))}catch(x){break}const r=ROLEMOD.chanImport(c,{user:{id:u.id},items:Array.isArray(p.items)?p.items:[]});if(!r.err){got.add+=r.add;got.upd+=r.upd;got.msgs+=r.msgs||0}seen=q}
+  if(seen!==(s.chanSeen[ch.eaid]||0)){s.chanSeen[ch.eaid]=seen;changed=true}
+  if(got.add||got.upd||got.msgs)news.push(e.name+': '+[got.add?got.add+' new':'',got.upd?got.upd+' fixed':'',got.msgs?got.msgs+' message'+(got.msgs===1?'':'s'):''].filter(Boolean).join(', '));
+  const pk=ROLEMOD.chanPkg(c,u);pk.chan=true;pk.seen=seen;pk.user.email=e.email;delete pk.user.pw;const h=H(Object.assign({},pk,{at:''}));
+  if(s.chanH[ch.eaid]!==h){await T().write(ch.dir,'down.ajs',await seal(ch.cur,pk));s.chanH[ch.eaid]=h;changed=true}}
+ if(amAdmin(c)){const keep=new Set();for(const e of list)keep.add(await aidCached(e.email));for(const d of await T().dirs(cid+'/enc')){if(keep.has(d))continue;for(const n of await T().list(cid+'/enc/'+d))await T().del(cid+'/enc/'+d,n);delete s.chanSeen[d];delete s.chanH[d];changed=true}}
+ if(changed){pending=true;await flushNow();await putSt(cid)}
+ if(news.length&&activeCompanyId===cid){ROLEMOD.renderQueue();toast('From your encoders – '+news.join(' · '),'success')}}
+// the encoder's side
+async function syncChan(wid,s){const w=comp(wid);if(!w)return;const dir=chDir(s.src,ACC.aid),kj=await readJ(dir,'key.json');
+ if(!kj||!kj.wraps||!kj.wraps[ACC.aid]){const info=await readInfo(s.src);if(!info||info.deleted||!(info.encoders||[]).includes(ACC.email))return chanGone(wid,w);throw Object.assign(new Error('wait'),{wait:true})}
+ let rec=await vget('chank:'+wid);if(!rec||(await kidOf(rec.cur))!==kj.kid){const cur=b64e(await unwrap(ACC.priv,kj.wraps[ACC.aid]));rec={cur,old:rec?[rec.cur].concat(rec.old||[]).filter(x=>x!==cur).slice(0,20):[]};await vset('chank:'+wid,rec)}
+ const keys=await chanKeys(rec);let ui=false,d=null;
+ try{d=await unsealAny(keys,await T().read(dir,'down.ajs'))}catch(e){}
+ if(d&&d.at!==s.downAt){const before=new Map((w.queue||[]).map(it=>[it.id,it.status+'|'+(it.thread||[]).length]));ROLEMOD.loadPackage(JSON.stringify(d),true,true);s.downAt=d.at;s.seenUp=d.seen||0;ui=true;
+  const cnt={POSTED:0,RETURNED:0,REJECTED:0,msg:0};(comp(wid).queue||[]).forEach(it=>{const b=before.get(it.id);if(!b)return;const[bs,bl]=b.split('|');if(it.status!==bs&&cnt[it.status]!=null)cnt[it.status]++;else if((it.thread||[]).length>+bl&&(it.thread||[]).slice(-1)[0].side==='adm')cnt.msg++});
+  const t=[cnt.POSTED?cnt.POSTED+' posted':'',cnt.RETURNED?cnt.RETURNED+' need fixing':'',cnt.REJECTED?cnt.REJECTED+' not posted':'',cnt.msg?cnt.msg+' new message'+(cnt.msg===1?'':'s'):''].filter(Boolean);
+  if(t.length)toast('From the office ('+w.name+'): '+t.join(', ')+'.',cnt.RETURNED||cnt.REJECTED?'error':'success')}
+ const W2=comp(wid),uid=((W2.users||[])[0]||{}).id,items=(W2.queue||[]).filter(it=>it.by&&it.by.id===uid&&((it.status==='PENDING'&&!it.sent)||it.msgOut));
+ if(items.length){const seq=(s.seq||0)+1;await T().write(dir,'up_'+pad(seq,6)+'.ajc',await seal(keys[0],{v:1,seq,at:new Date().toISOString(),items:clone(items)}));items.forEach(it=>{it.sent=true;delete it.msgOut});s.seq=seq;ui=true}
+ if(s.seenUp){for(const n of await T().list(dir)){const m=/^up_(\d+)\.ajc$/.exec(n);if(m&&+m[1]<=s.seenUp)await T().del(dir,n)}}
+ if(ui){pending=true;await flushNow();if(activeCompanyId===wid)ROLEMOD.renderEnc()}}
+async function chanGone(wid,w){const unsent=(w.queue||[]).filter(it=>it.status==='PENDING'&&!it.sent).length;const s=ST[wid];if(s){s.on=false;s.chan=false;await putSt(wid)}
+ if(unsent){toast('Your encoder access to '+w.name+' ended. '+unsent+' unsent entr'+(unsent===1?'y stays':'ies stay')+' on this device.','error');return}
+ if(activeCompanyId===wid){try{logOff()}catch(e){}}await forget(wid);toast('Your encoder access to '+w.name+' ended, so it was taken off this device.','error');if(gateState==='hub')renderGate()}
+async function openChan(src){const dir=chDir(src,ACC.aid),kj=await readJ(dir,'key.json');if(!kj||!kj.wraps||!kj.wraps[ACC.aid])throw Object.assign(new Error('Waiting for an Admin’s app to set up your access.'),{wait:true});
+ const raw=await unwrap(ACC.priv,kj.wraps[ACC.aid]);let d;try{d=await unseal(await aesRaw(raw),await T().read(dir,'down.ajs'))}catch(e){throw Object.assign(new Error('Almost ready. An Admin’s app needs to sync once more; try again in a few minutes.'),{wait:true})}
+ const wid=ROLEMOD.loadPackage(JSON.stringify(d),false,true);if(!wid)throw new Error('This data-entry setup could not be opened.');
+ await vset('chank:'+wid,{cur:b64e(raw),old:[]});ST[wid]={on:true,chan:true,src,seq:0,downAt:d.at,seenUp:d.seen||0,applied:{},devs:{},conflicts:[],sent:[],lastSync:0};await putSt(wid);pending=true;await flushNow();return wid}
+// alerts in the bell: office side and encoder side
+setTimeout(()=>{if(!window.ERPX||!ERPX.onAlert||!window.RQTHREAD)return;ERPX.onAlert(()=>{const c=activeCompany&&activeCompany();if(!c)return[];const Qs=c.queue||[],out=[],U=RQTHREAD.unread;
+ if(c.workspace){const r=Qs.filter(i=>i.status==='RETURNED').length,m=Qs.filter(i=>U(i,'enc')).length;if(r)out.push({c:'y',t:r+' entr'+(r===1?'y needs':'ies need')+' fixing',s:'Data Entry',go:()=>showTab('enc')});if(m)out.push({c:'',t:m+' entr'+(m===1?'y has':'ies have')+' new messages from the office',s:'Data Entry',go:()=>showTab('enc')});return out}
+ if(window.ROLECAN&&ROLECAN('posting')){const p=Qs.filter(i=>i.status==='PENDING').length,m=Qs.filter(i=>U(i,'adm')).length;if(p)out.push({c:'y',t:p+' encoder entr'+(p===1?'y':'ies')+' waiting for posting',s:'For Posting',go:()=>showTab('posting')});
+  if(m)out.push({c:'',t:m+' entr'+(m===1?'y has':'ies have')+' new messages from encoders',s:'For Posting',go:()=>{showTab('posting');const x=document.getElementById('rqSt');if(x){x.value='MSG';x.dispatchEvent(new Event('change'))}}})}return out})},0);
 // ---------- Drive sharing (folder access follows Users & Access) ----------
 async function rootId(){if(CFG.mode==='gd')return CFG.gdRoot;if(!GD.tokOk()||!CFG.rootKey)return null;
  try{const r=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files?q='+GD.q("name='"+MARK+"' and trashed=false")+'&fields=files(id,parents)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=50')).json();
@@ -12128,15 +12229,15 @@ const DRV={async share(email,cname){const id=await rootId();if(!id)return false;
  async unshare(email){const id=await rootId();if(!id)return false;const r=await(await GD.api('GET','https://www.googleapis.com/drive/v3/files/'+id+'/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress,role)')).json();
   const p=(r.permissions||[]).find(x=>String(x.emailAddress||'').toLowerCase()===email&&x.role!=='owner');if(!p)return false;await GD.api('DELETE','https://www.googleapis.com/drive/v3/files/'+id+'/permissions/'+p.id+'?supportsAllDrives=true');return true}};
 let DRVX=DRV;
-async function stillMemberElsewhere(email,exceptCid){try{for(const d of await T().dirs('')){if(d===exceptCid||d[0]==='_')continue;const i=await readInfo(d);if(i&&(i.members||[]).includes(email))return true}}catch(e){}return false}
-async function membersChanged(c,before){if(!ACC||!c||c.workspace)return;const now=members(c).map(m=>m.email),added=now.filter(e=>!before.includes(e)),gone=before.filter(e=>!now.includes(e));if(!added.length&&!gone.length)return;
+async function stillMemberElsewhere(email,exceptCid){try{for(const d of await T().dirs('')){if(d===exceptCid||d[0]==='_')continue;const i=await readInfo(d);if(i&&((i.members||[]).includes(email)||(i.encoders||[]).includes(email)))return true}}catch(e){}return false}
+async function membersChanged(c,before){if(!ACC||!c||c.workspace)return;const now=emails(c),added=now.filter(e=>!before.includes(e)),gone=before.filter(e=>!now.includes(e));if(!added.length&&!gone.length)return;
  const s=await st(c.id);if(!s||!s.on){if(added.length)setTimeout(()=>toast('Saved. '+added.join(', ')+' can open '+c.name+' after you start syncing it (Settings › Sync & Backup).','success'),400);return}
  const can=connected()&&(TEST||GD.tokOk());
  for(const e of added){if(!can){toast('Share the sync folder with '+e+' (Editor) in Google Drive, or sign in to Google so the app can do it.');continue}try{if(await DRVX.share(e,c.name))toast('Shared the sync folder with '+e+'. They open the app and continue with Google.','success');else toast('Share the sync folder with '+e+' (Editor) in Google Drive.')}catch(x){toast('Could not share the folder with '+e+': '+x.message,'error')}}
  for(const e of gone){if(!can)continue;try{if(!(await stillMemberElsewhere(e,c.id)))await DRVX.unshare(e)}catch(x){console.error(x)}}
  if(gone.length)toast('The company key will be replaced so '+gone.join(', ')+' can no longer read new changes.','success');
  syncCo(c.id)}
-const emails=c=>members(c).map(m=>m.email);
+const emails=c=>withEmail(c).map(u=>u.email.toLowerCase());
 // ---------- triggers ----------
 let dT=0;const SY={dirty(){clearTimeout(dT);dT=setTimeout(()=>{const id=activeCompanyId;if(id&&ST[id]&&ST[id].on)syncCo(id)},12000)}};
 async function cycle(){if(document.hidden||!ACC)return;const ids=new Set();if(activeCompanyId)ids.add(activeCompanyId);for(const c of companies){await st(c.id);if(ST[c.id]&&ST[c.id].on)ids.add(c.id)}for(const id of ids){if(ST[id]&&ST[id].on)await syncCo(id)}if(!activeCompanyId&&gateState==='hub')renderShared()}
@@ -12204,7 +12305,7 @@ async function renderSet(){const el=$('setTab-sync'),c=activeCompany&&activeComp
  $('syDev').onchange=e=>{try{localStorage.setItem('aj_dev_name',e.target.value.trim().slice(0,40)||devName())}catch(x){}};
  on('syPick',async()=>{await pickFolder();renderSet()});on('syGd',()=>gdSetup(()=>renderSet()));on('sySync',async()=>{await syncCo(c.id);toast(stateOf()[1])});on('syConf',()=>conflicts(c.id));on('syBk',()=>backups(c.id));
  on('syOff',async()=>{if(!confirm('Stop syncing this company on this device? The data stays here; other devices keep syncing.'))return;s.on=false;await putSt(c.id);paint();renderSet()});
- on('syStart',async e=>{const b=e.target;b.disabled=true;b.textContent='Starting…';try{if(!(await T().ready())&&!(await access()))throw new Error('No access to the folder.');await startSync(c);toast('Syncing started. People in Users & Access with a Google email can now open it.','success');for(const m of members(c))if(m.email!==ACC.email)try{if(connected()&&(TEST||GD.tokOk()))await DRVX.share(m.email,c.name)}catch(x){}}catch(x){toast(x.message,'error')}renderSet();paint()});
+ on('syStart',async e=>{const b=e.target;b.disabled=true;b.textContent='Starting…';try{if(!(await T().ready())&&!(await access()))throw new Error('No access to the folder.');await startSync(c);toast('Syncing started. People in Users & Access with a Google email can now open it.','success');for(const em of emails(c))if(em!==ACC.email)try{if(connected()&&(TEST||GD.tokOk()))await DRVX.share(em,c.name)}catch(x){}}catch(x){toast(x.message,'error')}renderSet();paint()});
  on('syUp',async()=>{try{if(!(await T().ready())&&!(await access()))return;try{await upgrade(c.id)}catch(e){if(!e.needPass)throw e;const p=await askText('Switch to account access','Enter the old sync passphrase one last time. After this, members open the company with their Google account.','Sync passphrase','password');if(!p)return;await upgrade(c.id,p)}toast('Done. No passphrase is needed any more.','success');syncCo(c.id);renderSet()}catch(x){toast(x.message,'error')}});
  on('syRekey',async()=>{if(!confirm('Replace the company key now? Members keep access automatically; anyone removed can no longer read new changes.'))return;try{const i=await readInfo(c.id);await rotate(c.id,i);toast('Key replaced.','success');renderSet()}catch(x){toast(x.message,'error')}});
  on('syRe',async()=>{if(!confirm('Replace this device’s copy with the latest backup from the folder, then apply newer changes? A copy of the current data is kept on this device.'))return;try{await openShared(c.id);switchCompany(c.id);toast('This device is up to date.','success')}catch(e){toast(e.message,'error')}})}finally{rsBusy=false}}
@@ -12248,6 +12349,8 @@ document.head.insertAdjacentHTML('beforeend','<style>'
  +'#ajGate .ag-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:.8rem}#ajGate .ag-foot{margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--border-color);font-size:.84rem;color:var(--text-muted);display:grid;gap:.5rem}#ajGate .ag-foot select{padding:4px 8px}'
  +'#ajGate .ag-err{color:var(--danger,#dc2626);font-size:.86rem;min-height:1.2em;margin:.4rem 0 0}#ajGate input.ag-pin{font-size:1.3rem;letter-spacing:.3em;text-align:center}'
  +'#ajGate .ag-note{font-size:.84rem;color:var(--text-muted);line-height:1.5}'
+ +'.modal h3,.modal h4{font-family:inherit}.rq-thread{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto;padding:10px;border:1px solid var(--border-color);border-radius:12px;margin:.3rem 0 .7rem;background:color-mix(in srgb,var(--bg-main,#f5f5f5) 60%,transparent)}.rq-msg{max-width:82%;padding:8px 11px;border-radius:12px;background:var(--bg-card,#fff);border:1px solid var(--border-color);white-space:pre-wrap;overflow-wrap:anywhere}.rq-msg.me{align-self:flex-end;background:color-mix(in srgb,var(--accent-primary,#016351) 12%,var(--bg-card,#fff))}.rq-msg small{display:block;color:var(--text-muted);font-size:.72rem;margin-top:3px}'
+ +'.rq-msgp textarea,#enT{width:100%;resize:vertical;font:inherit;padding:8px 10px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-card);color:inherit}.rq-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}.rq-chip{border:1px solid var(--border-color);background:transparent;color:inherit;border-radius:999px;padding:4px 10px;font:inherit;font-size:.8rem;cursor:pointer}.rq-chip:hover{border-color:var(--accent-primary)}.rq-unread{margin-top:4px;font-size:.8rem;font-weight:700;color:var(--accent-primary)}'
  +'</style>');
 const ls=$('loginScreen');let card=null;
 if(ls){ls.classList.add('aj-acct');card=document.createElement('div');card.className='login-card';card.id='ajGate';ls.appendChild(card)}
@@ -12374,10 +12477,12 @@ async function renderShared(){const box=$('agShared');if(!box||!ACC||shBusy)retu
  if(!connected()){box.innerHTML=ROOTS.length>1?'<p class="ag-note" style="margin-top:.6rem">Several sync folders were shared with you. <button type="button" class="ag-link" id="agPickRoot">Choose one</button></p>':'';const p=$('agPickRoot');if(p)p.onclick=folderMenu;return}
  let ready=false;try{ready=await T().ready()}catch(e){}
  if(!ready){box.innerHTML='<h4>Shared with you</h4><p class="ag-note">'+(CFG.mode==='gd'?'Sign in to Google to see companies shared with you.':'Allow access to the sync folder to see companies shared with you.')+' <button type="button" class="ag-link" id="agConn">'+(CFG.mode==='gd'?'Continue with Google':'Allow access')+'</button></p>';$('agConn').onclick=async()=>{if(await access())renderShared()};return}
- shBusy=true;try{await publishMe();const out=[];for(const d of await T().dirs('')){if(d[0]==='_'||comp(d))continue;const i=await readInfo(d);if(!i||!i.id||i.deleted)continue;if(i.v===2){if((i.members||[]).includes(ACC.email))out.push({id:d,name:i.name,ok:!!(i.keys&&i.keys[ACC.aid])})}else out.push({id:d,name:i.name,v1:true})}
-  box.innerHTML=out.length?'<h4>Shared with you</h4>'+out.map(x=>'<div class="ag-co"><span class="ag-ini">'+ini(x.name)+'</span><span><b>'+esc(x.name)+'</b><small>'+(x.v1?'Uses a sync passphrase':x.ok?'Ready to open on this device':'Waiting for approval. This happens automatically the next time an Admin’s app syncs.')+'</small></span>'+(x.ok||x.v1?'<button type="button" class="btn btn-sm" data-op="'+esc(x.id)+'"'+(x.v1?' data-v1="1"':'')+'>Open</button>':'<button type="button" class="btn btn-outline btn-sm" data-chk>Check again</button>')+'</div>').join(''):'';
+ shBusy=true;try{await publishMe();const out=[];for(const d of await T().dirs('')){if(d[0]==='_'||comp(d))continue;const i=await readInfo(d);if(!i||!i.id||i.deleted)continue;
+  if((i.encoders||[]).includes(ACC.email)){if(comp('ws_'+d))continue;const kj=await readJ(chDir(d,ACC.aid),'key.json');out.push({id:d,name:i.name,enc:true,ok:!!(kj&&kj.wraps&&kj.wraps[ACC.aid])});continue}
+  if(i.v===2){if((i.members||[]).includes(ACC.email))out.push({id:d,name:i.name,ok:!!(i.keys&&i.keys[ACC.aid])})}else out.push({id:d,name:i.name,v1:true})}
+  box.innerHTML=out.length?'<h4>Shared with you</h4>'+out.map(x=>'<div class="ag-co"><span class="ag-ini">'+ini(x.name)+'</span><span><b>'+esc(x.name)+'</b><small>'+(x.enc?'Data entry · ':'')+(x.v1?'Uses a sync passphrase':x.ok?'Ready to open on this device':'Waiting for approval. This happens automatically the next time an Admin’s app syncs.')+'</small></span>'+(x.ok||x.v1?'<button type="button" class="btn btn-sm" data-op="'+esc(x.id)+'"'+(x.v1?' data-v1="1"':'')+(x.enc?' data-enc="1"':'')+'>Open</button>':'<button type="button" class="btn btn-outline btn-sm" data-chk>Check again</button>')+'</div>').join(''):'';
   box.querySelectorAll('[data-chk]').forEach(b=>b.onclick=()=>renderShared());
-  box.querySelectorAll('[data-op]').forEach(b=>b.onclick=async()=>{const done=busyBtn(b,'Opening…');try{if(b.dataset.v1){const p=await askText('Sync passphrase','This company was set up with a passphrase. Ask an Admin for it, or ask them to switch it to account access in Settings › Sync & Backup.','Passphrase','password');if(!p){done();return}await joinV1(b.dataset.op,p)}else await openShared(b.dataset.op);toast('Opened on this device.','success');await enter(b.dataset.op)}catch(e){toast(e.message,'error');done()}})}
+  box.querySelectorAll('[data-op]').forEach(b=>b.onclick=async()=>{const done=busyBtn(b,'Opening…');try{if(b.dataset.enc){const wid=await openChan(b.dataset.op);toast('Ready. Your entries go to the office automatically.','success');await enter(wid);return}if(b.dataset.v1){const p=await askText('Sync passphrase','This company was set up with a passphrase. Ask an Admin for it, or ask them to switch it to account access in Settings › Sync & Backup.','Passphrase','password');if(!p){done();return}await joinV1(b.dataset.op,p)}else await openShared(b.dataset.op);toast('Opened on this device.','success');await enter(b.dataset.op)}catch(e){toast(e.message,'error');done()}})}
  catch(e){box.innerHTML='<p class="ag-note">'+esc(e.message)+'</p>'}finally{shBusy=false}}
 async function importBackup(text){let d;try{d=JSON.parse(text)}catch(e){return toast('That file is not a backup.')}const arr=(Array.isArray(d)?d:[d]).filter(x=>x&&x.id&&Array.isArray(x.chartOfAccounts));if(!arr.length)return toast('No companies found in that file.');
  const fresh=arr.filter(x=>!comp(x.id));if(!fresh.length)return toast('Those companies are already in your account.');gate('claim',{list:fresh})}
@@ -12404,7 +12509,7 @@ async function deleteCompany(cid){cid=cid||activeCompanyId;const c=comp(cid);if(
   try{if(m.q('#dcBk').checked)downloadJSON(c,String(c.name).replace(/[^\w]+/g,'_')+'_Backup_'+td()+'.json');
    let note='';if(admin&&synced){try{if(!(await T().ready())&&!(await access()))throw new Error('no access');const info=(await readInfo(cid))||{};
      await writeInfo(cid,{app:'AJ ERP System',v:2,id:cid,name:c.name,deleted:true,deletedBy:ACC.email,deletedAt:new Date().toISOString(),epoch:(info.epoch||1)+1,keys:{},members:[]});
-     for(const d of['changes','backups'])for(const n of await T().list(cid+'/'+d))await T().del(cid+'/'+d,n);
+     for(const d of['changes','backups'])for(const n of await T().list(cid+'/'+d))await T().del(cid+'/'+d,n);for(const d of await T().dirs(cid+'/enc'))for(const n of await T().list(cid+'/enc/'+d))await T().del(cid+'/enc/'+d,n);
      for(const e of members(c))if(e.email!==ACC.email&&!(await stillMemberElsewhere(e.email,cid)))try{await DRVX.unshare(e.email)}catch(x){}}
     catch(x){note=' The Drive folder could not be reached, so other devices keep their copy until you delete it again while connected.'}}
    if(activeCompanyId===cid){activeCompanyId=null;window.currentUser=null;try{sessionStorage.removeItem('aj_session')}catch(x){}}
