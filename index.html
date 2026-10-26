@@ -11805,7 +11805,7 @@ window.MOBUI={scan,setPref};
 (function(){
 // Paste your Google OAuth client ID between the quotes so new devices don't have to type it, e.g.
 // const AJ_CLIENT_ID='1234567890-abc123.apps.googleusercontent.com';
-const AJ_CLIENT_ID='807122609780-4cato48g9qnukoq6e669cpp7bk32qus3.apps.googleusercontent.com';
+const AJ_CLIENT_ID='';
 const $=id=>document.getElementById(id),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // ---------- IndexedDB key-value store ----------
@@ -12176,6 +12176,7 @@ document.head.insertAdjacentHTML('beforeend','<style>'
  +'#ajGate .ag-head{text-align:center;margin:.2rem 0 1.4rem}#ajGate .ag-head h2{margin:.5rem 0 0}#ajGate .ag-head p{margin:.35rem 0 0;color:var(--text-muted);font-size:.9rem}'
  +'#ajGate .ag-g{width:100%;justify-content:center;gap:10px;padding:11px;font-size:1rem;background:#fff!important;color:#1f1f1f!important;border:1px solid #dadce0!important;box-shadow:0 1px 2px rgba(0,0,0,.12)}#ajGate .ag-g:hover{background:#f7f8f8!important}'
  +'#ajGate .ag-acc{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--border-color);border-radius:12px;background:transparent;color:inherit;cursor:pointer;margin-bottom:8px;font:inherit}#ajGate .ag-acc:hover{border-color:var(--accent-primary)}'
+ +'#ajGate .ag-accw{position:relative}#ajGate .ag-accw .ag-acc{padding-right:44px}#ajGate .ag-x{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:.9rem}#ajGate .ag-x:hover,#ajGate .ag-x:focus-visible{background:color-mix(in srgb,var(--danger,#dc2626) 14%,transparent);color:var(--danger,#dc2626)}'
  +'#ajGate .ag-av{width:38px;height:38px;border-radius:50%;flex:0 0 38px;display:grid;place-items:center;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--accent-primary,#016351),var(--aj-6,#089c7d));overflow:hidden}#ajGate .ag-av img{width:100%;height:100%;object-fit:cover}'
  +'#ajGate .ag-acc b,#ajGate .ag-co b{display:block;line-height:1.25}#ajGate .ag-acc small,#ajGate .ag-co small{color:var(--text-muted)}'
  +'#ajGate .ag-sep{display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:.8rem;margin:1rem 0}#ajGate .ag-sep:before,#ajGate .ag-sep:after{content:"";flex:1;border-top:1px solid var(--border-color)}'
@@ -12205,11 +12206,11 @@ function busyBtn(b,t){if(!b)return()=>{};const o=b.innerHTML;b.disabled=true;b.t
 async function rStart(){const L=await accts(),online=navigator.onLine!==false;
  if(!clientId())return rNoKey();
  card.innerHTML=head('',L.length?'Choose your account':'Sign in, or create your account, with Google.')
- +(L.length?L.map(a=>'<button type="button" class="ag-acc" data-aid="'+esc(a.aid)+'">'+av(a.name,a.pic)+'<span><b>'+esc(a.name)+'</b><small>'+esc(a.email)+'</small></span></button>').join('')+'<div class="ag-sep">or</div>':'')
+ +(L.length?L.map(a=>'<div class="ag-accw"><button type="button" class="ag-acc" data-aid="'+esc(a.aid)+'">'+av(a.name,a.pic)+'<span><b>'+esc(a.name)+'</b><small>'+esc(a.email)+'</small></span></button><button type="button" class="ag-x" data-rm="'+esc(a.aid)+'" title="Remove this account from this device" aria-label="Remove '+esc(a.email)+' from this device">✕</button></div>').join('')+'<div class="ag-sep">or</div>':'')
  +'<button type="button" class="btn ag-g" id="agG">'+GICON+'<span>Continue with Google</span></button>'
  +'<p class="ag-err"></p><p class="ag-note" style="text-align:center;margin:.6rem 0 0">'+(online?(L.length?'':'<b>First time?</b> The same button creates your account. Then create your company, or open one someone shared with you.'):'You are offline. Choose your account above and use this device’s passcode. A first sign-in needs internet.')+'</p>'
  +'<div class="ag-foot"><span>Google sign-in key: <b>'+(clientId()?'set':'not set')+'</b> <button type="button" class="ag-link" id="agSet">'+(clientId()?'Change':'Set up')+'</button></span></div>';
- card.querySelectorAll('[data-aid]').forEach(b=>b.onclick=()=>{const a=L.find(x=>x.aid===b.dataset.aid);gate('pass',a)});
+ card.querySelectorAll('[data-aid]').forEach(b=>b.onclick=()=>{const a=L.find(x=>x.aid===b.dataset.aid);gate('pass',a)});card.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>removeFromDevice(L.find(x=>x.aid===b.dataset.rm)));
  card.querySelector('#agG').onclick=e=>google_(null,e.currentTarget);card.querySelector('#agSet').onclick=()=>gate('setup')}
 function rNoKey(){card.innerHTML=head('Almost there','This copy of the app needs its Google sign-in key before anyone can sign in.')
  +'<p class="ag-note"><b>Joining someone’s team?</b> Ask them for the app’s <b>invite link</b> (on their company list) and open it on this device. It sets the key for you.</p><p class="ag-note"><b>Setting up the app yourself?</b> Enter your Google OAuth client ID once.</p><div class="ag-acts"><button type="button" class="btn" id="agSet">Enter the sign-in key</button></div>';card.querySelector('#agSet').onclick=()=>gate('setup')}
@@ -12237,8 +12238,8 @@ function rPass(){const a=gateArg;if(!a)return gate('start');const online=navigat
  card.innerHTML=head('',why==='idle'?'Locked after a while with no use.':'')+'<div class="ag-me">'+av(a.name,a.pic)+'<div><b>'+esc(a.name)+'</b><small>'+esc(a.email)+'</small></div></div>'
  +(old||locked?'<p class="ag-note">'+(locked?'Too many wrong passcodes on this device.':'Google sign-in is needed at least once a week.')+' Continue with Google to unlock.</p>'
    :'<form id="agPF"><div class="form-group"><label for="agPin">Device passcode</label><input id="agPin" class="ag-pin" type="password" inputmode="numeric" autocomplete="current-password"></div><button class="btn" style="width:100%;justify-content:center;padding:10px">Unlock</button></form><div class="ag-sep">or</div>')
- +'<button type="button" class="btn ag-g" id="agG">'+GICON+'<span>Continue with Google</span></button><p class="ag-err"></p><div style="text-align:center"><button type="button" class="ag-link" id="agOther">Use another account</button></div>';
- card.querySelector('#agG').onclick=e=>google_(a.email,e.currentTarget);card.querySelector('#agOther').onclick=()=>gate('start');
+ +'<button type="button" class="btn ag-g" id="agG">'+GICON+'<span>Continue with Google</span></button><p class="ag-err"></p><div style="text-align:center"><button type="button" class="ag-link" id="agOther">Use another account</button> · <button type="button" class="ag-link" id="agRmA" style="color:var(--danger,#dc2626)">Remove from this device</button></div>';
+ card.querySelector('#agG').onclick=e=>google_(a.email,e.currentTarget);card.querySelector('#agOther').onclick=()=>gate('start');card.querySelector('#agRmA').onclick=()=>removeFromDevice(a);
  const f=card.querySelector('#agPF');if(f){const i=card.querySelector('#agPin');setTimeout(()=>{try{i.focus()}catch(e){}},60);f.onsubmit=async e=>{e.preventDefault();if(busyG)return;busyG=true;const done=busyBtn(f.querySelector('button'),'Unlocking…');setErr('');
   try{const L=await accts(),dev=L.find(x=>x.aid===a.aid);if(!dev)throw new Error('This account is no longer on this device.');let sec;
    try{sec=await pinOpen(i.value,dev.pin)}catch(x){dev.fails=(dev.fails||0)+1;await putAcct(dev);gateArg=dev;if(dev.fails>=5){busyG=false;return renderGate()}throw new Error('Wrong passcode.'+(dev.fails>=3?' '+(5-dev.fails)+' tries left.':''))}
@@ -12352,6 +12353,11 @@ async function deleteCompany(cid){cid=cid||activeCompanyId;const c=comp(cid);if(
   catch(x){b.disabled=false;b.textContent='Try again';toast(x.message,'error')}}}
 window.deleteEverythingData=async function(){if(!ACC)return;const n=companies.length;if(!confirm('Remove all '+n+' compan'+(n===1?'y':'ies')+' in your account from this device?\n\nSynced companies stay in the Drive folder and can be opened again. Companies that do not sync are gone unless you have a backup file.'))return;
  if(prompt('Type DELETE to confirm')!=='DELETE')return;for(const c of companies.slice())await forget(c.id);activeCompanyId=null;window.currentUser=null;try{sessionStorage.removeItem('aj_session')}catch(e){}gate('hub');toast('All companies were removed from this device.','success')};
+// remove a remembered account from this device (from the sign-in page)
+function removeFromDevice(a){if(!a)return;const m=mdl('<h2 style="margin-top:0">Remove '+esc(a.email)+' from this device?</h2><p class="hr-note">Everything this account keeps on this device is deleted: its encrypted companies, its passcode and its settings. The Google account itself is not touched.</p><ul class="hr-note" style="margin:0 0 .8rem 1.1rem;padding:0"><li><b>Companies that sync</b> stay in Google Drive. Sign in again to open them.</li><li><b>Companies that don’t sync</b> are lost unless you have a backup file.</li></ul><div class="form-group"><label for="rmT">Type REMOVE to confirm</label><input id="rmT" autocomplete="off" autocapitalize="characters"></div><div style="text-align:right"><button class="btn btn-outline" data-x>Cancel</button> <button class="btn btn-danger" id="rmGo">Remove account</button></div>',520);
+ m.q('#rmGo').onclick=async()=>{if(m.q('#rmT').value.trim().toUpperCase()!=='REMOVE')return toast('Type REMOVE to confirm.');const b=m.q('#rmGo');b.disabled=true;b.textContent='Removing…';
+  try{for(const k of await kkeys())if(String(k).startsWith('v:'+a.aid+':'))await kdel(k);await kset('accts',(await accts()).filter(x=>x.aid!==a.aid));try{if(sessionStorage.getItem('aj_lock_aid')===a.aid){sessionStorage.removeItem('aj_lock_aid');sessionStorage.removeItem('aj_session')}}catch(e){}
+   m.remove();toast(a.email+' was removed from this device.','success');gate('start')}catch(e){b.disabled=false;b.textContent='Remove account';toast(e.message,'error')}}}
 // lock: save, forget the keys and reload so nothing stays in memory
 async function lock(why){if(!ACC){gate('start');return}const aid=ACC.aid;await flushNow();ACC=null;GD.tok='';try{if(why==='switch'){sessionStorage.removeItem('aj_session');sessionStorage.removeItem('aj_lock_aid')}else{sessionStorage.setItem('aj_lock_aid',aid);if(why==='idle')sessionStorage.setItem('aj_lock_why','idle')}}catch(e){}location.reload()}
 let lastAct=Date.now();['pointerdown','keydown','wheel','touchstart'].forEach(ev=>addEventListener(ev,()=>{lastAct=Date.now()},{passive:true,capture:true}));
@@ -12394,17 +12400,21 @@ function fixMacNames(c){let n=0;const f=(o,k)=>{if(o&&typeof o[k]==='string'){co
 // Downloads: start every CSV with the UTF-8 marker so Excel shows Ñ instead of Ã‘.
 {const OB=window.Blob;class B2 extends OB{static[Symbol.hasInstance](x){return x instanceof OB}constructor(p,o){if(o&&/^text\/csv/i.test(o.type||'')&&Array.isArray(p)&&typeof p[0]==='string'&&p[0].charCodeAt(0)!==0xFEFF)p=['﻿'].concat(p);super(p,o)}}window.Blob=B2}
 // ---------- Books › General Journal: delete several entries you made by hand ----------
-{const JS=new Set();const manual=e=>e&&(!e.src||e.src==='man')&&!(typeof isInit==='function'&&isInit(e))&&!(window.ERPX&&ERPX.locked&&ERPX.locked(e.date));
+{const JS=new Set();const LOCKED={fa:'Fixed Assets',ar:'Sales & Receivables',ap:'Purchases & Payables',sv:'Services',cl:'Commercial Leasing'};
+ const why=e=>!e?'':(typeof isInit==='function'&&isInit(e))?'Opening balances are changed in Settings › Chart of Accounts':LOCKED[e.src]?'Delete it in '+LOCKED[e.src]:(window.ERPX&&ERPX.locked&&ERPX.locked(e.date))?'This period is closed':'';
+ const manual=e=>!!e&&!why(e)&&(!window.ROLECAN||ROLECAN('books'));
  const o=window.renderFullJournalLog;window.renderFullJournalLog=function(){const r=o.apply(this,arguments);try{deco()}catch(e){console.error(e)}return r};
  function deco(){const tb=$('fullJournalBody'),c=activeCompany&&activeCompany();if(!tb||!c)return;const card=tb.closest('.card');let bar=$('jSelBar');
   if(!bar&&card){bar=document.createElement('div');bar.id='jSelBar';bar.className='sy-row';bar.style.margin='0 0 .7rem';const h=card.querySelector('h2');h?h.insertAdjacentElement('afterend',bar):card.prepend(bar)}
   const byId=new Map(c.journalEntries.map(e=>[e.id,e]));[...JS].forEach(id=>{if(!manual(byId.get(id)))JS.delete(id)});const shown=[];
-  tb.querySelectorAll('button[onclick^="openJournalModal("]').forEach(b=>{const m=/openJournalModal\('([^']+)'/.exec(b.getAttribute('onclick')||'');const e=m&&byId.get(m[1]);if(!manual(e))return;shown.push(e.id);
+  tb.querySelectorAll('button[onclick^="openJournalModal("]').forEach(b=>{const m=/openJournalModal\('([^']+)'/.exec(b.getAttribute('onclick')||'');const e=m&&byId.get(m[1]);if(!e)return;
+   if(!manual(e)){const cb=document.createElement('input');cb.type='checkbox';cb.disabled=true;cb.title=why(e)||'You cannot delete journal entries';cb.style.marginRight='6px';cb.style.opacity='.35';b.parentElement.prepend(cb);return}shown.push(e.id);
    const cb=document.createElement('input');cb.type='checkbox';cb.title='Select';cb.setAttribute('aria-label','Select entry '+(e.ref||''));cb.style.marginRight='6px';cb.checked=JS.has(e.id);cb.onchange=()=>{cb.checked?JS.add(e.id):JS.delete(e.id);paintBar()};b.parentElement.prepend(cb)});
-  function paintBar(){if(!bar)return;bar.innerHTML='<button type="button" class="btn btn-outline btn-sm" id="jAll">Select all manual entries shown ('+shown.length+')</button>'+(JS.size?'<button type="button" class="btn btn-outline btn-sm" id="jNone">Clear</button><button type="button" class="btn btn-danger btn-sm" id="jDel">Delete selected ('+JS.size+')</button>':'')+'<small class="bk-mut">Entries made by modules (invoices, payroll, rent…) are deleted in their own module.</small>';
-   bar.querySelector('#jAll').onclick=()=>{shown.forEach(id=>JS.add(id));tb.querySelectorAll('input[type=checkbox]').forEach(x=>x.checked=true);paintBar()};
+  function paintBar(){if(!bar)return;bar.innerHTML='<button type="button" class="btn btn-outline btn-sm" id="jAll">Select all shown ('+shown.length+')</button>'+(JS.size?'<button type="button" class="btn btn-outline btn-sm" id="jNone">Clear</button><button type="button" class="btn btn-danger btn-sm" id="jDel">Delete selected ('+JS.size+')</button>':'')+'<small class="bk-mut">Use the period and search filters above to narrow the list first. Greyed boxes belong to invoices, bills, services, leases or fixed assets; delete those in their module.</small>';
+   bar.querySelector('#jAll').onclick=()=>{shown.forEach(id=>JS.add(id));tb.querySelectorAll('input[type=checkbox]:not(:disabled)').forEach(x=>x.checked=true);paintBar()};
    const n=bar.querySelector('#jNone');if(n)n.onclick=()=>{JS.clear();tb.querySelectorAll('input[type=checkbox]').forEach(x=>x.checked=false);paintBar()};
-   const d=bar.querySelector('#jDel');if(d)d.onclick=()=>{const L=c.journalEntries.filter(e=>JS.has(e.id)&&manual(e));if(!L.length)return;if(!confirm('Delete '+L.length+' journal entr'+(L.length===1?'y':'ies')+'? This cannot be undone.'))return;
+   const d=bar.querySelector('#jDel');if(d)d.onclick=()=>{const L=c.journalEntries.filter(e=>JS.has(e.id)&&manual(e));if(!L.length)return;const re=L.filter(e=>e.src==='re').length;
+    if(!confirm('Delete '+L.length+' journal entr'+(L.length===1?'y':'ies')+'?'+(re?'\n\n'+re+' of them came from Real Estate; the matching rent payments, utility readings or deposits are removed too.':'')+'\n\nThis cannot be undone.'))return;
     c.journalEntries=c.journalEntries.filter(e=>!JS.has(e.id));JS.clear();if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter();toast(L.length+' entr'+(L.length===1?'y':'ies')+' deleted.','success')}}
   paintBar()}}
 window.AJACCT={lock,deleteCompany,me:()=>ACC&&{email:ACC.email,name:ACC.name,pic:ACC.pic},emails,membersChanged,gate,enter};
