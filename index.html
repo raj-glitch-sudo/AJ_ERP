@@ -4654,6 +4654,7 @@ const isAct=t=>(t.status||'Active')!=='Inactive',act=()=>R().tenants.filter(isAc
 const prop=id=>R().properties.find(p=>p.id===id),room=id=>R().rooms.find(r=>r.id===id);
 const sProps=()=>[...R().properties].sort((a,b)=>nameCmp(a.name,b.name)),sRooms=a=>[...a].sort((x,y)=>nameCmp(x.name,y.name));
 const nref=p=>{const X=R();X.seq[p]=(X.seq[p]||0)+1;return p+'-'+String(X.seq[p]).padStart(4,'0')};
+let SELP=new Set(),SELT=new Set(),pImp=false;
 let view='prop',fProp='ALL',tStat='Active',tQ='',uProp='ALL',pQ='',rProp='ALL',rYear=new Date().getFullYear(),rRange='FULL',col={},_pi=null,_cc=null;
 const save=()=>{_pi=null;_cc=null;saveToLocalStorage()};
 
@@ -4781,11 +4782,16 @@ function occEdit(id){document.querySelectorAll('.modal-overlay').forEach(x=>x.re
 function tenTable(){const X=R(),q=tQ.toLowerCase(),today=td(),cur=today.slice(0,7),us=units();
  const rows=X.tenants.filter(t=>(fProp==='ALL'||t.propertyId===fProp)&&(!q||t.name.toLowerCase().includes(q)||(t.contact||'').toLowerCase().includes(q))&&(tStat==='ALL'||(tStat==='Active'?isAct(t):!isAct(t)))).sort((a,b)=>nameCmp(a.name,b.name)).map(t=>{
   const a=isAct(t),u=a?us.find(x=>x.occupants.some(o=>o.id===t.id)):null,s=u&&billable(u,cur)?ustat(u,cur,today):null;
-  return ['<b>'+esc(t.name)+'</b>'+(t.contact?'<div class="inv-note" style="margin:0">'+esc(t.contact)+'</div>':''),esc((prop(t.propertyId)||{name:'(removed)'}).name)+' · Rm '+esc((room(t.roomId)||{name:'(removed)'}).name),a?fm(t.rate)+'/mo':'—',a?'Every '+ord(t.dueDay||1):'—',
+  return ['<input type="checkbox" aria-label="Select" onchange="RE.tsel(\''+t.id+'\',this.checked)"'+(SELT.has(t.id)?' checked':'')+'>','<b>'+esc(t.name)+'</b>'+(t.contact?'<div class="inv-note" style="margin:0">'+esc(t.contact)+'</div>':''),esc((prop(t.propertyId)||{name:'(removed)'}).name)+' · Rm '+esc((room(t.roomId)||{name:'(removed)'}).name),a?fm(t.rate)+'/mo':'—',a?'Every '+ord(t.dueDay||1):'—',
    a?(s?stBadge(s)+(u.kind==='room'&&u.primary.id!==t.id?'<div class="inv-note" style="margin:0">room bill</div>':''):'<span class="inv-note">no bill this month</span>'):'<span class="badge badge-nonvat">Inactive</span><div class="inv-note" style="margin:0">since '+(t.inactiveDate?fd(t.inactiveDate):'no date')+(t.inactiveReason?' · '+esc(t.inactiveReason):'')+'</div>',
    (a?BTN('RE.payOpen(\''+t.id+'\')','Receive','btn')+' ':'')+BTN('RE.tenEdit(\''+t.id+'\')','Edit')+' '+BTN('RE.tenDel(\''+t.id+'\')','Delete','btn-danger')]});
- return T(['Tenant','Property · room','#Rate','Due','This month','']
-  .map(x=>x),rows.map(r=>[r[0],r[1],r[2],r[3],r[4],r[5]]))}
+ [...SELT].forEach(id=>{if(!X.tenants.some(t=>t.id===id))SELT.delete(id)});
+ return '<div class="inv-bar" style="align-items:center;gap:.5rem">'+BTN('RE.tAll(true)','Select all shown ('+rows.length+')')+(SELT.size?BTN('RE.tAll(false)','Clear selection')+BTN('RE.tDelSel()','Delete selected ('+SELT.size+')','btn-danger'):'<span class="inv-note" style="margin:0">Tick tenants to delete several at once.</span>')+'</div>'+T(['','Tenant','Property · room','#Rate','Due','This month','']
+  .map(x=>x),rows.map(r=>[r[0],r[1],r[2],r[3],r[4],r[5],r[6]]))}
+function tShown(){const X=R(),q=tQ.toLowerCase();return X.tenants.filter(t=>(fProp==='ALL'||t.propertyId===fProp)&&(!q||t.name.toLowerCase().includes(q)||(t.contact||'').toLowerCase().includes(q))&&(tStat==='ALL'||(tStat==='Active'?isAct(t):!isAct(t))))}
+function tAll(on){if(on)tShown().forEach(t=>SELT.add(t.id));else SELT.clear();const e=$('reTen');if(e)e.innerHTML=tenTable()}
+function tDelSel(){const X=R(),L=X.tenants.filter(t=>SELT.has(t.id));if(!L.length)return;const n=X.payments.filter(p=>SELT.has(p.tenantId)).length;
+ if(!confirm('Remove '+L.length+' tenant'+(L.length===1?'':'s')+'?'+(n?'\n\nTheir '+n+' payment record(s) stay in the books. To keep their history visible, mark them Inactive instead.':'')))return;X.tenants=X.tenants.filter(t=>!SELT.has(t.id));SELT.clear();save();render();toast(L.length+' tenant'+(L.length===1?'':'s')+' removed.','success')}
 function vTen(){const X=R(),today=td(),rows=recv(today),late=rows.filter(r=>r.daysLate>0),lateAmt=late.reduce((a,r)=>a+r.out,0),all=rows.reduce((a,r)=>a+r.out,0),dep=act().reduce((a,t)=>a+(+t.deposit||0),0);
  const bk=[['Due today',r=>r.daysLate===0],['1–30 days',r=>r.daysLate>=1&&r.daysLate<=30],['31–60 days',r=>r.daysLate>30&&r.daysLate<=60],['61–90 days',r=>r.daysLate>60&&r.daysLate<=90],['Over 90 days',r=>r.daysLate>90]];
  let h='<div class="inv-bar" style="align-items:flex-end">'+BTN('RE.tenEdit()','+ Register tenant','btn')+BTN('RE.payOpen()','Receive rent payment')+'<div class="form-group"><label>Property</label><select onchange="RE.set(\'fProp\',this.value)"><option value="ALL">All properties</option>'+opts(sProps(),fProp,p=>p.name)+'</select></div><div class="form-group"><label>Status</label><select onchange="RE.set(\'tStat\',this.value)">'+['Active','Inactive','ALL'].map(s=>'<option value="'+s+'"'+(s===tStat?' selected':'')+'>'+(s==='ALL'?'All':s)+'</option>').join('')+'</select></div><div class="form-group"><label>Search</label><input type="search" placeholder="Name or contact" value="'+esc(tQ)+'" oninput="RE.find(this.value)"></div></div>';
@@ -4837,11 +4843,17 @@ function tenDel(id){const X=R(),t=X.tenants.find(x=>x.id===id);if(!t)return;cons
 // ---- Rent collection ----
 function vPay(){const X=R(),a=X.accrual,today=td(),rows=recv(today),open=rows.reduce((s,r)=>s+r.out,0);let ar=0;const A=C().chartOfAccounts.find(x=>x.roleTag==='ar'&&!x.isContra);
  if(A)C().journalEntries.forEach(e=>e.lines.forEach(l=>{if(l.accountCode===A.code)ar+=(+l.debit||0)-(+l.credit||0)}));
- const q=pQ.toLowerCase(),ps=[...X.payments].filter(p=>!q||p.payer.toLowerCase().includes(q)).sort((x,y)=>y.date.localeCompare(x.date)||y.ref.localeCompare(x.ref));
- let h='<div class="inv-bar" style="align-items:flex-end">'+BTN('RE.payOpen()','+ Receive rent payment','btn')+'<div class="form-group"><label>Search tenant</label><input type="search" value="'+esc(pQ)+'" oninput="RE.pfind(this.value)"></div></div>';
+ const ps=payShown();[...SELP].forEach(id=>{if(!X.payments.some(p=>p.id===id))SELP.delete(id)});const selAmt=X.payments.filter(p=>SELP.has(p.id)).reduce((a,p)=>a+p.amount,0);
+ let h='<div class="inv-bar" style="align-items:flex-end">'+BTN('RE.payOpen()','+ Receive rent payment','btn')+'<div class="form-group"><label>Search tenant</label><input type="search" value="'+esc(pQ)+'" oninput="RE.pfind(this.value)"></div><div class="form-group"><label>Show</label><select onchange="RE.pImp(this.value===\'imp\')"><option value="all">All payments</option><option value="imp"'+(pImp?' selected':'')+'>Imported only</option></select></div></div>'
+ +'<div class="inv-bar" style="align-items:center;gap:.5rem">'+BTN('RE.pAll(true)','Select all shown ('+ps.length+')')+(SELP.size?BTN('RE.pAll(false)','Clear selection')+BTN('RE.pDelSel()','Delete selected ('+SELP.size+' · '+fm(selAmt)+')','btn-danger'):'<span class="inv-note" style="margin:0">Tick payments to delete several at once.</span>')+'</div>';
  h+='<div class="card" style="margin-bottom:1rem"><h3 style="margin-top:0">Monthly rent accrual</h3><p class="inv-note">On each due date the unpaid rent is recorded as a receivable (Dr Tenant Receivables / Cr Rental Revenue). Payments for those months then settle the receivable, so revenue is never counted twice.</p><div class="inv-bar" style="align-items:flex-end"><label style="display:flex;gap:.5rem;align-items:center"><input type="checkbox"'+(a.enabled?' checked':'')+' onchange="RE.accOn(this.checked)"> Accrue rent automatically</label><div class="form-group"><label>Starting month</label><input type="month" value="'+a.start+'" onchange="RE.accStart(this.value)"></div>'+BTN('RE.accRun()','Post accruals now')+'</div><div class="inv-note" style="margin:0">Outstanding rent bills: <b>'+fm(open)+'</b> ('+rows.length+') · Tenant Receivables posted in the journal: <b>'+fm(ar)+'</b> · Auto accrual entries: <b>'+C().journalEntries.filter(e=>e.src==='re'&&e.reKind==='accrual').length+'</b></div></div>';
- h+=T(['Date','Ref','Tenant','For','Received into','Settles','#Amount',''],ps.map(p=>[fd(p.date),esc(p.ref),esc(p.payer),plabel(p.period),esc(p.mode||''),p.applied==='ar'?'<span class="badge badge-vat">receivable</span>':'<span class="badge badge-nonvat">revenue</span>',fm(p.amount),BTN('RE.payDel(\''+p.id+'\')','Delete','btn-danger')]));
+ h+=T(['','Date','Ref','Tenant','For','Received into','Settles','#Amount',''],ps.map(p=>['<input type="checkbox" aria-label="Select" onchange="RE.psel(\''+p.id+'\',this.checked)"'+(SELP.has(p.id)?' checked':'')+'>',fd(p.date),esc(p.ref),esc(p.payer),plabel(p.period),esc(p.mode||''),p.applied==='ar'?'<span class="badge badge-vat">receivable</span>':'<span class="badge badge-nonvat">revenue</span>',fm(p.amount),BTN('RE.payDel(\''+p.id+'\')','Delete','btn-danger')]));
  return h}
+function payShown(){const X=R(),q=pQ.toLowerCase();return [...X.payments].filter(p=>(!q||p.payer.toLowerCase().includes(q))&&(!pImp||/imported/i.test(p.note||''))).sort((x,y)=>y.date.localeCompare(x.date)||y.ref.localeCompare(x.ref))}
+function pAll(on){if(on)payShown().forEach(p=>SELP.add(p.id));else SELP.clear();render()}
+function pDelSel(){const X=R(),L=X.payments.filter(p=>SELP.has(p.id));if(!L.length)return;const tot=L.reduce((a,p)=>a+p.amount,0);
+ if(!confirm('Delete '+L.length+' payment'+(L.length===1?'':'s')+' totalling '+fm(tot)+'?\n\nTheir journal entries are removed too. This cannot be undone.'))return;
+ X.payments=X.payments.filter(p=>!SELP.has(p.id));L.forEach(p=>dropJe(p.id));SELP.clear();save();render();calculateDashboardMetrics();toast(L.length+' payment'+(L.length===1?'':'s')+' deleted.','success')}
 function payOpen(tid,period){const X=R();if(!X.tenants.length)return toast('Register a tenant first.');const cash=cashAccts();if(!cash.length)return toast('Tag at least one account as Cash first (Settings → Chart of Accounts → Edit).');
  const all=[...X.tenants].sort((a,b)=>(isAct(b)-isAct(a))||nameCmp(a.name,b.name)),first=tid||(all.find(isAct)||all[0]).id;
  modal('Receive rent payment','<form onsubmit="RE.paySave(event)"><div class="grid-2"><div class="form-group"><label>Date received *</label><input type="date" id="rpDate" required value="'+td()+'" onchange="RE.payTen()"></div><div class="form-group"><label>Tenant *</label><select id="rpTen" required onchange="RE.payTen()">'+all.map(t=>'<option value="'+t.id+'"'+(t.id===first?' selected':'')+'>'+esc(t.name)+(isAct(t)?'':' (inactive)')+esc(roomTxt(t))+'</option>').join('')+'</select></div><div class="form-group"><label>Rent for (month) *</label><input type="month" id="rpPer" required onchange="RE.payPer()"></div><div class="form-group"><label>Amount *</label><input type="number" id="rpAmt" min="0.01" step="0.01" required></div><div class="form-group"><label>Received into *</label><select id="rpCash">'+cashOpts(cash)+'</select></div><div class="form-group"><label>Tax withheld by tenant (2307)</label><input type="number" id="rpW" min="0" step="0.01" value="0"><small class="inv-note" style="display:block;margin:2px 0 0">Cash received = amount − tax withheld</small></div><div class="form-group"><label>Reference / note</label><input id="rpNote" maxlength="120"></div></div><p class="inv-note" id="rpHint"></p><div style="text-align:right">'+CANCEL+' <button class="btn">Record payment</button></div></form>');payTen(period)}
@@ -4904,7 +4916,7 @@ function openImp(){modal('Import Real Estate data','<div class="form-group"><lab
 function impHint(){$('riHint').textContent=IMP[$('riCat').value].hint}
 function impTpl(){const c=IMP[$('riCat').value],a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c.tpl],{type:'text/csv;charset=utf-8;'}));a.download=c.file;document.body.appendChild(a);a.click();a.remove()}
 function impGo(){const cat=$('riCat').value,f=$('riFile').files[0];if(!f)return toast('Choose a CSV file first.');const rd=new FileReader();
- rd.onload=ev=>{let txt;try{txt=new TextDecoder('utf-8',{fatal:true}).decode(ev.target.result)}catch(x){txt=new TextDecoder('windows-1252').decode(ev.target.result)}
+ rd.onload=ev=>{const txt=window.ajCsvText(ev.target.result);
   const rows=csvRows(txt.replace(/^\uFEFF/,''));if(rows.length<2)return toast('The CSV file is empty or has no header row.');
   const hd=rows[0].map(nh),cell=(r,...ks)=>{for(const k of ks){const i=hd.indexOf(k);if(i>=0&&r[i]!=null&&String(r[i]).trim()!=='')return String(r[i]).trim()}return ''};
   const X=R();let n=0,up=0,sk=0;const why=[];
@@ -4965,7 +4977,7 @@ w('showTab',()=>{const a=document.querySelector('.tab-section.active');if(a&&a.i
  o.journalEntries.forEach(e=>{const x=d.journalEntries.find(y=>safeId(y.id)===e.id);if(x&&x.src==='re'){e.src='re';e.reKind=String(x.reKind||'');e.reId=String(x.reId||'');if(x.reKey)e.reKey=String(x.reKey)}});return o}}
 window.RE={go:v=>{view=v;render()},set:(k,v)=>{SET[k](v);render()},find:v=>{tQ=v;const t=$('reTen');if(t)t.innerHTML=tenTable()},pfind:v=>{pQ=v;render()},col:(id,o)=>{col[id]=!o},close:closeM,
  propEdit,propSave,propDel,roomEdit,roomLabel,roomSave,roomDel,occ:occView,occEdit,tenEdit,tenProp,tenRate,tenStat,tenSave,tenDel,
- payOpen,payTen,payPer,paySave,payDel,accOn,accStart,accRun,utilEdit,utilRoom,utilPrev,utilCalc,utilSave,utilDel,imp:openImp,impHint,impTpl,impGo};
+ payOpen,payTen,payPer,paySave,payDel,pAll,pDelSel,tAll,tDelSel,psel:(id,on)=>{on?SELP.add(id):SELP.delete(id);render()},tsel:(id,on)=>{on?SELT.add(id):SELT.delete(id);const e=$('reTen');if(e)e.innerHTML=tenTable()},pImp:v=>{pImp=v;SELP.clear();render()},accOn,accStart,accRun,utilEdit,utilRoom,utilPrev,utilCalc,utilSave,utilDel,imp:openImp,impHint,impTpl,impGo};
 })();
 
 // ===== Tasks module + Dashboard calendar (PH holidays) =====
@@ -12242,7 +12254,7 @@ function rNewPass(){const{acc}=gateArg||{};if(!acc)return gate('start');
   const done=busyBtn(e.target.querySelector('button'),'Saving…');try{const pin=await pinBox(a,gateArg.sec);await putAcct({aid:acc.aid,email:acc.email,name:acc.name,pic:acc.pic,pin,lastG:Date.now(),fails:0,added:new Date().toISOString()});ACC=acc;await afterUnlock()}catch(x){setErr(x.message);done()}}}
 // after unlocking: load the vault, move old data in, then the company list (or straight back into the last company)
 async function afterUnlock(){window.AJLOCKED=false;lastAct=Date.now();Object.keys(LASTH).forEach(k=>delete LASTH[k]);
- const list=await loadVault();window.__ajLoaded=list;loadFromLocalStorage();try{renderLoginCompanySelector()}catch(e){}
+ const list=await loadVault();window.__ajLoaded=list;loadFromLocalStorage();let fixed=0;companies.forEach(c=>{fixed+=fixMacNames(c)});if(fixed){pending=true;flush();setTimeout(()=>toast('Fixed '+fixed+' name'+(fixed===1?'':'s')+' where Ñ had turned into „ during a Mac CSV import.','success'),1500)}try{renderLoginCompanySelector()}catch(e){}
  await loadCfg();if(!CFG.mode&&GD.tokOk()&&!TEST)autoRoot();else if(connected())(async()=>{try{if(await T().ready()){await ensureMarker();await publishMe()}}catch(e){}})();
  const leg=(await legacyList()).filter(c=>!comp(c.id));if(leg.length)return gate('claim',{list:leg});
  let ok=false;try{ok=window.AJSESSION&&AJSESSION.restore()}catch(e){console.error(e)}
@@ -12365,6 +12377,36 @@ async function boot(){await loadCfg();
  const L=await accts();let pre=null;try{pre=sessionStorage.getItem('aj_lock_aid');sessionStorage.removeItem('aj_lock_aid')}catch(e){}
  const a=pre&&L.find(x=>x.aid===pre)||(L.length===1?L[0]:null);if(a)return gate('pass',a);return gate('start')}
 if('serviceWorker' in navigator&&location.protocol==='https:'){addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+// ---------- Ñ and other accents in CSV files ----------
+// Imports: Excel saves "CSV" as Windows-1252 on Windows and as Mac Roman on a Mac; anything else is UTF-8.
+// Pick the right one so Ñ stays Ñ (in Mac Roman Ñ is byte 0x84, which Windows-1252 shows as „).
+function csvEnc(buf){const u=new Uint8Array(buf);try{new TextDecoder('utf-8',{fatal:true}).decode(u,{stream:true});return 'utf-8'}catch(e){}
+ let mac=0,win=0;for(let i=0;i<u.length;i++){const b=u[i];if(b>=0x80&&b<=0x9f)mac++;else if(b>=0xc0)win++}return mac>win?'macintosh':'windows-1252'}
+window.ajCsvText=buf=>new TextDecoder(csvEnc(buf)).decode(buf).replace(/^﻿/,'');
+{const oRT=FileReader.prototype.readAsText;FileReader.prototype.readAsText=function(blob,enc){const fr=this;
+ if(enc||!blob||typeof blob.arrayBuffer!=='function'||!(/\.(csv|txt|tsv)$/i.test(blob.name||'')||/^text\//i.test(blob.type||'')))return oRT.call(fr,blob,enc);
+ blob.slice(0,8*1048576).arrayBuffer().then(b=>oRT.call(fr,blob,csvEnc(b))).catch(()=>oRT.call(fr,blob))}}
+// repair names that were imported from a Mac CSV before this fix (NI„A -> NIÑA, Pe–a -> Peña)
+function fixMacText(v){return typeof v==='string'&&/[„–]/.test(v)?v.replace(/([A-Za-zÀ-ÿ])„(?=[A-Za-zÀ-ÿ])/g,'$1Ñ').replace(/([A-Za-zÀ-ÿ])–(?=[A-Za-zÀ-ÿ])/g,'$1ñ').replace(/^„(?=[A-Za-z])/,'Ñ'):v}
+function fixMacNames(c){let n=0;const f=(o,k)=>{if(o&&typeof o[k]==='string'){const v=fixMacText(o[k]);if(v!==o[k]){o[k]=v;n++}}};
+ ((c.re||{}).tenants||[]).forEach(t=>f(t,'name'));((c.re||{}).payments||[]).forEach(p=>f(p,'payer'));((c.ar||{}).customers||[]).forEach(x=>f(x,'name'));((c.ap||{}).suppliers||[]).forEach(x=>f(x,'name'));
+ (c.employees||[]).forEach(x=>{f(x,'name');f(x,'lastName');f(x,'firstName')});(c.journalEntries||[]).forEach(e=>f(e,'desc'));return n}
+// Downloads: start every CSV with the UTF-8 marker so Excel shows Ñ instead of Ã‘.
+{const OB=window.Blob;class B2 extends OB{static[Symbol.hasInstance](x){return x instanceof OB}constructor(p,o){if(o&&/^text\/csv/i.test(o.type||'')&&Array.isArray(p)&&typeof p[0]==='string'&&p[0].charCodeAt(0)!==0xFEFF)p=['﻿'].concat(p);super(p,o)}}window.Blob=B2}
+// ---------- Books › General Journal: delete several entries you made by hand ----------
+{const JS=new Set();const manual=e=>e&&(!e.src||e.src==='man')&&!(typeof isInit==='function'&&isInit(e))&&!(window.ERPX&&ERPX.locked&&ERPX.locked(e.date));
+ const o=window.renderFullJournalLog;window.renderFullJournalLog=function(){const r=o.apply(this,arguments);try{deco()}catch(e){console.error(e)}return r};
+ function deco(){const tb=$('fullJournalBody'),c=activeCompany&&activeCompany();if(!tb||!c)return;const card=tb.closest('.card');let bar=$('jSelBar');
+  if(!bar&&card){bar=document.createElement('div');bar.id='jSelBar';bar.className='sy-row';bar.style.margin='0 0 .7rem';const h=card.querySelector('h2');h?h.insertAdjacentElement('afterend',bar):card.prepend(bar)}
+  const byId=new Map(c.journalEntries.map(e=>[e.id,e]));[...JS].forEach(id=>{if(!manual(byId.get(id)))JS.delete(id)});const shown=[];
+  tb.querySelectorAll('button[onclick^="openJournalModal("]').forEach(b=>{const m=/openJournalModal\('([^']+)'/.exec(b.getAttribute('onclick')||'');const e=m&&byId.get(m[1]);if(!manual(e))return;shown.push(e.id);
+   const cb=document.createElement('input');cb.type='checkbox';cb.title='Select';cb.setAttribute('aria-label','Select entry '+(e.ref||''));cb.style.marginRight='6px';cb.checked=JS.has(e.id);cb.onchange=()=>{cb.checked?JS.add(e.id):JS.delete(e.id);paintBar()};b.parentElement.prepend(cb)});
+  function paintBar(){if(!bar)return;bar.innerHTML='<button type="button" class="btn btn-outline btn-sm" id="jAll">Select all manual entries shown ('+shown.length+')</button>'+(JS.size?'<button type="button" class="btn btn-outline btn-sm" id="jNone">Clear</button><button type="button" class="btn btn-danger btn-sm" id="jDel">Delete selected ('+JS.size+')</button>':'')+'<small class="bk-mut">Entries made by modules (invoices, payroll, rent…) are deleted in their own module.</small>';
+   bar.querySelector('#jAll').onclick=()=>{shown.forEach(id=>JS.add(id));tb.querySelectorAll('input[type=checkbox]').forEach(x=>x.checked=true);paintBar()};
+   const n=bar.querySelector('#jNone');if(n)n.onclick=()=>{JS.clear();tb.querySelectorAll('input[type=checkbox]').forEach(x=>x.checked=false);paintBar()};
+   const d=bar.querySelector('#jDel');if(d)d.onclick=()=>{const L=c.journalEntries.filter(e=>JS.has(e.id)&&manual(e));if(!L.length)return;if(!confirm('Delete '+L.length+' journal entr'+(L.length===1?'y':'ies')+'? This cannot be undone.'))return;
+    c.journalEntries=c.journalEntries.filter(e=>!JS.has(e.id));JS.clear();if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter();toast(L.length+' entr'+(L.length===1?'y':'ies')+' deleted.','success')}}
+  paintBar()}}
 window.AJACCT={lock,deleteCompany,me:()=>ACC&&{email:ACC.email,name:ACC.name,pic:ACC.pic},emails,membersChanged,gate,enter};
 window.AJSYNC={syncCo,startSync,openShared,joinV1,upgrade,rotate,readInfo,flatC,setAt,delAt,H,st:cid=>ST[cid],useTransport:t=>{TEST=t},key,kget,kset,kkeys,flush:()=>flushNow(),DEV,setCfg:c=>Object.assign(CFG,c),conflicts,FS,GD,
  useIdp:(i,a,d)=>{IDPX=i;ADX=a;if(d)DRVX=d},boot,cycle,afterUnlockForTest:async(acc)=>{ACC=acc;await afterUnlock()},acc:()=>ACC,legacyList,gateState:()=>gateState,devSet:c=>{try{localStorage.setItem('aj_dev_id',c)}catch(e){}}};
