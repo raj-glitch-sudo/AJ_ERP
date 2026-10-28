@@ -6517,6 +6517,7 @@ const SHEETS={
  check:{label:'Checks issued',cols:[['acct','Bank account','sel:bank'],['number','Check no.','text'],['issued','Date issued','date'],['due','Check date','date'],['payee','Pay to','name:payee'],['particulars','For','name:part'],['amount','Amount','money'],['notes','Notes','text']]},
  deposit:{label:'Deposits & transfers',cols:[['type','Type','sel:dtype'],['date','Date','date'],['acct','Bank account','sel:bank'],['source','From account','sel:bank0'],['from','Money came from','sel:dfrom'],['amount','Amount','money'],['ref','Reference','text'],['notes','Notes','text']]},
  sale:{label:'Sales invoices',cols:[['date','Invoice date','date'],['due','Due date','date'],['from','Customer','name:cust'],['orNo','Invoice no.','text'],['desc','What was sold','text'],['amount','Amount','money'],['vat','VAT','sel:vat']]}};
+window.ENCAPI={Q,isWS,EXP_CATS,EXP_RX,COL_FOR,lists,uid,dupOf};
 const STICKY={collection:['date','forWhat','as','acct'],expense:['date','paid','category'],check:['acct','issued','due'],deposit:['type','date','acct','from'],sale:['date','due','vat']};
 function sheetOpts(key,L){const pairs=a=>a.map(x=>Array.isArray(x)?x:[x,x]);return({for:COL_FOR,as:COL_AS,cat:pairs(EXP_CATS),paid:PAID_WITH,dtype:pairs(DEP_TYPES),dfrom:[['','–']].concat(DEP_FROM),bank:[['','–']].concat(L.banks.map(b=>[b.id,b.label])),bank0:[['','Outside account']].concat(L.banks.map(b=>[b.id,b.label])),vat:SHEET_VAT})[key]||[]}
 const pMoney=v=>{const n=parseFloat(String(v==null?'':v).replace(/[₱,\s]/g,'').replace(/^\((.*)\)$/,'-$1'));return Number.isFinite(n)?Math.round(n*100)/100:0};
@@ -6832,6 +6833,7 @@ function cleanItem(x){
  if(x.kind==='expense')Object.assign(o,{date:D(d.date),payee:S(d.payee),category:EXP_CATS.includes(d.category)?d.category:'Other expense',desc:S(d.desc),paid:PAID_WITH.some(f=>f[0]===d.paid)?d.paid:'cash',orNo:S(d.orNo,60),photo:typeof d.photo==='string'&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d.photo)&&d.photo.length<3e6?d.photo:''});
  if(x.kind==='collection')Object.assign(o,{date:D(d.date),from:S(d.from),forWhat:COL_FOR.some(f=>f[0]===d.forWhat)?d.forWhat:'other',as:COL_AS.some(f=>f[0]===d.as)?d.as:'cash',acct:S(d.acct,60),orNo:S(d.orNo,60),notes:S(d.notes),cwt:Math.max(0,r2(d.cwt)),invs:Array.isArray(d.invs)?d.invs.map(v=>S(v,20)).slice(0,50):[]});
  if(x.kind==='sale')Object.assign(o,{date:D(d.date),due:D(d.due),from:S(d.from),orNo:S(d.orNo,60),desc:S(d.desc),vat:d.vat==='none'?'none':'incl',notes:S(d.notes)});
+ if(d.site&&(x.kind==='expense'||x.kind==='collection'))o.site=S(d.site,60);
  if(x.kind!=='expense')o.photo=typeof d.photo==='string'&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d.photo)&&d.photo.length<3e6?d.photo:'';
  return{id:safeId(x.id)||'q_'+uid(),kind:x.kind,data:o,by:{id:safeId(x.by&&x.by.id),name:S(x.by&&x.by.name,80)},at:S(x.at,40),status:['PENDING','RETURNED','POSTED','REJECTED'].includes(x.status)?x.status:'PENDING',note:S(x.note,500),thread:cleanThread(x.thread),sent:!!x.sent,rev:parseInt(x.rev,10)||0,postedBy:S(x.postedBy,80),postedAt:S(x.postedAt,40),jeId:safeId(x.jeId),ref:S(x.ref,80)};
 }
@@ -6935,14 +6937,14 @@ function postItem(it,codes,date){if(window.AJLOCK){const dd=date||(it.data&&(it.
  if(final.some((v,i)=>!v&&!L[i].fixed))return 'Choose an account for every line.';
  const dr=final[L.findIndex(l=>l.side==='D')],cr=final[L.findIndex(l=>l.side==='C')];
  if(dr&&cr&&dr===cr)return 'The debit and credit accounts must be different.';
- if(window.ENCX&&window.ENCX.auto){const x=window.ENCX.auto(it,L,final,date);if(x&&x.err)return x.err;if(x&&x.ref){const M=memo();M[memoKey(it,'p')]={dr,cr,paid:d.paid};M[memoKey(it,'c')]={dr,cr};Object.assign(it,{status:'POSTED',note:'',postedBy:me().name,postedAt:new Date().toISOString(),ref:x.ref,jeId:x.jeId||''});return ''}}
+ if(window.ENCX&&window.ENCX.auto){const x=window.ENCX.auto(it,L,final,date);if(x&&x.err)return x.err;if(x&&x.ref){const M=memo();M[memoKey(it,'p')]={dr,cr,paid:d.paid};M[memoKey(it,'c')]={dr,cr};Object.assign(it,{status:'POSTED',note:'',postedBy:me().name,postedAt:new Date().toISOString(),ref:x.ref,jeId:x.jeId||''});if(d.site&&x.jeId){const je=C().journalEntries.find(e=>e.id===x.jeId);if(je)je.site=d.site}return ''}}
  const who=me().name,now=new Date().toISOString(),amt=r2(d.amount);let ref='';
  if(it.kind==='check'){const b=c.bank;b.seq=b.seq||{txn:0};b.seq.txn=(b.seq.txn||0)+1;b.checks.push({id:'chk_'+uid(),txn:b.seq.txn,issued:d.issued,number:d.number,acct:d.acct,particulars:d.particulars,payee:d.payee,amount:amt,due:d.due,status:'OUTSTANDING',cleared:'',debit:dr,encodedBy:it.by.name,postedBy:who,qId:it.id});ref='CHK-'+d.number}
  else if(it.kind==='deposit'){const counter=L[0].fixed&&L[1].fixed?null:(L[0].fixed?cr:dr);c.bank.txns.push({id:'btx_'+uid(),date:d.date,type:d.type,acct:d.acct,source:d.source||'',amount:amt,ref:d.ref,notes:[d.notes,d.from?lbl(DEP_FROM,d.from):''].filter(Boolean).join(' – '),counter,encodedBy:it.by.name,postedBy:who,qId:it.id});ref=d.ref||d.type}
  else{
   const id='entry_q_'+it.id;ref=d.orNo?(/^[A-Za-z]/.test(d.orNo)?d.orNo:(it.kind==='expense'?'EXP':'OR')+'-'+d.orNo):(it.kind==='expense'?'EXP':'OR')+'-'+String(c.journalEntries.length+1).padStart(4,'0');
   c.journalEntries.push({id,date:date||d.date,ref:ref.slice(0,40),desc:it.kind==='expense'?(d.payee+' – '+d.category+(d.desc?': '+d.desc:'')):('Received from '+d.from+' – '+lbl(COL_FOR,d.forWhat)+(d.notes?' – '+d.notes:'')),lines:[{accountCode:dr,debit:amt,credit:0},{accountCode:cr,debit:0,credit:amt}],
-   fileAttachment:d.photo?{name:'receipt-'+(d.orNo||it.id)+'.jpg',type:'image/jpeg',size:Math.max(1,Math.round(d.photo.length*.75/1024))+' KB',data:d.photo}:null,encodedBy:it.by.name,postedBy:who,postedAt:now,qId:it.id});it.jeId=id}
+   fileAttachment:d.photo?{name:'receipt-'+(d.orNo||it.id)+'.jpg',type:'image/jpeg',size:Math.max(1,Math.round(d.photo.length*.75/1024))+' KB',data:d.photo}:null,encodedBy:it.by.name,postedBy:who,postedAt:now,qId:it.id,site:d.site||undefined});it.jeId=id}
  if(window.BANKMOD&&(it.kind==='check'||it.kind==='deposit'))window.BANKMOD.sync();
  const M=memo();M[memoKey(it,'p')]={dr,cr,paid:d.paid};M[memoKey(it,'c')]={dr,cr};
  Object.assign(it,{status:'POSTED',note:'',postedBy:who,postedAt:now,ref});
@@ -6971,7 +6973,7 @@ function openPost(id){
    const fin=L.map((l,i)=>{if(l.fixed)return l.code;const v=codes[i]!=null?codes[i]:(l.code||(l.tpl?'new':null));if(v==='new')return newAcct(l.tpl);return okc(v)});if(fin.some((v,i)=>!v&&!L[i].fixed))return toast('Choose an account for every line.');
    const x=window.ENCX.post(it,L,fin,m);if(!x||x.err)return toast(x?x.err:'Could not post this item.');
    const M=memo(),dr=fin[L.findIndex(l=>l.side==='D')],cr=fin[L.findIndex(l=>l.side==='C')];M[memoKey(it,'p')]={dr,cr,paid:it.data.paid};M[memoKey(it,'c')]={dr,cr};
-   Object.assign(it,{status:'POSTED',note:'',postedBy:me().name,postedAt:new Date().toISOString(),ref:x.ref,jeId:x.jeId||''});saveToLocalStorage();refreshBooks();m.remove();renderQueue();updCount();toast('Entered in the books ('+it.ref+').','success');return}
+   Object.assign(it,{status:'POSTED',note:'',postedBy:me().name,postedAt:new Date().toISOString(),ref:x.ref,jeId:x.jeId||''});if(it.data.site&&x.jeId){const je=C().journalEntries.find(e=>e.id===x.jeId);if(je)je.site=it.data.site}saveToLocalStorage();refreshBooks();m.remove();renderQueue();updCount();toast('Entered in the books ('+it.ref+').','success');return}
   const err=postItem(it,codes);if(err)return toast(err);saveToLocalStorage();refreshBooks();m.remove();renderQueue();updCount();toast('Entered in the books ('+it.ref+').','success')};
 }
 const hasRemote=it=>!!it.sent&&!!(users().find(u=>u.id===it.by.id));
@@ -13048,21 +13050,27 @@ window.sanitizeCompany=function(d){const o=oSC.apply(this,arguments);try{
 })();
 
 
-// ===== Import expenses from a spreadsheet (paste cells or a CSV file): map categories and payment modes once, preview, post, undo =====
+// ===== Paste from spreadsheet: one importer for every kind of transaction =====
+// Three standard layouts, recognised from the header row:
+//   A  Simple log    Date · Type (Income/Expense) · Particulars · Category · Mode of Payment · Amount · [Site] · [Ref]
+//   B  Two-account   Date · Particulars · Debit Account · Credit Account · Amount · [Ref] · [Site]
+//   C  Journal       Date · Ref · Particulars · Account · Debit · Credit   (lines with the same Ref, or consecutive lines until they balance, make one entry)
+// Encoders (Simple log only) send rows to For Posting; everyone else posts to the books.
 (function(){
-const $=id=>document.getElementById(id),C=()=>(typeof activeCompany==='function'?activeCompany():null);
+const $=id=>document.getElementById(id),C=()=>(typeof activeCompany==='function'?activeCompany():null),X=window.ERPX;
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const who=()=>window.currentUser?window.currentUser.name:'Admin';
 const fdl=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
 const money=c=>formatMoney(c/100,(C()||{}).currency);
-function modal(html,w){const m=document.createElement('div');m.className='modal-overlay aj4-modal';m.innerHTML='<div class="modal" style="max-width:'+(w||900)+'px">'+html+'</div>';m.addEventListener('mousedown',e=>{if(e.target===m)m.remove()});document.body.appendChild(m);m.querySelectorAll('[data-x]').forEach(x=>x.onclick=()=>m.remove());return m}
-document.head.insertAdjacentHTML('beforeend','<style>.aj4 table{width:100%;border-collapse:collapse;font-size:.85rem}.aj4 th,.aj4 td{padding:5px 8px;border-bottom:1px solid var(--border-color);text-align:left;vertical-align:top}.aj4 td.n,.aj4 th.n{text-align:right;font-variant-numeric:tabular-nums}.aj4 .sc{max-height:340px;overflow:auto;border:1px solid var(--border-color);border-radius:8px}.aj4 .bad{color:#b42318}.aj4 .dup{color:#92400e}.aj4 .ok{color:#13795b}.aj4 textarea{width:100%;min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem}.aj4 .map{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:6px 12px;align-items:center}.aj4 .map select{width:100%}.aj4 .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.75rem;font-weight:700}.aj4 .pill.ok{background:#dcf3e8}.aj4 .pill.dup{background:#fbf0cf}.aj4 .pill.bad{background:#fde4e1}@media (max-width:640px){.aj4 .map{grid-template-columns:1fr}}</style>');
+const hasSites=c=>!!c&&(c.serviceLines||[]).some(x=>x==='realestate'||x==='commercial');
+const isEnc=()=>!!(window.currentUser&&window.currentUser.role==='encoder')||!!(C()&&C().workspace==='encoder');
+function modal(html,w){const m=document.createElement('div');m.className='modal-overlay aj4-modal';m.innerHTML='<div class="modal" style="max-width:'+(w||980)+'px">'+html+'</div>';m.addEventListener('mousedown',e=>{if(e.target===m)m.remove()});document.body.appendChild(m);m.querySelectorAll('[data-x]').forEach(x=>x.onclick=()=>m.remove());return m}
+document.head.insertAdjacentHTML('beforeend','<style>.aj4 table{width:100%;border-collapse:collapse;font-size:.85rem}.aj4 th,.aj4 td{padding:5px 8px;border-bottom:1px solid var(--border-color);text-align:left;vertical-align:top}.aj4 td.n,.aj4 th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.aj4 .sc{max-height:340px;overflow:auto;border:1px solid var(--border-color);border-radius:8px}.aj4 .bad{color:#b42318}.aj4 .dup{color:#92400e}.aj4 .ok{color:#13795b}.aj4 textarea{width:100%;min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem}.aj4 .map{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:6px 12px;align-items:center;margin-bottom:.8rem}.aj4 .map select{width:100%}.aj4 .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.75rem;font-weight:700}.aj4 .pill.ok{background:#dcf3e8}.aj4 .pill.dup{background:#fbf0cf}.aj4 .pill.bad{background:#fde4e1}.aj4 .lay{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin:.4rem 0 1rem}.aj4 .lay div{border:1px solid var(--border-color);border-radius:10px;padding:8px 10px;font-size:.82rem}.aj4 .lay b{display:block;margin-bottom:2px}.aj4 .lay code{font-size:.75rem}.aj4 .lines{font-size:.78rem;color:var(--text-muted)}@media (max-width:640px){.aj4 .map{grid-template-columns:1fr}}</style>');
 
-// ---------- reading the sheet ----------
+// ---------- reading what was pasted ----------
 function parseRows(text){
  text=String(text||'').replace(/^﻿/,'');
- const tab=text.split(/\r?\n/).slice(0,5).some(l=>l.includes('\t'));
- if(tab)return text.split(/\r?\n/).map(l=>l.split('\t').map(x=>x.trim())).filter(r=>r.some(x=>x!==''));
+ if(text.split(/\r?\n/).slice(0,6).some(l=>l.includes('\t')))return text.split(/\r?\n/).map(l=>l.split('\t').map(x=>x.trim())).filter(r=>r.some(x=>x!==''));
  const rows=[];let r=[],f='',q=false;
  for(let i=0;i<text.length;i++){const ch=text[i];
   if(q){if(ch==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=ch}
@@ -13071,124 +13079,257 @@ function parseRows(text){
   else f+=ch}
  r.push(f.trim());if(r.some(x=>x!==''))rows.push(r);return rows;
 }
-const COLS=[['date','Date',/^(date|transaction date|txn date|date paid)$/i,/date/i],['site','Site / property',/^(site|property|branch|location|building|business)$/i,/site|property|branch|building/i],['part','Particulars',/^(particulars|description|details|payee|item|remarks)$/i,/particular|descr|detail|payee|item/i],['mode','Mode of payment',/^(mode of payment|payment|paid (with|by|via)|mode)$/i,/mode|payment|paid/i],['cat','Category',/^(category|expense type|type|account)$/i,/categ|type|account/i],['amt','Amount',/^(amount|total|amount paid|cost)$/i,/amount|total|cost/i]];
+const F={
+ date:[/^(date|transaction date|txn date|date paid|date received|posting date|entry date)$/i,/date/i],
+ ref:[/^(ref|ref\.? ?no\.?|reference|reference no\.?|or|or no\.?|or #|receipt|receipt no\.?|voucher|voucher no\.?|cv no\.?|entry|entry no\.?|je|je no\.?|invoice no\.?|no\.?|#)$/i,null],
+ part:[/^(particulars|description|details|payee|paid to|received from|tenant|customer|supplier|name|remarks|memo|explanation)$/i,/particular|descr|detail|payee|tenant|customer|supplier|memo/i],
+ site:[/^(site|property|branch|building|location|business)$/i,/site|property|branch/i],
+ type:[/^(type|in\/out|kind|direction|flow|transaction type|nature)$/i,null],
+ cat:[/^(category|class|expense type|income type|classification|purpose|nature of expense)$/i,/categ|class/i],
+ mode:[/^(mode of payment|mode|payment|payment method|method|paid (with|by|via|thru|through)|received (as|via|thru|through))$/i,/mode|method|paid via|paid by/i],
+ amt:[/^(amount|total|amount paid|amount received|cost|value)$/i,/amount|total/i],
+ amtIn:[/^(in|amount in|cash in|received|receipts?|inflow|money in|collections?)$/i,null],
+ amtOut:[/^(out|amount out|cash out|paid|payments?|disbursements?|outflow|money out|withdrawals?)$/i,null],
+ dracct:[/^(debit account|dr account|account debited|debit to|charge to|account to debit)$/i,null],
+ cracct:[/^(credit account|cr account|account credited|credit to|paid from|account to credit)$/i,null],
+ acct:[/^(account|account title|account name|account code|gl account|code|acct|account no\.?)$/i,null],
+ dr:[/^(debit|dr|debit amount|debits)$/i,null],
+ cr:[/^(credit|cr|credit amount|credits)$/i,null]};
+const NEED={A:['date','amt'],B:['date','dracct','cracct','amt'],C:['date','acct','dr','cr']};
+const SHOW={A:['date','type','part','cat','mode','amt','amtIn','amtOut','site','ref'],B:['date','part','dracct','cracct','amt','ref','site'],C:['date','ref','part','acct','dr','cr','site']};
+const LABEL={date:'Date',ref:'Ref / OR no.',part:'Particulars',site:'Site / property',type:'Type (income or expense)',cat:'Category',mode:'Mode of payment',amt:'Amount',amtIn:'Amount in',amtOut:'Amount out',dracct:'Debit account',cracct:'Credit account',acct:'Account',dr:'Debit',cr:'Credit'};
+const INC_W=/^(income|in|inflow|received|receipt|collection|collected|sale|sales|revenue|cash in|money in)$/i,EXP_W=/^(expense|expenses|out|outflow|paid|payment|disbursement|purchase|cash out|money out|spent)$/i;
 function detect(rows){
- let h=rows.findIndex(r=>r.some(x=>/date/i.test(x))&&r.some(x=>/amount|total/i.test(x)));
- const map={};if(h<0){h=-1;return{h,map}}
- const hdr=rows[h];COLS.forEach(([k,,exact,loose])=>{let i=hdr.findIndex(x=>exact.test(x));if(i<0)i=hdr.findIndex((x,j)=>loose.test(x)&&!Object.values(map).includes(j));if(i>=0)map[k]=i});
- return{h,map};
+ const h=rows.findIndex(r=>r.some(x=>/date/i.test(x))&&r.some(x=>/amount|total|debit|credit|^dr$|^cr$|^in$|^out$|received|paid/i.test(x)));
+ const map={};if(h<0)return{h:-1,map,layout:'A'};
+ const hdr=rows[h],used=new Set();
+ const pick=(k,rx)=>{if(map[k]!=null||!rx)return;const i=hdr.findIndex((x,j)=>!used.has(j)&&rx.test(String(x).trim()));if(i>=0){map[k]=i;used.add(i)}};
+ ['dracct','cracct','acct','dr','cr','amtIn','amtOut','date','ref','part','site','type','cat','mode','amt'].forEach(k=>pick(k,F[k][0]));
+ ['date','part','site','cat','mode','amt'].forEach(k=>pick(k,F[k][1]));
+ let layout='A';
+ if(map.acct!=null&&map.dr!=null&&map.cr!=null)layout='C';
+ else if(map.dracct!=null&&map.cracct!=null)layout='B';
+ else if(map.dr!=null&&map.cr!=null&&map.amt!=null&&map.acct==null){map.dracct=map.dr;map.cracct=map.cr;delete map.dr;delete map.cr;layout='B'}
+ if(layout==='A'&&map.type!=null){const vals=rows.slice(h+1).map(r=>String(r[map.type]||'').trim()).filter(Boolean);const dirish=vals.filter(v=>INC_W.test(v)||EXP_W.test(v)).length;if(vals.length&&dirish/vals.length<0.8){if(map.cat==null)map.cat=map.type;delete map.type}}
+ return{h,map,layout};
 }
 function parseDate(s,fmt){s=String(s||'').trim();if(!s)return '';let m;
- if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+ if((m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)))return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
  if((m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))){let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;const mo=fmt==='dmy'?b:a,d=fmt==='dmy'?a:b;if(mo<1||mo>12||d<1||d>31)return '';const dt=new Date(y,mo-1,d);if(dt.getMonth()!==mo-1)return '';return localDateStr(dt)}
  if((m=s.match(/^(\d{1,2})[\s\-]([A-Za-z]{3,})[\s\-,]+(\d{4})$/))||(m=s.match(/^([A-Za-z]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})$/))){const d=new Date(s.replace(/-/g,' '));if(!isNaN(d))return localDateStr(d)}
  const n=+s;if(Number.isFinite(n)&&n>20000&&n<80000){const d=new Date(Math.round((n-25569)*864e5));return localDateStr(new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()))}
  return '';
 }
-function parseAmt(s){s=String(s||'').trim();if(!s)return NaN;const neg=/^\(.*\)$/.test(s)||/^-/.test(s);const v=parseFloat(s.replace(/[^0-9.]/g,''));if(!Number.isFinite(v))return NaN;return neg?-v:v}
+function parseAmt(s){s=String(s==null?'':s).trim();if(!s||s==='-'||s==='–')return 0;const neg=/^\(.*\)$/.test(s)||/^-/.test(s);const v=parseFloat(s.replace(/[^0-9.]/g,''));if(!Number.isFinite(v))return NaN;return neg?-v:v}
 
-// ---------- account suggestions ----------
+// ---------- accounts ----------
 const SUG=[[/repair|mainten|carpent|construction|fix/i,['Repairs and Maintenance Expense']],[/water/i,['Water Expense','Utilities Expense']],[/electric|power|light/i,['Electricity Expense','Utilities Expense']],[/internet|telecom|phone|communication|mobile|load/i,['Communication Expense']],[/entertain|amuse|recreation|represent|meal/i,['Entertainment, Amusement and Recreation Expense','Meals and Representation Expense']],[/fuel|gas|diesel|transport|fare|toll|parking/i,['Fuel and Transportation Expense']],[/suppl/i,['Supplies Expense']],[/salar|wage|payroll|labor/i,['Salaries and Wages Expense']],[/tax|licen|permit/i,['Taxes and Licenses']],[/rent/i,['Rent Expense']],[/professional|legal|audit|accounting/i,['Professional Fees Expense']],[/insur/i,['Insurance Expense']],[/advert|promo|marketing/i,['Advertising and Promotions Expense']],[/bank|charge/i,['Bank Charges']],[/clean|janitor|laundry|garbage/i,['Janitorial and Cleaning Expense']],[/secur|guard/i,['Security Services Expense']],[/misc|other|sundry/i,['Miscellaneous Expense']]];
-const expAccts=()=>C().chartOfAccounts.filter(a=>a.category==='Expense'&&!a.isContra).sort((a,b)=>a.code-b.code);
-function suggestCat(cat){const c=C(),mem=(c.impMap||{}).cat||{};if(mem[cat.toLowerCase()]&&c.chartOfAccounts.some(a=>a.code===mem[cat.toLowerCase()]))return String(mem[cat.toLowerCase()]);
- const ex=expAccts(),t=cat.toLowerCase();let a=ex.find(x=>x.title.toLowerCase()===t||x.title.toLowerCase()===t+' expense');if(a)return String(a.code);
- const s=SUG.find(x=>x[0].test(cat));if(s){for(const name of s[1]){a=ex.find(x=>x.title.toLowerCase()===name.toLowerCase());if(a)return String(a.code)}return 'new:'+s[1][0]}
- return 'new:'+(/(expense|cost|fee|charges?)$/i.test(cat)?cat:cat+' Expense').replace(/\s*&\s*/g,' and ')}
-const payAccts=()=>C().chartOfAccounts.filter(a=>!a.isContra&&(a.roleTag==='cash'||a.roleTag==='ap'||(a.category==='Liability'&&/advances? from|due to|accrued/i.test(a.title))||(a.category==='Equity'&&a.normal==='Credit'&&!/retained|beginning/i.test(a.title)))).sort((a,b)=>a.code-b.code);
-function suggestPay(mode){const c=C(),mem=(c.impMap||{}).pay||{},k=mode.toLowerCase();if(mem[k]&&c.chartOfAccounts.some(a=>a.code===mem[k]))return String(mem[k]);
- const P=payAccts(),find=rx=>P.find(a=>rx.test(a.title));
- let a=null;const wallet=/gcash|maya|paymaya|e-?wallet|grabpay|shopeepay/i.test(mode);
+const INC_SUG=[[/rent|room|bed|lease|board/i,['Rental Revenue','Rental Income']],[/water|electric|light|power|utilit/i,['Utility Billing Income']],[/penalt|late|surcharge/i,['Penalties and Late Charges']],[/forfeit/i,['Forfeited Deposits Income']],[/interest/i,['Interest Income']],[/sale|merch|goods|store/i,['Merchandise Sales Income']],[/service|fee|labor/i,['Service Revenue']],[/other|misc/i,['Other Income']]];
+const accts=()=>C().chartOfAccounts.filter(a=>!a.isContra).sort((a,b)=>a.code-b.code);
+const byCat=cat=>accts().filter(a=>a.category===cat);
+const payAccts=()=>accts().filter(a=>a.roleTag==='cash'||a.roleTag==='ap'||a.roleTag==='ar'||(a.category==='Liability'&&/advances? from|due to|accrued/i.test(a.title))||(a.category==='Equity'&&a.normal==='Credit'&&!/retained|beginning/i.test(a.title)));
+const MEM=k=>{const c=C();if(!c.impMap||typeof c.impMap!=='object')c.impMap={};if(!c.impMap[k]||typeof c.impMap[k]!=='object')c.impMap[k]={};return c.impMap[k]};
+const has=code=>C().chartOfAccounts.some(a=>a.code===+code);
+function suggestCat(cat,dir){const mem=MEM(dir==='inc'?'inc':'cat')[cat.toLowerCase()];if(mem&&has(mem))return String(mem);
+ const ex=byCat(dir==='inc'?'Revenue':'Expense'),t=cat.toLowerCase(),suf=dir==='inc'?' income':' expense';
+ let a=ex.find(x=>x.title.toLowerCase()===t||x.title.toLowerCase()===t+suf);if(a)return String(a.code);
+ const L=dir==='inc'?INC_SUG:SUG,s=L.find(x=>x[0].test(cat));
+ if(s){for(const name of s[1]){a=ex.find(x=>x.title.toLowerCase()===name.toLowerCase());if(a)return String(a.code)}if(dir==='inc'){a=ex.find(x=>s[0].test(x.title));if(a)return String(a.code)}return 'new'+(dir==='inc'?'R':'E')+':'+s[1][0]}
+ const nm=(dir==='inc'?(/(income|revenue|fees?|charges?)$/i.test(cat)?cat:cat+' Income'):(/(expense|cost|fees?|charges?)$/i.test(cat)?cat:cat+' Expense')).replace(/\s*&\s*/g,' and ');
+ return 'new'+(dir==='inc'?'R':'E')+':'+nm}
+function suggestPay(mode,dir){const mem=MEM('pay')[(dir||'')+'|'+mode.toLowerCase()]||MEM('pay')[mode.toLowerCase()];if(mem&&has(mem))return String(mem);
+ const P=payAccts(),find=rx=>P.find(a=>rx.test(a.title));let a=null;const wallet=/gcash|maya|paymaya|e-?wallet|grabpay|shopeepay/i.test(mode);
  if(wallet)a=find(new RegExp(mode.replace(/[^a-z]/gi,''),'i'))||null;
  else if(/cash|petty|store/i.test(mode))a=find(/cash on hand|petty|cash$/i);
  else if(/bank|transfer|deposit|online|check|cheque|debit/i.test(mode))a=find(/bank/i);
- else if(/credit|unpaid|payable|later|charge/i.test(mode))a=P.find(x=>x.roleTag==='ap');
+ else if(/credit|unpaid|payable|later|charge|terms|account/i.test(mode))a=P.find(x=>x.roleTag===(dir==='inc'?'ar':'ap'));
  else if(/owner|personal/i.test(mode))a=P.find(x=>x.category==='Equity'||/advances? from/i.test(x.title));
- if(a)return String(a.code);
- if(/gcash|maya|paymaya|e-?wallet/i.test(mode))return 'new:'+mode.trim()+' Wallet';
- const cash=P.find(x=>x.roleTag==='cash');return cash?String(cash.code):''}
-function ensure(sel,cat){if(!String(sel).startsWith('new:'))return +sel;const title=String(sel).slice(4).trim();const X=window.ERPX;
- if(cat==='Expense')return X.ensureAcct(6000,title,'Expense');
- const code=X.ensureAcct(1010,title,'Asset',{roleTag:'cash'});const a=C().chartOfAccounts.find(x=>x.code===code);if(a&&(!a.roleTag||a.roleTag==='none'))a.roleTag='cash';return code}
-const keyOf=(date,amt,part,site)=>[date,amt,String(part).trim().toLowerCase(),String(site).trim().toLowerCase()].join('|');
+ if(a)return String(a.code);if(wallet)return 'newA:'+mode.trim()+' Wallet';const cash=P.find(x=>x.roleTag==='cash');return cash?String(cash.code):''}
+function resolveName(name){const s=String(name||'').trim();if(!s)return '';const ch=C().chartOfAccounts;
+ const code=(s.match(/^(\d{3,6})\b/)||[])[1];if(code&&ch.some(a=>a.code===+code))return String(+code);
+ const t=s.replace(/^\d{3,6}\s*[-–:]\s*/,'').toLowerCase();let a=ch.find(x=>x.title.toLowerCase()===t);if(a)return String(a.code);
+ const mem=MEM('acct')[t];if(mem&&has(mem))return String(mem);return ''}
+function guessNew(name){const t=String(name).toLowerCase();
+ if(/expense|cost|fee|charges|salar|wage|rent expense|supplies used|depreciation/.test(t))return 'newE:'+name;
+ if(/income|revenue|sales|rent(al)? income|interest income/.test(t))return 'newR:'+name;
+ if(/payable|accrued|loan|due to|advances from|unearned|deposit(s)? from/.test(t))return 'newL:'+name;
+ if(/capital|equity|drawing|retained|dividend/.test(t))return 'newQ:'+name;
+ if(/cash|bank|receivable|inventory|prepaid|equipment|furniture|advances to|deposit|wallet|gcash/.test(t))return 'newA:'+name;return ''}
+function ensure(sel){sel=String(sel);if(/^\d+$/.test(sel))return +sel;const m=sel.match(/^new([ERALQ]):(.+)$/);if(!m)return 0;const title=m[2].trim().slice(0,100);
+ const cat={E:'Expense',R:'Revenue',A:'Asset',L:'Liability',Q:'Equity'}[m[1]],base={E:6000,R:4900,A:1100,L:2200,Q:3100}[m[1]];
+ const opt=m[1]==='R'&&/interest|other|penalt|forfeit/i.test(title)?{sub:'Other Income'}:m[1]==='A'&&/cash|bank|wallet|gcash|maya/i.test(title)?{roleTag:'cash'}:undefined;
+ const code=X.ensureAcct(base,title,cat,opt);const a=C().chartOfAccounts.find(x=>x.code===code);if(a&&opt&&opt.roleTag==='cash'&&(!a.roleTag||a.roleTag==='none'))a.roleTag='cash';return code}
+const optsAll=(sel,extraNew)=>{const L=accts();return '<option value="">Choose…</option>'+(extraNew||'')+['Asset','Liability','Equity','Revenue','Expense'].map(cat=>'<optgroup label="'+cat+'">'+L.filter(a=>a.category===cat).map(a=>'<option value="'+a.code+'"'+(String(a.code)===String(sel)?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')+'</optgroup>').join('')};
+const newOpts=(name,sel)=>[['E','expense'],['R','income'],['A','asset'],['L','liability'],['Q','equity']].map(([k,l])=>'<option value="new'+k+':'+esc(name)+'"'+(sel==='new'+k+':'+name?' selected':'')+'>+ New '+l+' account: '+esc(name)+'</option>').join('');
+
+// ---------- encoder side: rows become For Posting items ----------
+const ENC=()=>window.ENCAPI;
+function encCat(cat){const E=ENC();if(!E)return 'Other expense';const mem=MEM('enccat')[cat.toLowerCase()];if(mem&&E.EXP_CATS.includes(mem))return mem;const i=E.EXP_RX.findIndex(rx=>rx.test(cat));return i>=0?E.EXP_CATS[i]:'Other expense'}
+function encFor(cat){const t=cat.toLowerCase();if(/rent|room|bed|lease|board/.test(t))return 'rent';if(/sale|store|merch|goods/.test(t))return 'sales';if(/balance|receivable|collection/.test(t))return 'balance';return 'other'}
+function encPaid(mode){const t=mode.toLowerCase();if(/unpaid|credit|later|payable|terms/.test(t))return 'unpaid';if(/owner|personal/.test(t))return 'owner';return 'cash'}
+function encAs(mode){const t=mode.toLowerCase();if(/check|cheque/.test(t))return 'check';if(/bank|transfer|deposit|online|gcash|maya|wallet/.test(t))return 'bank';return 'cash'}
 
 // ---------- the import window ----------
+const TPL={
+ A:{name:'Simple log',who:'Encoders: daily money in and out',cols:['Date','Type','Particulars','Category','Mode of Payment','Amount','Site','Ref'],rows:[['2026-10-01','Expense','Bohol Light','Electricity','Cash','1500.00','HNU','OR-1023'],['2026-10-05','Income','Juan Cruz – October rent','Rent','GCash','5000.00','HNU','AR-551']]},
+ B:{name:'Two-account',who:'Bookkeepers: transfers, loans, capital, purchases on credit',cols:['Date','Particulars','Debit Account','Credit Account','Amount','Ref','Site'],rows:[['2026-10-02','Cash deposited to bank','Cash in Bank','Cash on Hand','20000.00','DS-88',''],['2026-10-03','Bank loan proceeds','Cash in Bank','Loans Payable','100000.00','LN-1','']]},
+ C:{name:'Journal',who:'Accountant: multi-line entries and adjustments',cols:['Date','Ref','Particulars','Account','Debit','Credit','Site'],rows:[['2026-10-31','ADJ-10','Accrue October utilities','Utilities Expense','3200.00','',''],['2026-10-31','ADJ-10','Accrue October utilities','Accrued Expenses','','3200.00',''],['2026-10-31','ADJ-11','Prepaid insurance used','Insurance Expense','1500.00',''],['2026-10-31','ADJ-11','Prepaid insurance used','Prepaid Expenses','','1500.00','']]}};
+function template(k){const c=C(),T=TPL[k],keep=T.cols.map((h,i)=>h!=='Site'||hasSites(c)?i:-1).filter(i=>i>=0);X.dl('AJ_import_template_'+k+'_'+T.name.replace(/\W+/g,'_')+'.csv',X.csv([keep.map(i=>T.cols[i])].concat(T.rows.map(r=>keep.map(i=>r[i]||'')))))}
+
 function openImport(){
- const c=C();if(!c)return;if(window.currentUser&&!['admin','bookkeeper','custom'].includes(window.currentUser.role))return toast('Your role cannot post to the books.');
- let rows=[],det={h:-1,map:{}},fmt='mdy',fileName='';
- const m=modal('<div class="aj4"><h2 style="margin-top:0">Import expenses</h2>'
-  +'<p class="hr-note" style="margin-top:-.4rem">Bring in an expense list such as your Google Sheets <b>Expenses Log</b>. Each row becomes one journal entry: debit the expense account for its category, credit the account for its mode of payment.</p>'
-  +'<div class="form-group"><label for="aj4Paste">1. Paste the cells (select the whole table in Google Sheets, including the header row, and copy)</label><textarea id="aj4Paste" placeholder="Date&#9;Site&#9;Particulars&#9;Mode of Payment&#9;Category&#9;Amount&#10;8/18/2026&#9;HNU&#9;Fuel Expense for carpenters&#9;Cash&#9;Repairs &amp; Maintenance&#9;₱1,000.00"></textarea></div>'
-  +'<div class="hr-bar" style="align-items:flex-end"><div class="form-group"><label for="aj4File">…or choose a CSV file (File › Download › CSV in Google Sheets)</label><input type="file" id="aj4File" accept=".csv,.tsv,.txt,text/csv"></div><div class="form-group"><label for="aj4Fmt">Dates are written as</label><select id="aj4Fmt"><option value="mdy">Month/Day/Year (8/18/2026)</option><option value="dmy">Day/Month/Year (18/8/2026)</option></select></div></div>'
+ const c=C();if(!c)return;const enc=isEnc();
+ if(!enc&&window.currentUser&&!['admin','bookkeeper','custom'].includes(window.currentUser.role))return toast('Your role cannot post to the books.');
+ if(enc&&!ENC())return toast('Encoder entry is not available in this file.');
+ let rows=[],det={h:-1,map:{},layout:'A'},fmt='mdy',fileName='',dir='exp',plan=[];
+ const sites=hasSites(c);
+ const m=modal('<div class="aj4"><h2 style="margin-top:0">Paste from spreadsheet</h2>'
+  +'<p class="hr-note" style="margin-top:-.4rem">Copy the table from Google Sheets or Excel, header row included, and paste it below. Any of these three layouts works; the header names decide which one is used.'+(enc?' Your rows go to <b>For Posting</b> for the admin to approve.':'')+'</p>'
+  +'<div class="lay">'+(enc?['A']:['A','B','C']).map(k=>'<div><b>'+k+' · '+TPL[k].name+'</b>'+esc(TPL[k].who)+'<br><code>'+TPL[k].cols.filter(h=>h!=='Site'||sites).join(' · ')+'</code><br><button type="button" class="btn btn-outline btn-sm" data-tpl="'+k+'" style="margin-top:6px">Download template</button></div>').join('')+'</div>'
+  +'<div class="form-group"><label for="aj4Paste">Paste here</label><textarea id="aj4Paste" placeholder="Date&#9;Type&#9;Particulars&#9;Category&#9;Mode of Payment&#9;Amount&#10;10/1/2026&#9;Expense&#9;Bohol Light&#9;Electricity&#9;Cash&#9;1,500.00"></textarea></div>'
+  +'<div class="hr-bar" style="align-items:flex-end"><div class="form-group"><label for="aj4File">…or choose a CSV file</label><input type="file" id="aj4File" accept=".csv,.tsv,.txt,text/csv"></div><div class="form-group"><label for="aj4Fmt">Dates are written as</label><select id="aj4Fmt"><option value="mdy">Month/Day/Year (10/1/2026)</option><option value="dmy">Day/Month/Year (1/10/2026)</option></select></div></div>'
   +'<div id="aj4Body"></div>'
-  +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:1rem"><button type="button" class="btn btn-outline" id="aj4Hist">Past imports</button><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="aj4Go" disabled>Post entries</button></span></div></div>',960);
+  +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:1rem">'+(enc?'<span></span>':'<button type="button" class="btn btn-outline" id="aj4Hist">Past imports</button>')+'<span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="aj4Go" disabled>'+(enc?'Send to For Posting':'Post entries')+'</button></span></div></div>');
  const q=s=>m.querySelector(s);
- const load=text=>{rows=parseRows(text);det=detect(rows);paint()};
+ m.querySelectorAll('[data-tpl]').forEach(b=>b.onclick=()=>template(b.dataset.tpl));
+ const load=text=>{rows=parseRows(text);det=detect(rows);if(enc)det.layout='A';paint()};
  q('#aj4Paste').oninput=e=>{fileName='pasted';load(e.target.value)};
  q('#aj4File').onchange=e=>{const f=e.target.files[0];if(!f)return;fileName=f.name;const r=new FileReader();r.onload=()=>{q('#aj4Paste').value='';load(r.result)};r.readAsText(f)};
  q('#aj4Fmt').onchange=e=>{fmt=e.target.value;paint()};
- q('#aj4Hist').onclick=()=>{m.remove();openHistory()};
- let plan=[];
+ if(q('#aj4Hist'))q('#aj4Hist').onclick=()=>{m.remove();openHistory()};
+ const selVals=attr=>{const o={};m.querySelectorAll('['+attr+']').forEach(s=>o[s.getAttribute(attr)]=s.value);return o};
+
+ // turn rows into entries
  function build(){
-  const mp=det.map,body=rows.slice(det.h+1),seen=new Set(),existing=new Set((c.journalEntries||[]).filter(e=>e.impKey).map(e=>e.impKey));
-  const catSel={},paySel={};m.querySelectorAll('[data-cat]').forEach(s=>catSel[s.dataset.cat]=s.value);m.querySelectorAll('[data-pay]').forEach(s=>paySel[s.dataset.pay]=s.value);
-  return body.map((r,i)=>{const g=k=>mp[k]!=null?String(r[mp[k]]||'').trim():'';
-   const o={n:det.h+2+i,date:parseDate(g('date'),fmt),rawDate:g('date'),site:g('site'),part:g('part'),mode:g('mode')||'Cash',cat:g('cat')||'Uncategorized',amt:parseAmt(g('amt'))};
-   o.cents=Math.round(o.amt*100);o.key=keyOf(o.date,o.cents,o.part,o.site);
-   if(!g('date')&&!g('amt')&&!o.part)o.status='skip';
-   else if(!o.date)o.status='bad',o.why='Date not recognised: '+(o.rawDate||'(blank)');
-   else if(!(o.amt>0))o.status='bad',o.why=o.amt<0?'Negative amount (enter refunds as income or a journal entry)':'No amount';
-   else if(window.AJLOCK&&AJLOCK.is(o.date))o.status='bad',o.why='Date is in the locked period';
-   else if(existing.has(o.key))o.status='dup',o.why='Already imported';
-   else if(seen.has(o.key))o.status='dup',o.why='Same row appears twice in this list';
+  const L=det.layout,mp=det.map,body=rows.slice(det.h+1),g=(r,k)=>mp[k]!=null?String(r[mp[k]]==null?'':r[mp[k]]).trim():'';
+  const catS=selVals('data-cat'),payS=selVals('data-pay'),actS=selVals('data-act');
+  const existing=new Set((c.journalEntries||[]).filter(e=>e.impKey).map(e=>e.impKey)),seen=new Set(),out=[];
+  const acctOf=name=>{const r=resolveName(name);if(r)return r;return actS[String(name).trim().toLowerCase()]||''};
+  const finish=o=>{
+   if(o.status)return out.push(o);
+   if(!o.date)o.status='bad',o.why='Date not recognised: '+(o.rawDate||'(blank)');
+   else if(window.AJLOCK&&!enc&&AJLOCK.is(o.date))o.status='bad',o.why='Date is in the locked period';
+   else if(o.lines&&o.lines.some(l=>!l.sel))o.status='bad',o.why='Choose an account for: '+[...new Set(o.lines.filter(l=>!l.sel).map(l=>l.name||'(blank)'))].join(', ');
+   else if(o.lines&&o.lines.reduce((s,l)=>s+l.dr-l.cr,0)!==0)o.status='bad',o.why='Debits and credits do not balance';
+   else if(!enc&&existing.has(o.key))o.status='dup',o.why='Already imported';
+   else if(seen.has(o.key))o.status='dup',o.why='Appears twice in this paste';
    else o.status='ok';
-   if(o.status!=='skip')seen.add(o.key);o.catSel=catSel[o.cat];o.paySel=paySel[o.mode];return o}).filter(o=>o.status!=='skip');
+   if(o.key)seen.add(o.key);out.push(o)};
+  if(L==='A'){
+   body.forEach((r,i)=>{const n=det.h+2+i;let amt=parseAmt(g(r,'amt')),d=dir;const ai=parseAmt(g(r,'amtIn')),ao=parseAmt(g(r,'amtOut')),tv=g(r,'type');
+    if(mp.amt==null&&(mp.amtIn!=null||mp.amtOut!=null)){if(ai>0){amt=ai;d='inc'}else if(ao>0){amt=ao;d='exp'}else amt=NaN}
+    if(tv){if(INC_W.test(tv))d='inc';else if(EXP_W.test(tv))d='exp'}
+    const part=g(r,'part'),cat=g(r,'cat')||'Uncategorized',mode=g(r,'mode')||'Cash',site=sites?g(r,'site'):'',ref=g(r,'ref'),rawDate=g(r,'date');
+    if(!rawDate&&!part&&!(amt>0)&&!(Number.isFinite(amt)&&amt<0))return;
+    const o={n,layout:'A',dir:d,date:parseDate(rawDate,fmt),rawDate,part,cat,mode,site,ref,cents:Math.round((amt||0)*100)};
+    o.key=(d==='inc'?'inc|':'')+[o.date,o.cents,part.toLowerCase(),site.toLowerCase()].join('|');
+    if(!(amt>0)){o.status='bad';o.why=amt<0?'Negative amount (record refunds with a journal entry)':'No amount';return finish(o)}
+    if(!enc){const cs=catS[d+'|'+cat],ps=payS[d+'|'+mode];o.lines=d==='inc'?[{sel:ps,name:mode,dr:o.cents,cr:0},{sel:cs,name:cat,dr:0,cr:o.cents}]:[{sel:cs,name:cat,dr:o.cents,cr:0},{sel:ps,name:mode,dr:0,cr:o.cents}]}
+    finish(o)});
+  }else if(L==='B'){
+   body.forEach((r,i)=>{const n=det.h+2+i,amt=parseAmt(g(r,'amt')),dn=g(r,'dracct'),cn=g(r,'cracct'),part=g(r,'part'),rawDate=g(r,'date'),site=sites?g(r,'site'):'',ref=g(r,'ref');
+    if(!rawDate&&!dn&&!cn&&!(amt>0))return;
+    const o={n,layout:'B',date:parseDate(rawDate,fmt),rawDate,part,site,ref,cents:Math.round((amt||0)*100)};
+    o.key='b|'+[o.date,o.cents,part.toLowerCase(),dn.toLowerCase(),cn.toLowerCase()].join('|');
+    if(!(amt>0)){o.status='bad';o.why=amt<0?'Negative amount: swap the debit and credit accounts instead':'No amount';return finish(o)}
+    o.lines=[{sel:acctOf(dn),name:dn,dr:o.cents,cr:0},{sel:acctOf(cn),name:cn,dr:0,cr:o.cents}];finish(o)});
+  }else{
+   let cur=null,bal=0;const close=()=>{if(!cur)return;cur.cents=cur.lines.reduce((s,l)=>s+l.dr,0);cur.key='c|'+[cur.date,cur.ref.toLowerCase(),cur.cents,cur.lines.map(l=>(l.name||'').toLowerCase()+':'+l.dr+':'+l.cr).join(',')].join('|');finish(cur);cur=null;bal=0};
+   body.forEach((r,i)=>{const n=det.h+2+i,an=g(r,'acct'),dr=parseAmt(g(r,'dr')),cr=parseAmt(g(r,'cr')),ref=g(r,'ref'),rawDate=g(r,'date');
+    if(!an&&!(dr>0)&&!(cr>0)){close();return}
+    const startNew=!cur||(mp.ref!=null&&ref&&ref!==cur.ref)||(mp.ref!=null&&!ref&&bal===0&&cur.lines.length>=2)||(mp.ref==null&&bal===0&&cur.lines.length>=2);
+    if(startNew){close();cur={n,layout:'C',date:parseDate(rawDate,fmt),rawDate,ref:ref||'',part:g(r,'part'),site:sites?g(r,'site'):'',lines:[]}}
+    if(!cur.part&&g(r,'part'))cur.part=g(r,'part');if(!cur.site&&sites&&g(r,'site'))cur.site=g(r,'site');
+    const D=Math.round((dr>0?dr:0)*100),Cc=Math.round((cr>0?cr:0)*100);cur.lines.push({sel:acctOf(an),name:an,dr:D,cr:Cc});bal+=D-Cc});
+   close();
+  }
+  return out;
  }
  function paint(){
-  const box=q('#aj4Body');
+  const box=q('#aj4Body');plan=[];
   if(!rows.length){box.innerHTML='';q('#aj4Go').disabled=true;return}
-  if(det.h<0||det.map.date==null||det.map.amt==null){box.innerHTML='<div class="rq-note">I could not find a header row with <b>Date</b> and <b>Amount</b>. Include the header row when you copy.</div>';q('#aj4Go').disabled=true;return}
-  const hdr=rows[det.h],colSel=(k,l)=>'<div class="form-group"><label>'+l+'</label><select data-col="'+k+'"><option value="">(none)</option>'+hdr.map((h,i)=>'<option value="'+i+'"'+(det.map[k]===i?' selected':'')+'>'+esc(h||'Column '+(i+1))+'</option>').join('')+'</select></div>';
-  const prev=build();const cats=[...new Set(prev.map(o=>o.cat))].sort(),modes=[...new Set(prev.map(o=>o.mode))].sort();
-  const EX=expAccts(),PA=payAccts();
-  const catOpt=cat=>{const s=suggestCat(cat);const isNew=s.startsWith('new:');return '<option value="new:'+esc(isNew?s.slice(4):(cat+' Expense'))+'"'+(isNew?' selected':'')+'>+ New account: '+esc(isNew?s.slice(4):cat+' Expense')+'</option>'+EX.map(a=>'<option value="'+a.code+'"'+(String(a.code)===s?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')};
-  const payOpt=mode=>{const s=suggestPay(mode);const isNew=s.startsWith('new:');return (isNew?'<option value="'+esc(s)+'" selected>+ New cash account: '+esc(s.slice(4))+'</option>':'')+PA.map(a=>'<option value="'+a.code+'"'+(String(a.code)===s?' selected':'')+'>'+esc(a.code+' – '+a.title)+(a.roleTag==='ap'?' (not yet paid)':'')+'</option>').join('')};
-  const keepCat={},keepPay={};m.querySelectorAll('[data-cat]').forEach(s=>keepCat[s.dataset.cat]=s.value);m.querySelectorAll('[data-pay]').forEach(s=>keepPay[s.dataset.pay]=s.value);
-  box.innerHTML='<h3 style="font-size:1rem;margin:1rem 0 .4rem">2. Check the columns</h3><div class="hr-bar">'+COLS.map(([k,l])=>colSel(k,l)).join('')+'</div>'
-   +'<h3 style="font-size:1rem;margin:1rem 0 .4rem">3. Choose the accounts</h3><p class="hr-note" style="margin-top:0">Your choices are remembered for the next import.</p>'
-   +'<div class="map" style="margin-bottom:.6rem"><b>Category</b><b>Expense account (debit)</b>'+cats.map(cat=>'<span>'+esc(cat)+' <small class="bk-mut">('+prev.filter(o=>o.cat===cat).length+')</small></span><select data-cat="'+esc(cat)+'">'+catOpt(cat)+'</select>').join('')+'</div>'
-   +'<div class="map"><b>Mode of payment</b><b>Paid from (credit)</b>'+modes.map(md=>'<span>'+esc(md)+' <small class="bk-mut">('+prev.filter(o=>o.mode===md).length+')</small></span><select data-pay="'+esc(md)+'">'+payOpt(md)+'</select>').join('')+'</div>'
-   +'<h3 style="font-size:1rem;margin:1rem 0 .4rem">4. Preview</h3><div id="aj4Prev"></div>';
-  m.querySelectorAll('[data-cat]').forEach(s=>{if(keepCat[s.dataset.cat]&&[...s.options].some(o=>o.value===keepCat[s.dataset.cat]))s.value=keepCat[s.dataset.cat];s.onchange=prevPaint});
-  m.querySelectorAll('[data-pay]').forEach(s=>{if(keepPay[s.dataset.pay]&&[...s.options].some(o=>o.value===keepPay[s.dataset.pay]))s.value=keepPay[s.dataset.pay];s.onchange=prevPaint});
-  m.querySelectorAll('[data-col]').forEach(s=>s.onchange=()=>{const k=s.dataset.col;if(s.value==='')delete det.map[k];else det.map[k]=+s.value;paint()});
-  prevPaint();
+  if(det.h<0){box.innerHTML='<div class="rq-note">I could not find the header row. Include it when you copy (for example Date · Particulars · Amount).</div>';q('#aj4Go').disabled=true;return}
+  const hdr=rows[det.h],L=det.layout,miss=NEED[L].filter(k=>det.map[k]==null&&!(L==='A'&&k==='amt'&&(det.map.amtIn!=null||det.map.amtOut!=null)));
+  const colSel=k=>'<div class="form-group"><label>'+LABEL[k]+'</label><select data-col="'+k+'"><option value="">(none)</option>'+hdr.map((h,i)=>'<option value="'+i+'"'+(det.map[k]===i?' selected':'')+'>'+esc(h||'Column '+(i+1))+'</option>').join('')+'</select></div>';
+  let h='<h3 style="font-size:1rem;margin:1rem 0 .4rem">Layout and columns</h3><div class="hr-bar" style="align-items:flex-end">'
+   +(enc?'':'<div class="form-group"><label for="aj4Lay">Layout</label><select id="aj4Lay">'+['A','B','C'].map(k=>'<option value="'+k+'"'+(L===k?' selected':'')+'>'+k+' · '+TPL[k].name+'</option>').join('')+'</select></div>')
+   +(L==='A'&&det.map.type==null&&det.map.amtIn==null&&det.map.amtOut==null?'<div class="form-group"><label for="aj4Dir">All rows are</label><select id="aj4Dir"><option value="exp"'+(dir==='exp'?' selected':'')+'>Expenses (money out)</option><option value="inc"'+(dir==='inc'?' selected':'')+'>Income (money in)</option></select></div>':'')
+   +'</div><div class="hr-bar">'+SHOW[L].filter(k=>k!=='site'||sites).map(colSel).join('')+'</div>';
+  if(miss.length){box.innerHTML=h+'<div class="rq-note">Missing column'+(miss.length>1?'s':'')+': <b>'+miss.map(k=>LABEL[k]).join(', ')+'</b>. Pick '+(miss.length>1?'them':'it')+' above, or rename the header in your sheet.</div>';wireTop();q('#aj4Go').disabled=true;return}
+  const keep={cat:selVals('data-cat'),pay:selVals('data-pay'),act:selVals('data-act'),ec:selVals('data-ecat'),ep:selVals('data-epay')};
+  const pre=build();
+  h+='<h3 style="font-size:1rem;margin:1rem 0 .4rem">Accounts</h3><p class="hr-note" style="margin-top:0">'+(enc?'Choose how each category and payment is recorded. The admin picks the final accounts when posting.':'Your choices are remembered for next time.')+'</p>';
+  if(L==='A'){
+   const pairs=(k)=>[...new Set(pre.filter(o=>o.cents>0).map(o=>o.dir+'|'+o[k]))].sort();
+   const cats=pairs('cat'),modes=pairs('mode');
+   if(enc){
+    const E=ENC(),C2=E.EXP_CATS,COLF=E.COL_FOR;
+    h+='<div class="map"><b>Category</b><b>Recorded as</b>'+cats.map(k=>{const [d,cat]=k.split(/\|(.*)/);return '<span>'+(d==='inc'?'Income':'Expense')+': '+esc(cat)+'</span><select data-ecat="'+esc(k)+'">'+(d==='inc'?COLF.map(f=>'<option value="'+f[0]+'"'+(encFor(cat)===f[0]?' selected':'')+'>'+esc(f[1])+'</option>'):C2.map(x=>'<option'+(encCat(cat)===x?' selected':'')+'>'+esc(x)+'</option>')).join('')+'</select>'}).join('')+'</div>'
+     +'<div class="map"><b>Mode of payment</b><b>Recorded as</b>'+modes.map(k=>{const [d,md]=k.split(/\|(.*)/);return '<span>'+(d==='inc'?'Received':'Paid')+': '+esc(md)+'</span><select data-epay="'+esc(k)+'">'+(d==='inc'?[['cash','Cash'],['check','Check'],['bank','Bank transfer / deposit']].map(f=>'<option value="'+f[0]+'"'+(encAs(md)===f[0]?' selected':'')+'>'+f[1]+'</option>'):[['cash','Cash from the store'],['unpaid','Not yet paid'],['owner','Owner paid personally']].map(f=>'<option value="'+f[0]+'"'+(encPaid(md)===f[0]?' selected':'')+'>'+f[1]+'</option>')).join('')+'</select>'}).join('')+'</div>';
+   }else{
+    h+='<div class="map"><b>Category</b><b>Account</b>'+cats.map(k=>{const [d,cat]=k.split(/\|(.*)/),s=suggestCat(cat,d),nk=s.startsWith('new')?s:'new'+(d==='inc'?'R':'E')+':'+(cat+(d==='inc'?' Income':' Expense'));return '<span>'+(d==='inc'?'<b>Income</b>':'<b>Expense</b>')+': '+esc(cat)+'</span><select data-cat="'+esc(k)+'"><option value="'+esc(nk)+'"'+(s.startsWith('new')?' selected':'')+'>+ New account: '+esc(nk.slice(5))+'</option>'+byCat(d==='inc'?'Revenue':'Expense').map(a=>'<option value="'+a.code+'"'+(String(a.code)===s?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')+'</select>'}).join('')+'</div>'
+     +'<div class="map"><b>Mode of payment</b><b>'+'Cash, bank or other account</b>'+modes.map(k=>{const [d,md]=k.split(/\|(.*)/),s=suggestPay(md,d);return '<span>'+(d==='inc'?'Received':'Paid')+': '+esc(md)+'</span><select data-pay="'+esc(k)+'">'+(s.startsWith('new')?'<option value="'+esc(s)+'" selected>+ New cash account: '+esc(s.slice(5))+'</option>':'')+payAccts().map(a=>'<option value="'+a.code+'"'+(String(a.code)===s?' selected':'')+'>'+esc(a.code+' – '+a.title)+(a.roleTag==='ap'?' (not yet paid)':a.roleTag==='ar'?' (not yet collected)':'')+'</option>').join('')+'</select>'}).join('')+'</div>';
+   }
+  }else{
+   const names=[...new Set(pre.flatMap(o=>(o.lines||[]).filter(l=>!resolveName(l.name)).map(l=>String(l.name).trim())))].filter(Boolean).sort();
+   const blank=pre.some(o=>(o.lines||[]).some(l=>!String(l.name).trim()));
+   h+=names.length?'<div class="map"><b>Account in your sheet</b><b>Account in AJ ERP</b>'+names.map(nm=>{const k=nm.toLowerCase(),g=guessNew(nm);return '<span>'+esc(nm)+'</span><select data-act="'+esc(k)+'">'+optsAll('',newOpts(nm,g))+'</select>'}).join('')+'</div>':'<p class="hr-note">Every account name in the sheet matches the chart of accounts.</p>';
+   if(blank)h+='<div class="rq-note">Some rows have no account name; they are shown as problems below.</div>';
+  }
+  h+='<h3 style="font-size:1rem;margin:1rem 0 .4rem">Preview</h3><div id="aj4Prev"></div>';
+  box.innerHTML=h;
+  const restore=(attr,o)=>m.querySelectorAll('['+attr+']').forEach(s=>{const v=o[s.getAttribute(attr)];if(v!=null&&[...s.options].some(x=>x.value===v))s.value=v;s.onchange=prevPaint});
+  restore('data-cat',keep.cat);restore('data-pay',keep.pay);restore('data-act',keep.act);restore('data-ecat',keep.ec);restore('data-epay',keep.ep);
+  wireTop();prevPaint();
+ }
+ function wireTop(){
+  m.querySelectorAll('[data-col]').forEach(s=>s.onchange=()=>{const k=s.dataset.col;Object.keys(det.map).forEach(x=>{if(x!==k&&det.map[x]===+s.value&&s.value!=='')delete det.map[x]});if(s.value==='')delete det.map[k];else det.map[k]=+s.value;paint()});
+  const ly=q('#aj4Lay');if(ly)ly.onchange=()=>{det.layout=ly.value;paint()};
+  const dd=q('#aj4Dir');if(dd)dd.onchange=()=>{dir=dd.value;paint()};
  }
  function prevPaint(){
   plan=build();const ok=plan.filter(o=>o.status==='ok'),dup=plan.filter(o=>o.status==='dup'),bad=plan.filter(o=>o.status==='bad'),tot=ok.reduce((s,o)=>s+o.cents,0);
-  const lbl=v=>{if(!v)return '';if(v.startsWith('new:'))return v.slice(4)+' (new)';const a=C().chartOfAccounts.find(x=>String(x.code)===v);return a?a.title:v};
-  q('#aj4Prev').innerHTML='<p style="margin:.2rem 0 .5rem"><span class="pill ok">'+ok.length+' to post · '+money(tot)+'</span> '+(dup.length?'<span class="pill dup">'+dup.length+' duplicate'+(dup.length===1?'':'s')+' skipped</span> ':'')+(bad.length?'<span class="pill bad">'+bad.length+' with problems skipped</span>':'')+'</p>'
-   +'<div class="sc"><table><thead><tr><th>Row</th><th>Date</th><th>Site</th><th>Particulars</th><th>Debit</th><th>Credit</th><th class="n">Amount</th><th>Status</th></tr></thead><tbody>'
-   +plan.map(o=>'<tr><td>'+o.n+'</td><td>'+esc(o.date?fdl(o.date):o.rawDate)+'</td><td>'+esc(o.site)+'</td><td>'+esc(o.part)+'</td><td>'+esc(lbl(o.catSel))+'</td><td>'+esc(lbl(o.paySel))+'</td><td class="n">'+(Number.isFinite(o.amt)?money(o.cents):'')+'</td><td class="'+o.status+'">'+(o.status==='ok'?'Ready':esc(o.why))+'</td></tr>').join('')+'</tbody></table></div>';
-  q('#aj4Go').disabled=!ok.length;q('#aj4Go').textContent=ok.length?'Post '+ok.length+' entr'+(ok.length===1?'y':'ies'):'Post entries';
+  const ttl=v=>{if(!v)return '?';const mm=String(v).match(/^new[ERALQ]:(.+)$/);if(mm)return mm[1]+' (new)';const a=C().chartOfAccounts.find(x=>String(x.code)===String(v));return a?a.title:v};
+  const ln=o=>o.lines?'<div class="lines">'+o.lines.map(l=>(l.dr?'Dr ':'Cr ')+esc(ttl(l.sel))+' '+money(l.dr||l.cr)).join(' · ')+'</div>':'';
+  q('#aj4Prev').innerHTML='<p style="margin:.2rem 0 .5rem"><span class="pill ok">'+ok.length+' ready · '+money(tot)+'</span> '+(dup.length?'<span class="pill dup">'+dup.length+' duplicate'+(dup.length===1?'':'s')+' skipped</span> ':'')+(bad.length?'<span class="pill bad">'+bad.length+' with problems skipped</span>':'')+'</p>'
+   +'<div class="sc"><table><thead><tr><th>Row</th><th>Date</th>'+(sites?'<th>Site</th>':'')+'<th>Particulars</th><th class="n">Amount</th><th>Status</th></tr></thead><tbody>'
+   +plan.map(o=>'<tr><td>'+o.n+'</td><td>'+esc(o.date?fdl(o.date):o.rawDate)+'</td>'+(sites?'<td>'+esc(o.site||'')+'</td>':'')+'<td>'+(o.layout==='A'?'<b>'+(o.dir==='inc'?'In':'Out')+'</b> · ':'')+esc(o.part||o.ref||'')+(o.layout==='A'?' <span class="bk-mut">('+esc(o.cat)+', '+esc(o.mode)+')</span>':'')+ln(o)+'</td><td class="n">'+(o.cents?money(o.cents):'')+'</td><td class="'+o.status+'">'+(o.status==='ok'?'Ready':esc(o.why))+'</td></tr>').join('')+'</tbody></table></div>';
+  q('#aj4Go').disabled=!ok.length;q('#aj4Go').textContent=ok.length?(enc?'Send '+ok.length+' to For Posting':'Post '+ok.length+' entr'+(ok.length===1?'y':'ies')):(enc?'Send to For Posting':'Post entries');
  }
  q('#aj4Go').onclick=()=>{
   plan=build();const ok=plan.filter(o=>o.status==='ok');if(!ok.length)return;
-  if(ok.some(o=>!o.catSel||!o.paySel))return toast('Choose an account for every category and mode of payment.');
-  const codes={},getCode=(sel,cat)=>codes[cat+sel]!=null?codes[cat+sel]:(codes[cat+sel]=ensure(sel,cat));
-  const bid='imp_'+Date.now().toString(36);if(!c.impMap)c.impMap={cat:{},pay:{}};let tot=0;
-  ok.forEach((o,i)=>{const dr=getCode(o.catSel,'Expense'),cr=getCode(o.paySel,'Pay');c.impMap.cat[o.cat.toLowerCase()]=dr;c.impMap.pay[o.mode.toLowerCase()]=cr;tot+=o.cents;
-   c.journalEntries.push({id:'entry_'+bid+'_'+i,date:o.date,ref:('EXP-'+o.date.replace(/-/g,'').slice(2)+'-'+String(i+1).padStart(3,'0')).slice(0,40),desc:String(o.part+(o.site?' · '+o.site:'')+' · '+o.cat).slice(0,200),lines:[{accountCode:dr,debit:o.cents/100,credit:0},{accountCode:cr,debit:0,credit:o.cents/100}],fileAttachment:null,imp:bid,impKey:o.key,site:o.site||undefined})});
-  if(!Array.isArray(c.imports))c.imports=[];c.imports.push({id:bid,at:new Date().toISOString(),by:who(),file:fileName||'pasted',n:ok.length,total:tot/100,from:ok.reduce((a,o)=>o.date<a?o.date:a,'9999'),to:ok.reduce((a,o)=>o.date>a?o.date:a,'')});
-  c.chartOfAccounts.sort((a,b)=>a.code-b.code);
-  saveToLocalStorage();try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}
-  m.remove();toast('Posted '+ok.length+' expense entr'+(ok.length===1?'y':'ies')+' ('+money(tot)+').'+(plan.length>ok.length?' '+(plan.length-ok.length)+' skipped.':''),'success');
+  if(enc){
+   const E=ENC(),ec=selVals('data-ecat'),ep=selVals('data-epay'),banks=(E.lists().banks||[]);let n=0,dups=0;const at=new Date().toISOString();
+   ok.forEach(o=>{const kind=o.dir==='inc'?'collection':'expense';let data;
+    if(kind==='expense')data={amount:o.cents/100,date:o.date,payee:o.part||o.cat,category:ec['exp|'+o.cat]||encCat(o.cat),desc:[o.part?o.cat:'',o.mode&&!/^cash$/i.test(o.mode)?'paid by '+o.mode:''].filter(Boolean).join(' · ').slice(0,200),paid:ep['exp|'+o.mode]||encPaid(o.mode),orNo:o.ref,photo:'',site:o.site||undefined};
+    else{let as=ep['inc|'+o.mode]||encAs(o.mode);if(as==='bank'&&!banks.length)as='cash';data={amount:o.cents/100,date:o.date,from:o.part||o.cat,forWhat:ec['inc|'+o.cat]||encFor(o.cat),as,acct:as==='bank'&&banks.length?banks[0].id:'',orNo:o.ref,notes:[o.cat,o.mode].filter(Boolean).join(' · ').slice(0,200),cwt:0,invs:[],photo:'',site:o.site||undefined}}
+    const it={id:'q_'+E.uid(),kind,data,by:{id:(window.currentUser||{}).id,name:who()},at,status:'PENDING',note:'',sent:!E.isWS(),rev:0,via:'paste'};
+    if(E.dupOf&&E.dupOf(it)){dups++;return}E.Q().push(it);n++});
+   ok.forEach(o=>{MEM('enccat')[o.cat.toLowerCase()]=ec['exp|'+o.cat]||MEM('enccat')[o.cat.toLowerCase()]});
+   saveToLocalStorage();m.remove();try{showTab('enc')}catch(e){}
+   return toast(n+' row'+(n===1?'':'s')+' added to your entries'+(dups?', '+dups+' already entered':'')+'. '+(E.isWS()?'Send your file to the admin as usual.':'They wait in For Posting.'),'success');
+  }
+  const codes={},code=sel=>codes[sel]!=null?codes[sel]:(codes[sel]=ensure(sel));
+  const bid='imp_'+Date.now().toString(36),pref={A:'',B:'TRX-',C:'JV-'};let tot=0;
+  const catS=selVals('data-cat'),payS=selVals('data-pay'),actS=selVals('data-act');
+  Object.entries(catS).forEach(([k,v])=>{const [d,cat]=k.split(/\|(.*)/);MEM(d==='inc'?'inc':'cat')[cat.toLowerCase()]=code(v)});
+  Object.entries(payS).forEach(([k,v])=>{const [d,md]=k.split(/\|(.*)/);MEM('pay')[d+'|'+md.toLowerCase()]=code(v)});
+  Object.entries(actS).forEach(([k,v])=>{if(v)MEM('acct')[k]=code(v)});
+  ok.forEach((o,i)=>{const lines=o.lines.map(l=>({accountCode:code(l.sel),debit:l.dr/100,credit:l.cr/100}));tot+=o.cents;
+   const p=o.layout==='A'?(o.dir==='inc'?'INC-':'EXP-'):pref[o.layout];
+   const ref=(o.ref||(p+o.date.replace(/-/g,'').slice(2)+'-'+String(i+1).padStart(3,'0'))).slice(0,40);
+   const desc=(o.layout==='A'?[o.part||o.cat,o.part?o.cat:''].filter(Boolean).join(' · '):(o.part||o.ref||'Imported entry')).slice(0,200);
+   c.journalEntries.push({id:'entry_'+bid+'_'+i,date:o.date,ref,desc,lines,fileAttachment:null,imp:bid,impKey:o.key,site:o.site||undefined})});
+  if(!Array.isArray(c.imports))c.imports=[];c.imports.push({id:bid,layout:det.layout,at:new Date().toISOString(),by:who(),file:fileName||'pasted',n:ok.length,total:tot/100,from:ok.reduce((a,o)=>o.date<a?o.date:a,'9999'),to:ok.reduce((a,o)=>o.date>a?o.date:a,'')});
+  c.chartOfAccounts.sort((a,b)=>a.code-b.code);saveToLocalStorage();
+  try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}
+  m.remove();toast('Posted '+ok.length+' entr'+(ok.length===1?'y':'ies')+' ('+money(tot)+').'+(plan.length>ok.length?' '+(plan.length-ok.length)+' skipped.':''),'success');
  };
 }
 function openHistory(){
- const c=C();if(!c)return;const L=(c.imports||[]).slice().reverse();
- const m=modal('<div class="aj4"><h2 style="margin-top:0">Past expense imports</h2>'+(L.length?'<div class="sc"><table><thead><tr><th>When</th><th>By</th><th>Source</th><th>Dates</th><th class="n">Entries</th><th class="n">Total</th><th></th></tr></thead><tbody>'
-  +L.map(x=>{const live=c.journalEntries.filter(e=>e.imp===x.id).length;return '<tr><td>'+esc(new Date(x.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}))+'</td><td>'+esc(x.by)+'</td><td>'+esc(x.file)+'</td><td>'+esc(fdl(x.from))+' – '+esc(fdl(x.to))+'</td><td class="n">'+live+' of '+x.n+'</td><td class="n">'+esc(formatMoney(x.total,c.currency))+'</td><td>'+(live?'<button type="button" class="btn btn-outline btn-sm" data-undo="'+esc(x.id)+'">Undo import</button>':'<span class="bk-mut">undone</span>')+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="hr-note">No imports yet.</p>')
-  +'<div style="text-align:right;margin-top:1rem"><button type="button" class="btn btn-outline" data-x>Close</button></div></div>',820);
+ const c=C();if(!c)return;const L=(c.imports||[]).slice().reverse(),LN={A:'Simple log',B:'Two-account',C:'Journal'};
+ const m=modal('<div class="aj4"><h2 style="margin-top:0">Past imports</h2>'+(L.length?'<div class="sc"><table><thead><tr><th>When</th><th>Layout</th><th>By</th><th>Source</th><th>Dates</th><th class="n">Entries</th><th class="n">Total</th><th></th></tr></thead><tbody>'
+  +L.map(x=>{const live=c.journalEntries.filter(e=>e.imp===x.id).length;return '<tr><td>'+esc(new Date(x.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}))+'</td><td>'+esc(LN[x.layout]||(x.kind==='inc'?'Income':'Expenses'))+'</td><td>'+esc(x.by)+'</td><td>'+esc(x.file)+'</td><td>'+esc(fdl(x.from))+' – '+esc(fdl(x.to))+'</td><td class="n">'+live+' of '+x.n+'</td><td class="n">'+esc(formatMoney(x.total,c.currency))+'</td><td>'+(live?'<button type="button" class="btn btn-outline btn-sm" data-undo="'+esc(x.id)+'">Undo import</button>':'<span class="bk-mut">undone</span>')+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="hr-note">No imports yet.</p>')
+  +'<div style="text-align:right;margin-top:1rem"><button type="button" class="btn btn-outline" data-x>Close</button></div></div>',900);
  m.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>{
   const id=b.dataset.undo,E=c.journalEntries.filter(e=>e.imp===id);if(!E.length)return;
   if(!confirm('Undo this import? Its '+E.length+' entries are voided (they stay listed under “Show voided” with the reason “Import undone”). Entries in a locked period are kept.'))return;
@@ -13196,19 +13337,154 @@ function openHistory(){
   if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();try{calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}
   m.remove();toast(n+' entr'+(n===1?'y':'ies')+' voided.'+(n<E.length?' '+(E.length-n)+' in a locked period were kept.':''),'success')});
 }
-window.AJIMPORT={open:openImport,history:openHistory,parseRows,detect,parseDate,parseAmt};
+window.AJIMPORT={open:openImport,history:openHistory,parseRows,detect,parseDate,parseAmt,template};
 
-// ---------- where to find it: Books › Journal toolbar, Payables and Jump to ----------
-const addBtn=()=>{const bar=$('ajJBar');if(!bar||bar.querySelector('#aj4Btn'))return;const b=document.createElement('button');b.type='button';b.id='aj4Btn';b.className='btn btn-outline btn-sm';b.textContent='Import expenses';b.title='Paste or upload an expense list (for example the Expenses Log in Google Sheets)';b.onclick=openImport;bar.appendChild(b)};
+// ---------- where to find it ----------
+const addBtn=()=>{const bar=$('ajJBar');if(!bar||bar.querySelector('#aj4Btn'))return;const b=document.createElement('button');b.type='button';b.id='aj4Btn';b.className='btn btn-outline btn-sm';b.textContent='Paste from spreadsheet';b.title='Import transactions copied from Google Sheets or Excel';b.onclick=openImport;bar.appendChild(b)};
 const oRJ=window.renderFullJournalLog;window.renderFullJournalLog=function(){const r=oRJ.apply(this,arguments);try{addBtn()}catch(e){}return r};
-const ap=()=>{const h=$('ap-bill');if(!h||h.querySelector('#aj4Ap'))return;const head=h.querySelector('.erp-head .acts')||h.querySelector('.erp-head');if(!head)return;const b=document.createElement('button');b.type='button';b.id='aj4Ap';b.className='btn btn-outline';b.textContent='Import expenses';b.onclick=openImport;head.appendChild(b)};
-const oST=window.showTab;window.showTab=function(t){const r=oST.apply(this,arguments);try{if(t==='ap-bill')setTimeout(ap,0)}catch(e){}return r};
+const encBtn=()=>{const t=$('tab-enc');if(!t||t.querySelector('#aj4Enc'))return;const b=document.createElement('button');b.type='button';b.id='aj4Enc';b.className='btn btn-outline';b.textContent='Paste from spreadsheet';b.onclick=openImport;const head=t.querySelector('.hr-head');if(head)head.appendChild(b);else(t.querySelector('.card')||t).prepend(b)};
+const oST=window.showTab;window.showTab=function(t){const r=oST.apply(this,arguments);try{if(t==='enc')setTimeout(encBtn,0)}catch(e){}return r};
 
 // ---------- keep import links in backups ----------
 const oSC=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=oSC.apply(this,arguments);try{
- const by=new Map((d.journalEntries||[]).map(x=>[safeId(x.id),x]));(o.journalEntries||[]).forEach(e=>{const x=by.get(e.id);if(!x)return;if(x.imp)e.imp=String(x.imp).slice(0,40);if(x.impKey)e.impKey=String(x.impKey).slice(0,300);if(x.site)e.site=String(x.site).slice(0,60)});
- if(Array.isArray(d.imports))o.imports=d.imports.filter(x=>x&&typeof x==='object').slice(-500).map(x=>({id:String(x.id||'').slice(0,40),at:String(x.at||'').slice(0,40),by:String(x.by||'').slice(0,80),file:String(x.file||'').slice(0,120),n:parseInt(x.n,10)||0,total:+x.total||0,from:String(x.from||'').slice(0,10),to:String(x.to||'').slice(0,10)}));
- if(d.impMap&&typeof d.impMap==='object'){const cl=s=>{const r={};if(s&&typeof s==='object')Object.keys(s).slice(0,300).forEach(k=>{const v=parseInt(s[k],10);if(v)r[String(k).slice(0,80)]=v});return r};o.impMap={cat:cl(d.impMap.cat),pay:cl(d.impMap.pay)}}
+ const by=new Map((d.journalEntries||[]).map(x=>[safeId(x.id),x]));(o.journalEntries||[]).forEach(e=>{const x=by.get(e.id);if(!x)return;if(x.imp)e.imp=String(x.imp).slice(0,40);if(x.impKey)e.impKey=String(x.impKey).slice(0,400);if(x.site)e.site=String(x.site).slice(0,60)});
+ if(Array.isArray(d.imports))o.imports=d.imports.filter(x=>x&&typeof x==='object').slice(-500).map(x=>({id:String(x.id||'').slice(0,40),layout:['A','B','C'].includes(x.layout)?x.layout:undefined,kind:x.kind==='inc'?'inc':undefined,at:String(x.at||'').slice(0,40),by:String(x.by||'').slice(0,80),file:String(x.file||'').slice(0,120),n:parseInt(x.n,10)||0,total:+x.total||0,from:String(x.from||'').slice(0,10),to:String(x.to||'').slice(0,10)}));
+ if(d.impMap&&typeof d.impMap==='object'){o.impMap={};Object.keys(d.impMap).slice(0,10).forEach(g=>{const s=d.impMap[g],r={};if(s&&typeof s==='object')Object.keys(s).slice(0,500).forEach(k=>{const v=g==='enccat'?String(s[k]||'').slice(0,80):parseInt(s[k],10);if(v)r[String(k).slice(0,120)]=v});o.impMap[String(g).slice(0,20)]=r})}
+}catch(err){console.error(err)}return o};
+})();
+
+
+// ===== Sites: tag entries by site / property, and a By Site report (income, expenses, payment methods) =====
+(function(){
+const X=window.ERPX,$=id=>document.getElementById(id),C=()=>(typeof activeCompany==='function'?activeCompany():null);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fdl=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+const fm=c=>formatMoney((c||0)/100,(C()||{}).currency);
+const NOSITE='(no site)';
+const hasSites=c=>!!c&&(c.serviceLines||[]).some(x=>x==='realestate'||x==='commercial');
+let HOST='cl-site';
+function modal(html,w){const m=document.createElement('div');m.className='modal-overlay aj5-modal';m.innerHTML='<div class="modal" style="max-width:'+(w||760)+'px">'+html+'</div>';m.addEventListener('mousedown',e=>{if(e.target===m)m.remove()});document.body.appendChild(m);m.querySelectorAll('[data-x]').forEach(x=>x.onclick=()=>m.remove());return m}
+document.head.insertAdjacentHTML('beforeend','<style>.aj5 table{width:100%;border-collapse:collapse;font-size:.88rem}.aj5 th,.aj5 td{padding:6px 8px;border-bottom:1px solid var(--border-color);text-align:left}.aj5 .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.aj5 tfoot td{font-weight:700;border-top:2px solid var(--border-color)}.aj5 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.aj5 .box{border:1px solid var(--border-color);border-radius:10px;padding:10px 12px;min-width:0}.aj5 .box h4{margin:.1rem 0 .5rem;font-size:.95rem}.aj5 .neg{color:#b42318}.aj5 tr.pick{cursor:pointer}.aj5 tr.pick:hover td{background:rgba(1,99,81,.06)}.aj5 tr.sel td{background:rgba(1,99,81,.1);font-weight:700}.aj-site{display:inline-block;font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:99px;background:rgba(37,99,235,.1);color:#1d4ed8;margin-left:6px;vertical-align:1px}</style>');
+
+// ---------- which site an entry belongs to ----------
+function propName(c,pid){const map=c.siteMap||{};if(map[pid])return map[pid];const p=((c.re&&c.re.properties)||[]).find(x=>x.id===pid)||((c.cl&&c.cl.props)||[]).find(x=>x.id===pid);return p?String(p.name):''}
+function idx(c){const re=c.re||{},T=new Map((re.tenants||[]).map(t=>[t.id,t])),RM=new Map((re.rooms||[]).map(r=>[r.id,r])),P=new Map((re.payments||[]).map(p=>[p.id,p])),U=new Map((re.utilities||[]).map(u=>[u.id,u])),RB=new Map((c.rebills||[]).map(b=>[b.id,b]));
+ const tProp=t=>t?(t.propertyId||(RM.get(t.roomId)||{}).propertyId||''):'';
+ return {T,RM,P,U,RB,tProp}}
+function siteOf(c,e,I){
+ if(e.site)return String(e.site);I=I||idx(c);
+ if(e.src==='re'){
+  if(e.reKind==='payment'){const p=I.P.get(e.reId);if(p)return propName(c,I.tProp(I.T.get(p.tenantId)))}
+  if(e.reKind==='utility'){const u=I.U.get(e.reId);if(u)return propName(c,(I.RM.get(u.roomId)||{}).propertyId)}
+  if(e.reKind==='deposit'){const t=[...I.T.values()].find(x=>x.depositEntryId===e.reId);if(t)return propName(c,I.tProp(t))}
+  if(e.reKey){const k=String(e.reKey).split('|')[0];if(k[0]==='r')return propName(c,(I.RM.get(k.slice(1))||{}).propertyId);if(k[0]==='t')return propName(c,I.tProp(I.T.get(k.slice(1))))}
+ }
+ if(e.rebill){const b=I.RB.get(e.rebill);if(b)return propName(c,b.prop)}
+ return '';
+}
+const knownSites=c=>{const s=new Set();(c.journalEntries||[]).forEach(e=>{if(e.site)s.add(String(e.site))});((c.re&&c.re.properties)||[]).forEach(p=>s.add(propName(c,p.id)));((c.cl&&c.cl.props)||[]).forEach(p=>s.add(propName(c,p.id)));(c.siteList||[]).forEach(x=>s.add(x));s.delete('');return [...s].sort((a,b)=>a.localeCompare(b))};
+window.AJSITE={siteOf,knownSites};
+
+// ---------- the site field in the journal entry window ----------
+function ensureField(){const f=$('journalForm');if(!f||$('ajSiteG'))return;const d=$('entryDesc');const g=document.createElement('div');g.className='form-group';g.id='ajSiteG';
+ g.innerHTML='<label for="ajSite">Site / property <small style="font-weight:400;color:var(--text-muted)">(optional – for the By Site report)</small></label><input id="ajSite" list="ajSiteList" maxlength="60" autocomplete="off" placeholder="HNU"><datalist id="ajSiteList"></datalist>';
+ const anchor=d&&d.closest('.form-group');(anchor||f.firstElementChild).insertAdjacentElement('afterend',g)}
+const oOJM=window.openJournalModal;
+window.openJournalModal=function(id){const r=oOJM.apply(this,arguments);try{const c=C();if(!c||document.getElementById('journalModal').classList.contains('hidden'))return r;ensureField();
+ $('ajSiteG').style.display=hasSites(c)?'':'none';$('ajSiteList').innerHTML=knownSites(c).map(s=>'<option value="'+esc(s)+'">').join('');const e=id&&c.journalEntries.find(x=>x.id===id);$('ajSite').value=e?siteOf(c,e):''}catch(err){console.error(err)}return r};
+const oSJE=window.saveJournalEntry;
+window.saveJournalEntry=function(ev){const c=C(),sg=$('ajSiteG'),site=sg&&sg.style.display!=='none'?(($('ajSite')||{}).value||'').trim().slice(0,60):null,editing=(($('editingEntryId')||{}).value||''),n=c?c.journalEntries.length:0;
+ const r=oSJE.apply(this,arguments);
+ try{if(c&&document.getElementById('journalModal').classList.contains('hidden')){const e=editing?c.journalEntries.find(x=>x.id===editing):(c.journalEntries.length>n?c.journalEntries[c.journalEntries.length-1]:null);
+  if(e&&site!==null){const before=e.site||'';if(site)e.site=site;else delete e.site;if(before!==(e.site||'')){saveToLocalStorage();try{applyBooksFilter()}catch(x){}}}}}catch(err){console.error(err)}return r};
+
+// site chip in the journal list
+const oRJ=window.renderFullJournalLog;window.renderFullJournalLog=function(){const r=oRJ.apply(this,arguments);try{chips()}catch(e){console.error(e)}return r};
+function chips(){const c=C(),tb=$('fullJournalBody');if(!c||!tb||!hasSites(c))return;let list=[];try{list=getFilteredJournal(c)}catch(e){return}const I=idx(c),rows=[...tb.rows];let i=0;
+ list.forEach(e=>{const tr=rows[i];i+=Math.max(1,e.lines.length);if(!tr||tr.cells.length<8)return;const s=siteOf(c,e,I);if(s&&!tr.cells[2].querySelector('.aj-site'))tr.cells[2].insertAdjacentHTML('beforeend','<span class="aj-site" title="Site">'+esc(s)+'</span>')})}
+
+// ---------- By Site report ----------
+let F={from:'',to:'',site:''};
+function compute(c){
+ const I=idx(c),acc=new Map(c.chartOfAccounts.map(a=>[a.code,a])),ents=(typeof reportEntries==='function'?reportEntries(c,'accrual'):c.journalEntries).filter(e=>!(typeof isInit==='function'&&isInit(e))&&e.src!=='close'&&e.date>=F.from&&e.date<=F.to);
+ const S=new Map(),get=s=>{if(!S.has(s))S.set(s,{site:s,inc:new Map(),exp:new Map(),pay:new Map(),incT:0,expT:0,inT:0,outT:0,n:0});return S.get(s)};
+ const add=(m,k,v)=>m.set(k,(m.get(k)||0)+v);
+ ents.forEach(e=>{const s0=siteOf(c,e,I);
+  const lines=e.lines.map(l=>({a:acc.get(l.accountCode),dr:Math.round((+l.debit||0)*100),cr:Math.round((+l.credit||0)*100)})).filter(l=>l.a);
+  const pl=lines.filter(l=>l.a.category==='Revenue'||l.a.category==='Expense');
+  if(!s0&&!pl.length)return;const s=s0||NOSITE,o=get(s);o.n++;
+  pl.forEach(l=>{if(l.a.category==='Revenue'){const v=l.cr-l.dr;add(o.inc,l.a.title,v);o.incT+=v}else{const v=l.dr-l.cr;add(o.exp,l.a.title,v);o.expT+=v}});
+  let pm=lines.filter(l=>l.a.roleTag==='cash');
+  if(!pm.length&&pl.length)pm=lines.filter(l=>l.a.category!=='Revenue'&&l.a.category!=='Expense');
+  pm.forEach(l=>{const k=l.a.title+(l.a.roleTag==='ap'?' (not yet paid)':l.a.roleTag==='ar'?' (not yet collected)':'');const x=o.pay.get(k)||{inn:0,out:0};x.inn+=l.dr;x.out+=l.cr;o.pay.set(k,x);o.inT+=l.dr;o.outT+=l.cr});
+ });
+ return [...S.values()].sort((a,b)=>a.site===NOSITE?1:b.site===NOSITE?-1:a.site.localeCompare(b.site));
+}
+function render(){
+ const box=$(HOST),c=C();if(!box||!c)return;
+ const today=localDateStr(new Date());if(!F.from){F.from=today.slice(0,4)+'-01-01';F.to=today}
+ const data=compute(c),sel=F.site&&data.some(d=>d.site===F.site)?F.site:'';
+ const T=data.reduce((t,d)=>({inc:t.inc+d.incT,exp:t.exp+d.expT,inn:t.inn+d.inT,out:t.out+d.outT}),{inc:0,exp:0,inn:0,out:0});
+ const no=data.find(d=>d.site===NOSITE);
+ let h='<div class="aj5"><div class="erp-head"><div><h2>By Site</h2><p>Income, expenses and how money came in or went out, for each site or property. Rent, utilities and leases take the site from their property; other entries from the Site field or the Site column of a pasted sheet.</p></div><div class="acts"><button class="btn btn-outline" id="aj5Setup" type="button">Site names</button><button class="btn btn-outline" id="aj5Csv" type="button">Export CSV</button></div></div>'
+  +'<div class="erp-bar"><div class="form-group"><label for="aj5From">From</label><input type="date" id="aj5From" value="'+F.from+'"></div><div class="form-group"><label for="aj5To">To</label><input type="date" id="aj5To" value="'+F.to+'"></div>'
+  +'<div class="form-group"><label for="aj5Per">Quick period</label><select id="aj5Per"><option value="">Choose…</option><option value="m">This month</option><option value="pm">Last month</option><option value="q">This quarter</option><option value="y">This year</option><option value="py">Last year</option></select></div></div>';
+ if(!data.length){box.innerHTML=h+'<p class="hr-note">No income or expense entries in this period.</p></div>';wire();return}
+ h+='<div class="hr-scroll"><table><thead><tr><th>Site</th><th class="n">Income</th><th class="n">Expenses</th><th class="n">Net</th><th class="n">Money in</th><th class="n">Money out</th></tr></thead><tbody>'
+  +data.map(d=>'<tr class="pick'+(d.site===sel?' sel':'')+'" data-site="'+esc(d.site)+'" tabindex="0"><td>'+esc(d.site)+'</td><td class="n">'+fm(d.incT)+'</td><td class="n">'+fm(d.expT)+'</td><td class="n'+(d.incT-d.expT<0?' neg':'')+'">'+fm(d.incT-d.expT)+'</td><td class="n">'+fm(d.inT)+'</td><td class="n">'+fm(d.outT)+'</td></tr>').join('')
+  +'</tbody><tfoot><tr><td>Total</td><td class="n">'+fm(T.inc)+'</td><td class="n">'+fm(T.exp)+'</td><td class="n'+(T.inc-T.exp<0?' neg':'')+'">'+fm(T.inc-T.exp)+'</td><td class="n">'+fm(T.inn)+'</td><td class="n">'+fm(T.out)+'</td></tr></tfoot></table></div>'
+  +'<p class="hr-note">Click a site for its detail. Total income and expenses agree with the Income Statement for the same dates (accrual basis).'+(no?' <a href="#" id="aj5Assign">Assign a site to '+no.n+' entr'+(no.n===1?'y':'ies')+' without one</a>.':'')+'</p>';
+ const show=sel?data.filter(d=>d.site===sel):data.filter(d=>d.site!==NOSITE);
+ show.forEach(d=>{const tbl=(m,lbl,tot)=>'<div class="box"><h4>'+lbl+'</h4>'+(m.size?'<table><tbody>'+[...m.entries()].sort((a,b)=>b[1]-a[1]).map(([k,v])=>'<tr><td>'+esc(k)+'</td><td class="n">'+fm(v)+'</td></tr>').join('')+'</tbody><tfoot><tr><td>Total</td><td class="n">'+fm(tot)+'</td></tr></tfoot></table>':'<p class="hr-note" style="margin:0">None</p>')+'</div>';
+  h+='<h3 style="margin:1.4rem 0 .5rem;font-size:1.05rem">'+esc(d.site)+' <small class="bk-mut" style="font-weight:400">· net '+fm(d.incT-d.expT)+'</small></h3><div class="grid">'+tbl(d.inc,'Income',d.incT)+tbl(d.exp,'Expenses',d.expT)
+   +'<div class="box"><h4>Payment methods</h4>'+(d.pay.size?'<table><thead><tr><th></th><th class="n">In</th><th class="n">Out</th></tr></thead><tbody>'+[...d.pay.entries()].sort((a,b)=>(b[1].inn+b[1].out)-(a[1].inn+a[1].out)).map(([k,v])=>'<tr><td>'+esc(k)+'</td><td class="n">'+(v.inn?fm(v.inn):'–')+'</td><td class="n">'+(v.out?fm(v.out):'–')+'</td></tr>').join('')+'</tbody><tfoot><tr><td>Total</td><td class="n">'+fm(d.inT)+'</td><td class="n">'+fm(d.outT)+'</td></tr></tfoot></table>':'<p class="hr-note" style="margin:0">None</p>')+'</div></div>'});
+ box.innerHTML=h+'</div>';wire(data);
+}
+function wire(data){
+ const q=id=>$(id);
+ q('aj5From').onchange=e=>{F.from=e.target.value;render()};q('aj5To').onchange=e=>{F.to=e.target.value;render()};
+ q('aj5Per').onchange=e=>{const d=new Date(),y=d.getFullYear(),m=d.getMonth(),L=x=>localDateStr(x);const v=e.target.value;
+  if(v==='m'){F.from=L(new Date(y,m,1));F.to=L(new Date(y,m+1,0))}else if(v==='pm'){F.from=L(new Date(y,m-1,1));F.to=L(new Date(y,m,0))}else if(v==='q'){const qs=Math.floor(m/3)*3;F.from=L(new Date(y,qs,1));F.to=L(new Date(y,qs+3,0))}else if(v==='y'){F.from=y+'-01-01';F.to=y+'-12-31'}else if(v==='py'){F.from=(y-1)+'-01-01';F.to=(y-1)+'-12-31'}render()};
+ $(HOST).querySelectorAll('tr.pick').forEach(tr=>{const go=()=>{F.site=F.site===tr.dataset.site?'':tr.dataset.site;render()};tr.onclick=go;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});
+ q('aj5Setup').onclick=setup;
+ const a=q('aj5Assign');if(a)a.onclick=e=>{e.preventDefault();assign()};
+ q('aj5Csv').onclick=()=>{const rows=[['Site','Section','Item','Amount / In','Out']];(data||compute(C())).forEach(d=>{d.inc.forEach((v,k)=>rows.push([d.site,'Income',k,(v/100).toFixed(2),'']));d.exp.forEach((v,k)=>rows.push([d.site,'Expense',k,(v/100).toFixed(2),'']));d.pay.forEach((v,k)=>rows.push([d.site,'Payment method',k,(v.inn/100).toFixed(2),(v.out/100).toFixed(2)]));rows.push([d.site,'Net','',((d.incT-d.expT)/100).toFixed(2),''])});
+  X.dl(X.slug(C().name)+'_by_site_'+F.from+'_'+F.to+'.csv',X.csv(rows))};
+}
+function setup(){
+ const c=C(),props=[...((c.re&&c.re.properties)||[]).map(p=>({id:p.id,name:p.name,mod:'Residential'})),...((c.cl&&c.cl.props)||[]).map(p=>({id:p.id,name:p.name,mod:'Commercial'}))];
+ const m=modal('<div class="aj5"><h2 style="margin-top:0">Site names</h2><p class="hr-note">Real Estate and Commercial Leasing entries take their site from the property. Give each property the short site name you use elsewhere (for example HNU), so its rent and utilities group with your imported expenses.</p>'
+  +(props.length?'<table><thead><tr><th>Property</th><th>Module</th><th>Site name</th></tr></thead><tbody>'+props.map(p=>'<tr><td>'+esc(p.name)+'</td><td>'+p.mod+'</td><td><input data-pid="'+esc(p.id)+'" maxlength="60" value="'+esc((c.siteMap||{})[p.id]||'')+'" placeholder="'+esc(p.name)+'"></td></tr>').join('')+'</tbody></table>':'<p class="hr-note">No properties yet. Sites still work from the Site field and imports.</p>')
+  +'<div class="form-group" style="margin-top:1rem"><label for="aj5Extra">Other site names to offer in the Site field (comma-separated)</label><input id="aj5Extra" value="'+esc((c.siteList||[]).join(', '))+'" placeholder="HNU, RAJ, ROSE"></div>'
+  +'<div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="aj5SGo">Save</button></div></div>',640);
+ m.querySelector('#aj5SGo').onclick=()=>{c.siteMap={};m.querySelectorAll('[data-pid]').forEach(i=>{const v=i.value.trim().slice(0,60);if(v)c.siteMap[i.dataset.pid]=v});c.siteList=m.querySelector('#aj5Extra').value.split(',').map(s=>s.trim().slice(0,60)).filter(Boolean).slice(0,100);saveToLocalStorage();m.remove();render();toast('Site names saved.','success')};
+}
+function assign(){
+ const c=C(),I=idx(c),acc=new Map(c.chartOfAccounts.map(a=>[a.code,a]));
+ const L=c.journalEntries.filter(e=>!e.site&&!(typeof isInit==='function'&&isInit(e))&&e.src!=='close'&&e.date>=F.from&&e.date<=F.to&&!siteOf(c,e,I)&&e.lines.some(l=>{const a=acc.get(l.accountCode);return a&&(a.category==='Revenue'||a.category==='Expense')})).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,400);
+ const sites=knownSites(c);const locked=e=>window.AJLOCK&&AJLOCK.is(e.date);
+ const m=modal('<div class="aj5"><h2 style="margin-top:0">Assign sites</h2><p class="hr-note">Income and expense entries in this period with no site. Type or pick a site; leave blank to skip. A site is only a label: it does not change any amount, so it can be set even in a locked month.</p>'
+  +'<datalist id="aj5SL">'+sites.map(s=>'<option value="'+esc(s)+'">').join('')+'</datalist>'
+  +'<div class="form-group" style="max-width:320px"><label for="aj5All">Fill all blank rows with</label><input id="aj5All" list="aj5SL"></div>'
+  +'<div class="hr-scroll" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Date</th><th>Ref</th><th>Particulars</th><th class="n">Amount</th><th>Site</th></tr></thead><tbody>'
+  +(L.length?L.map(e=>'<tr><td>'+esc(fdl(e.date))+'</td><td>'+esc(e.ref)+'</td><td>'+esc(e.desc)+'</td><td class="n">'+fm(Math.round(e.lines.reduce((s,l)=>s+(+l.debit||0),0)*100))+'</td><td><input data-eid="'+esc(e.id)+'" list="aj5SL" maxlength="60" style="min-width:110px"></td></tr>').join(''):'<tr><td colspan="5" class="hr-note">Nothing to assign.</td></tr>')
+  +'</tbody></table></div><div style="text-align:right;margin-top:1rem"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="aj5AGo">Save sites</button></div></div>',900);
+ m.querySelector('#aj5All').oninput=e=>{m.querySelectorAll('[data-eid]').forEach(i=>{if(!i.dataset.touched)i.value=e.target.value})};
+ m.querySelectorAll('[data-eid]').forEach(i=>i.oninput=()=>{i.dataset.touched='1'});
+ m.querySelector('#aj5AGo').onclick=()=>{let n=0;m.querySelectorAll('[data-eid]').forEach(i=>{const v=i.value.trim().slice(0,60);if(!v)return;const e=c.journalEntries.find(x=>x.id===i.dataset.eid);if(e){e.site=v;n++}});
+  saveToLocalStorage();m.remove();render();toast(n+' entr'+(n===1?'y':'ies')+' tagged.','success')};
+}
+X.page('cl-site','By Site','clSubMenu',()=>{HOST='cl-site';render()});
+// Real Estate (residential): a By Site tab next to Reports
+(()=>{const rep=$('reNav-rep');if(!rep)return;const b=document.createElement('button');b.id='reNav-site';b.type='button';b.textContent='By Site';rep.insertAdjacentElement('afterend',b);
+ b.onclick=()=>{rep.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('active'));b.classList.add('active');HOST='reBody';render()};
+ if(window.RE&&RE.go){const o=RE.go;RE.go=function(){b.classList.remove('active');return o.apply(this,arguments)}}})();
+
+// ---------- keep sites in backups ----------
+const oSC=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=oSC.apply(this,arguments);try{
+ const by=new Map((d.journalEntries||[]).map(x=>[safeId(x.id),x]));(o.journalEntries||[]).forEach(e=>{const x=by.get(e.id);if(x&&x.site)e.site=String(x.site).slice(0,60)});
+ if(d.siteMap&&typeof d.siteMap==='object'){o.siteMap={};Object.keys(d.siteMap).slice(0,500).forEach(k=>{const v=String(d.siteMap[k]||'').slice(0,60);if(v)o.siteMap[String(k).slice(0,80)]=v})}
+ if(Array.isArray(d.siteList))o.siteList=d.siteList.map(s=>String(s).slice(0,60)).filter(Boolean).slice(0,100);
 }catch(err){console.error(err)}return o};
 })();
 
