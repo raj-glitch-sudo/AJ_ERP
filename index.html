@@ -1752,6 +1752,14 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                         <option value="prevPeriod">Compare with the period just before</option>
                     </select>
                 </div>
+                <div class="form-group hidden" id="rptIsLayoutGroup">
+                    <label for="rptIsLayout">Income Statement Format</label>
+                    <select id="rptIsLayout">
+                        <option value="classic">Standard – gross profit, operating income, income before tax (PAS 1 / PFRS for SMEs)</option>
+                        <option value="ifrs18">IFRS 18 / PFRS 18 – operating, investing and financing categories</option>
+                    </select>
+                    <small style="color:var(--text-muted);">IFRS 18 (PFRS 18 in the Philippines) replaces PAS 1 for full-PFRS reporters from annual periods starting 1 January 2027; early use is allowed.</small>
+                </div>
 
 
                 <div class="grid-2">
@@ -1804,6 +1812,17 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                             <option value="USD">$ (US Dollar - USD)</option>
                         </select>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="newCompVat">Business Tax Registration *</label>
+                    <select id="newCompVat" required>
+                        <option value="" disabled selected>– choose –</option>
+                        <option value="VAT">VAT-registered (12% VAT)</option>
+                        <option value="PT">Non-VAT – 3% percentage tax</option>
+                        <option value="EIGHT">Non-VAT – 8% income tax option (individuals only)</option>
+                        <option value="EXEMPT">Exempt from business tax</option>
+                    </select>
+                    <small style="color:var(--text-muted);">Sets up the right tax accounts and filing calendar. You can change it later in Settings and in Taxes &amp; Filings.</small>
                 </div>
                 <div class="form-group">
                     <label>Service Line * <small style="font-weight:normal; color:var(--text-muted);">(choose one or more)</small></label>
@@ -1919,7 +1938,11 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                             <option value="Non-Current Liability">Non-Current Liability</option>
                             <option value="Equity">Equity / Capital</option>
                             <option value="Operating Revenue">Operating Revenue</option>
+                            <option value="Other Income">Other Income</option>
+                            <option value="Cost of Sales">Cost of Sales</option>
                             <option value="Operating Expense">Operating Expense</option>
+                            <option value="Other Expense">Other Expense</option>
+                            <option value="Income Tax Expense">Income Tax Expense</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1932,6 +1955,17 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                             <option value="inventory">Inventory Asset</option>
                         </select>
                     </div>
+                </div>
+                <div class="form-group hidden" id="accIfrs18Group">
+                    <label for="accIfrs18">IFRS 18 category (Income Statement)</label>
+                    <select id="accIfrs18">
+                        <option value="">Automatic</option>
+                        <option value="operating">Operating</option>
+                        <option value="investing">Investing</option>
+                        <option value="financing">Financing</option>
+                        <option value="tax">Income taxes</option>
+                    </select>
+                    <small style="color:var(--text-muted);">Used only for the IFRS 18 / PFRS 18 Income Statement. Automatic puts interest and dividend income in investing, interest expense in financing, income tax in income taxes, and everything else in operating.</small>
                 </div>
 
                 <div class="grid-2" style="align-items: center;">
@@ -2386,8 +2420,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
 
             if (comp.passwordHash) {
                 const enteredPass = document.getElementById('loginPassword').value;
-                const enteredHash = await hashPassword(enteredPass);
-                if (enteredHash !== comp.passwordHash) return toast("Incorrect Password!");
+                if (!(await ajCompanyPwCheck(comp, enteredPass))) return toast("Incorrect Password!");
             }
 
             document.getElementById('loginScreen').classList.add('hidden');
@@ -2918,7 +2951,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
 
         function openReportSubTab(type) {
             currentActiveReportType = type;
-            document.getElementById('reportModuleTitle').innerText = reportTitles[type];
+            document.getElementById('reportModuleTitle').innerText = reportTitleFor(activeCompany(), type);
             showTab('reports');
             hideReportPaperView();
             renderReportHistoryTable(type);
@@ -3024,6 +3057,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                 preparedBy: document.getElementById('rptPreparedBy').value || 'Prepared Signature',
                 approvedBy: document.getElementById('rptApprovedBy').value || 'Management',
                 basisKey: basisKeyFromLabel(document.getElementById('rptBasis').value),
+                isLayout: (document.getElementById('rptIsLayout') || {}).value === 'ifrs18' ? 'ifrs18' : 'classic',
                 startDateStr, endDateStr, compare, prevStartDateStr, prevEndDateStr,
                 curCol: curColLbl, prevCol: prevColLbl
             };
@@ -3076,37 +3110,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                 bodyHTML = `<table><thead><tr><th>Code</th><th>Account Title</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="font-weight:bold;"><td>Totals</td><td></td><td class="number">${formatMoney(fromCents(totalDr), comp.currency)}</td><td class="number">${formatMoney(fromCents(totalCr), comp.currency)}</td></tr></tfoot></table>`;
             
             } else if (params.type === 'is') {
-                let revRows = "", expRows = "";
-                let totalRevCents = 0, totalExpCents = 0, prevTotalRevCents = 0, prevTotalExpCents = 0;
-                const span = cmp ? 5 : 2;
-                const head = cmp ? `<thead><tr><th></th><th class="number">${params.curCol}</th><th class="number">${params.prevCol}</th><th class="number">Change</th><th class="number">%</th></tr></thead>` : '';
-                const empty = { drCents: 0, crCents: 0 };
-                orderWithContras(comp.chartOfAccounts).forEach(acc => {
-                    const b = balancesPeriod.get(acc.code) || empty;
-                    const p = cmp ? (prevPeriod.get(acc.code) || empty) : empty;
-                    if (acc.category === 'Revenue') {
-                        const net = b.crCents - b.drCents, prevNet = p.crCents - p.drCents;
-                        if (net !== 0 || prevNet !== 0) {
-                            totalRevCents += net; prevTotalRevCents += prevNet;
-                            revRows += `<tr><td>${acctLabel(acc)}</td>${cmpCells(net, prevNet, comp.currency, cmp)}</tr>`;
-                        }
-                    } else if (acc.category === 'Expense') {
-                        const net = b.drCents - b.crCents, prevNet = p.drCents - p.crCents;
-                        if (net !== 0 || prevNet !== 0) {
-                            totalExpCents += net; prevTotalExpCents += prevNet;
-                            expRows += `<tr><td>${acctLabel(acc)}</td>${cmpCells(net, prevNet, comp.currency, cmp)}</tr>`;
-                        }
-                    }
-                });
-                const netIncomeCents = totalRevCents - totalExpCents, prevNetIncomeCents = prevTotalRevCents - prevTotalExpCents;
-                bodyHTML = `
-                    <h4 style="border-bottom: 1px solid #d3e6df; padding-bottom: 4px;">Revenues</h4>
-                    <table>${head}<tbody>${revRows || `<tr><td colspan="${span}" style="color:var(--text-muted)">No revenues recorded for this period.</td></tr>`}</tbody>
-                    <tfoot><tr style="font-weight:bold;"><td>Total Revenues</td>${cmpCells(totalRevCents, prevTotalRevCents, comp.currency, cmp)}</tr></tfoot></table>
-                    <h4 style="border-bottom: 1px solid #d3e6df; padding-bottom: 4px; margin-top: 1.5rem;">Operating Expenses</h4>
-                    <table>${head}<tbody>${expRows || `<tr><td colspan="${span}" style="color:var(--text-muted)">No expenses recorded for this period.</td></tr>`}</tbody>
-                    <tfoot><tr style="font-weight:bold;"><td>Total Expenses</td>${cmpCells(totalExpCents, prevTotalExpCents, comp.currency, cmp)}</tr></tfoot></table>
-                    <table style="margin-top: 2rem; border: 2px solid var(--fiery-navy-deep);"><tfoot><tr style="font-weight:bold; font-size: 1.1rem;"><td>Net Income / (Loss)</td>${cmpCells(netIncomeCents, prevNetIncomeCents, comp.currency, cmp)}</tr></tfoot></table>`;
+                bodyHTML = buildIncomeStatementBody(comp, params, balancesPeriod, prevPeriod, cmp);
 
             } else if (params.type === 'bs') {
                 let assetRows = "", liabRows = "", equityRows = "";
@@ -3153,13 +3157,13 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                     <h4 style="border-bottom: 1px solid #d3e6df; padding-bottom: 4px; margin-top: 1.5rem;">Liabilities</h4>
                     <table>${head}<tbody>${liabRows || `<tr><td colspan="${span}" style="color:var(--text-muted)">No liabilities recorded.</td></tr>`}</tbody>
                     <tfoot><tr style="font-weight:bold;"><td>Total Liabilities</td>${cmpCells(tL, pL, comp.currency, cmp)}</tr></tfoot></table>
-                    <h4 style="border-bottom: 1px solid #d3e6df; padding-bottom: 4px; margin-top: 1.5rem;">Owner's Equity & Capital</h4>
+                    <h4 style="border-bottom: 1px solid #d3e6df; padding-bottom: 4px; margin-top: 1.5rem;">${escapeHtml(equityHeading(comp))}</h4>
                     <table>${head}<tbody>${equityRows || `<tr><td colspan="${span}" style="color:var(--text-muted)">No equity recorded.</td></tr>`}</tbody>
                     <tfoot><tr style="font-weight:bold;"><td>Total Liabilities & Equity</td>${cmpCells(tL + tE, pL + pE, comp.currency, cmp)}</tr></tfoot></table>
                     ${warn}`;
 
             } else if (params.type === 'oe') {
-                bodyHTML = buildOwnersEquityBody(comp, params);
+                bodyHTML = isCorpCo(comp) ? buildChangesInEquityBody(comp, params) : isPartCo(comp) ? buildOwnersEquityBody(comp, params).replace(/Owner's/g, "Partners'").replace('Additional Investments', 'Additional Contributions') : buildOwnersEquityBody(comp, params);
             } else if (params.type === 'cf') {
                 bodyHTML = buildCashFlowBody(comp, params);
             }
@@ -3172,7 +3176,8 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                 <div class="report-header">
                     <h2>${escapeHtml(comp.name)}</h2>
                     <p>${subTitleText}</p>
-                    <h3>${reportTitles[params.type]}</h3>
+                    <h3>${reportTitleFor(comp, params.type)}</h3>
+                    ${params.type === 'is' && params.isLayout === 'ifrs18' ? '<p>Presented under IFRS 18 / PFRS 18</p>' : ''}
                     <p><strong>${escapeHtml(params.periodLabel)}</strong></p>
                     ${params.type !== 'cf' && params.basis ? `<p>${escapeHtml(params.basis)}</p>` : ''}
                     ${cmp ? `<p>Compared with ${params.prevCol}</p>` : ''}
@@ -3217,14 +3222,16 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             if (enablePass && !document.getElementById('newCompPassword').value) return toast('Enter a password, or untick password protection.');
             const sl = readLinePicker('newCompLineBox');
             if (!sl.lines.length) return toast('Choose at least one service line.');
+            const vatSel = (document.getElementById('newCompVat') || {}).value;
+            if (!vatSel) return toast('Choose the business tax registration (VAT or non-VAT).');
             const companyData = {
                 id: 'comp_' + Date.now(),
                 name: document.getElementById('newCompName').value,
                 tin: document.getElementById('newCompTin').value,
                 entity: document.getElementById('newCompEntity').value,
                 currency: document.getElementById('newCompCurrency').value,
-                basis: document.getElementById('newCompBasis').value, vat: 'Non-VAT Registered', vatRate: 12, line: lineLabelText(sl.lines, sl.other), serviceLines: sl.lines, otherLine: sl.other,
-                passwordHash: enablePass ? await hashPassword(document.getElementById('newCompPassword').value) : null,
+                basis: document.getElementById('newCompBasis').value, vat: vatSel === 'VAT' ? 'VAT Registered' : 'Non-VAT Registered', vatRate: 12, tax: { profile: { biz: vatSel } }, coaV2: true, line: lineLabelText(sl.lines, sl.other), serviceLines: sl.lines, otherLine: sl.other,
+                passwordHash: enablePass ? await ajMakeCompanyPw(document.getElementById('newCompPassword').value) : null,
                 chartOfAccounts: [], coaSetupDone: false,
                 journalEntries: [], reportsHistory: []
             };
@@ -3233,7 +3240,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             saveToLocalStorage();
             closeCreateCompanyModal();
             renderLoginCompanySelector();
-            toast("Company created! Select it and log in to set up its Chart of Accounts.");
+            if (!window.__ncTeam) toast("Company created! Select it and log in to set up its Chart of Accounts.");
         }
 
         function populateCompanySettingsForm() {
@@ -3285,7 +3292,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
 
             if (document.getElementById('setCompEnablePass').checked) {
                 const p = document.getElementById('setCompPassword').value;
-                if (p) comp.passwordHash = await hashPassword(p);
+                if (p) comp.passwordHash = await ajMakeCompanyPw(p);
             } else comp.passwordHash = null;
             document.getElementById('setCompPassword').value = '';
 
@@ -3378,9 +3385,10 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             const debitNormal = (cat === 'Asset' || cat === 'Expense');
             document.getElementById('accNormal').value = (debitNormal !== contra) ? 'Debit' : 'Credit';
             document.getElementById('accInitialBalanceType').value = (debitNormal !== contra) ? 'Debit' : 'Credit';
-            const allowed = { Asset: ['Current Asset', 'Non-Current Asset'], Liability: ['Current Liability', 'Non-Current Liability'], Equity: ['Equity'], Revenue: ['Operating Revenue'], Expense: ['Operating Expense'] }[cat];
+            const allowed = (window.AJ_SUBS || {})[cat] || ['Equity'];
             const subSel = document.getElementById('accSubCategoryClass');
             if (!allowed.includes(subSel.value)) subSel.value = allowed[0];
+            if (window.syncAccForm) syncAccForm();
             refreshContraOfOptions();
         }
         function openAccountModal(code = null) {
@@ -3395,7 +3403,9 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                 document.getElementById('accCode').value = a.code;
                 document.getElementById('accCategory').value = a.category;
                 document.getElementById('accTitle').value = a.title;
-                document.getElementById('accSubCategoryClass').value = a.subCategoryClass;
+                document.getElementById('accSubCategoryClass').value = ({ 'Non-current Asset': 'Non-Current Asset', 'Non-current Liability': 'Non-Current Liability', 'Other Revenue': 'Other Income' })[a.subCategoryClass] || a.subCategoryClass;
+                document.getElementById('accIfrs18').value = a.ifrs18 || '';
+                if (window.syncAccForm) syncAccForm();
                 document.getElementById('accRoleTag').value = a.roleTag || 'none';
                 document.getElementById('accIsContra').checked = !!a.isContra;
                 document.getElementById('accNormal').value = a.normal;
@@ -3460,6 +3470,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                 code, title: document.getElementById('accTitle').value.trim(), category: document.getElementById('accCategory').value,
                 subCategoryClass: document.getElementById('accSubCategoryClass').value, roleTag: document.getElementById('accRoleTag').value,
                 isContra: document.getElementById('accIsContra').checked, normal: document.getElementById('accNormal').value,
+                ifrs18: (document.getElementById('accIfrs18') || {}).value || '',
                 initialBalance: initBal, initialBalanceType: initBalType
             };
 
@@ -3562,7 +3573,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             const comp = activeCompany(); if (!comp) return;
             const mode = document.querySelector('input[name="coaStart"]:checked').value;
             let incoming = [];
-            if (mode === 'standard') incoming = defaultCOATemplate.map(a => ({ ...a }));
+            if (mode === 'standard') incoming = standardCOAFor(comp).map(a => ({ ...a }));
             if (mode === 'import') {
                 const f = document.getElementById('coaSetupFile').files[0];
                 if (!f) return toast('Choose a JSON file to import.');
@@ -3678,7 +3689,9 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
         }
 
         function normalizeAccount(a) {
-            const validSub = ['Current Asset','Non-Current Asset','Current Liability','Non-Current Liability','Equity','Operating Revenue','Operating Expense'];
+            const validSub = ['Current Asset','Non-Current Asset','Current Liability','Non-Current Liability','Equity','Operating Revenue','Other Income','Cost of Sales','Operating Expense','Other Expense','Income Tax Expense'];
+            const subFix = { 'Non-current Asset': 'Non-Current Asset', 'Non-current Liability': 'Non-Current Liability', 'Other Revenue': 'Other Income' };
+            if (subFix[a.subCategoryClass]) a = Object.assign({}, a, { subCategoryClass: subFix[a.subCategoryClass] });
             const out = {
                 code: a.code, title: String(a.title).trim(), category: a.category, normal: a.normal,
                 subCategoryClass: validSub.includes(a.subCategoryClass) ? a.subCategoryClass : SUBCLASS_DEFAULT[a.category],
@@ -3687,6 +3700,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             };
             if (a.contraOf && Number.isInteger(a.contraOf)) out.contraOf = a.contraOf;
             if (['Debit','Credit'].includes(a.initialBalanceType)) out.initialBalanceType = a.initialBalanceType;
+            if (['operating','investing','financing','tax'].includes(a.ifrs18)) out.ifrs18 = a.ifrs18;
             return out;
         }
         function sanitizeHTML(html) {
@@ -3705,7 +3719,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             const out = {
                 id: safeId(d.id) || 'comp_' + Date.now(), name: String(d.name), tin: String(d.tin || ''), entity: String(d.entity || ''),
                 currency: d.currency === 'USD' ? 'USD' : 'PHP', vat: String(d.vat || 'Non-VAT Registered'), vatRate: Number.isFinite(parseFloat(d.vatRate)) ? parseFloat(d.vatRate) : 12, line: String(d.line || ''),
-                contact: String(d.contact || ''), address: String(d.address || ''), passwordHash: /^[0-9a-f]{64}$/.test(d.passwordHash || '') ? d.passwordHash : null,
+                contact: String(d.contact || ''), address: String(d.address || ''), passwordHash: (typeof d.passwordHash === 'string' && /^[0-9a-f]{64}$/.test(d.passwordHash)) ? d.passwordHash : (d.passwordHash && typeof d.passwordHash === 'object' && /^[0-9a-f]{32}$/.test(d.passwordHash.salt || '') && /^[0-9a-f]{64}$/.test(d.passwordHash.hash || '')) ? { salt: d.passwordHash.salt, hash: d.passwordHash.hash, iter: Math.max(10000, parseInt(d.passwordHash.iter, 10) || 150000) } : null,
                 logo: typeof d.logo === 'string' && d.logo.startsWith('data:image/') ? d.logo : null,
                 openingDate: DATE.test(d.openingDate || '') ? d.openingDate : undefined,
                 fyStart: Number.isInteger(+d.fyStart) && +d.fyStart >= 1 && +d.fyStart <= 12 ? +d.fyStart : 1,
@@ -3898,7 +3912,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
         function loadDefaultCOA() {
             const comp = activeCompany(); if (!comp) return;
             let added = 0;
-            defaultCOATemplate.forEach(t => { if (!comp.chartOfAccounts.some(a => a.code === t.code)) { comp.chartOfAccounts.push({ ...t }); added++; } });
+            standardCOAFor(comp).forEach(t => { if (!comp.chartOfAccounts.some(a => a.code === t.code || (String(a.title).toLowerCase() === t.title.toLowerCase() && a.category === t.category))) { comp.chartOfAccounts.push({ ...t }); added++; } });
             comp.chartOfAccounts.sort((a, b) => a.code - b.code);
             rebuildAllBeginningBalances(comp);
             saveToLocalStorage(); renderCOA(); fillLedgerFilter(); toast(added + ' standard account(s) added.');
@@ -3936,6 +3950,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             const comp = activeCompany(); if (!comp) return;
             if (isInit(comp.journalEntries.find(e => e.id === id))) return toast('The opening balance entry is automatic and cannot be deleted.');
             const note = typeof window.journalDeleteNote === 'function' ? window.journalDeleteNote(comp.journalEntries.find(e => e.id === id)) : '';
+            if (window.AJVOID) { AJVOID.open(id, note); return; }
             if (!confirm('Delete this journal entry? This cannot be undone.' + note)) return;
             comp.journalEntries = comp.journalEntries.filter(e => e.id !== id);
             if (typeof window.onJournalChanged === 'function') window.onJournalChanged();
@@ -4268,7 +4283,7 @@ function replay(docs){
  });
  return{st,po,led,sales,res,err};
 }
-function post(d,batch){
+function post(d,batch){if(window.AJLOCK&&d&&AJLOCK.is(d.date))return toast(AJLOCK.msg()),false;
  const c=C(),X=I(),R=replay(X.docs.concat([d]));if(R.err)return toast(R.err),false;
  ACC.forEach(a=>{if(!c.chartOfAccounts.some(x=>x.code===a.code))c.chartOfAccounts.push({...a})});c.chartOfAccounts.sort((a,b)=>a.code-b.code);
  const role=t=>(c.chartOfAccounts.find(a=>a.roleTag===t)||{}).code;
@@ -4699,7 +4714,7 @@ function acc(){const c=C(),ch=c.chartOfAccounts,free=code=>{while(ch.some(a=>a.c
   cash:ch.filter(a=>a.roleTag==='cash')}}
 const cashAccts=()=>C().chartOfAccounts.filter(a=>a.roleTag==='cash');
 const cashOpts=l=>l.map(a=>'<option value="'+a.code+'">'+esc(a.code+' – '+a.title)+'</option>').join('');
-function je(id,date,ref,desc,lines,kind,extra){C().journalEntries.push(Object.assign({id:'entry_re_'+id,date,ref,desc,lines:lines.map(l=>({accountCode:l[0],debit:r2(l[1]),credit:r2(l[2])})),fileAttachment:null,src:'re',reKind:kind,reId:id},extra||{}))}
+function je(id,date,ref,desc,lines,kind,extra){if(window.AJLOCK&&AJLOCK.is(date)){toast(AJLOCK.msg());return}C().journalEntries.push(Object.assign({id:'entry_re_'+id,date,ref,desc,lines:lines.map(l=>({accountCode:l[0],debit:r2(l[1]),credit:r2(l[2])})),fileAttachment:null,src:'re',reKind:kind,reId:id},extra||{}))}
 const dropJe=id=>{const c=C();c.journalEntries=c.journalEntries.filter(e=>!(e.src==='re'&&e.reId===id))};
 const jeOf=id=>C().journalEntries.find(e=>e.src==='re'&&e.reId===id);
 // On each due date the unpaid rent becomes a receivable: Dr Tenant Receivables / Cr Rental Revenue.
@@ -4710,7 +4725,7 @@ function sync(){if(!on())return 0;const X=R(),a=X.accrual;if(!a.enabled)return 0
   A=A||acc();const where=u.kind==='room'?'Rm '+u.room.name+' ('+u.name+')':u.name+(u.room?' · Rm '+u.room.name:'');
   je('acr_'+uid(),iso,nref('ACR'),'Rent accrual '+plabel(p)+' – '+where,[[A.ar.code,amt,0],[A.rent.code,0,amt]],'accrual',{reKey:key});n++}));
  a.done=[...done];if(n||done.size!==before)save();return n}
-function postPay(o){const X=R(),t=X.tenants.find(x=>x.id===o.tenantId),ca=C().chartOfAccounts.find(a=>a.code===o.cash);
+function postPay(o){if(window.AJLOCK&&AJLOCK.is(o.date))return toast(AJLOCK.msg()),false;const X=R(),t=X.tenants.find(x=>x.id===o.tenantId),ca=C().chartOfAccounts.find(a=>a.code===o.cash);
  if(!t)return toast('Choose a tenant.'),false;if(!ca)return toast('Choose the cash or bank account that receives the money.'),false;if(!(o.amount>0))return toast('Enter an amount above zero.'),false;
  const w=r2(Math.max(0,+o.cwt||0));if(w>=o.amount)return toast('The tax withheld must be less than the rent paid.'),false;
  const A=acc(),isUnit=units().some(u=>u.payers.some(p=>p.id===t.id)),useAr=!!(X.accrual.enabled&&isUnit&&o.period&&o.period>=X.accrual.start),id='pay_'+uid(),ref=nref('RCPT');
@@ -5022,7 +5037,7 @@ function hol(y){if(HC[y])return HC[y];const o={},R='Regular holiday',S='Special 
  let d=new Date(y,7,31);while(d.getDay()!==1)d.setDate(d.getDate()-1);fx(8,d.getDate(),'National Heroes Day',R);
  fx(11,1,"All Saints' Day",S);fx(11,2,"All Souls' Day",S);fx(11,30,'Bonifacio Day',R);fx(12,8,'Feast of the Immaculate Conception',S);fx(12,24,'Christmas Eve',S);fx(12,25,'Christmas Day',R);fx(12,30,'Rizal Day',R);fx(12,31,'Last Day of the Year',S);
  return HC[y]=o}
-const holOf=k=>hol(+k.slice(0,4))[k]||[];
+const holOf=k=>hol(+k.slice(0,4))[k]||[];window.AJHOL=hol;
 
 // ---- Tasks ----
 const due=(x)=>{if(!x.due)return'';const t=td(),tm=new Date();tm.setDate(tm.getDate()+1);const lbl=x.due===t?'Today':x.due===localDateStr(tm)?'Tomorrow':fD(x.due);return '<span class="tk-due'+(x.due<t&&!x.done?' late':'')+'">'+lbl+'</span>'};
@@ -5369,7 +5384,7 @@ document.querySelector('main.main-content').insertAdjacentHTML('beforeend',
  +'<div id="tab-hr-run" class="tab-section"><div class="card"><h2 style="margin-top:0">Generate Payroll Run</h2>'+FBAR('hrR','<button class="btn btn-outline" id="hrRLoad" type="button">Load Employees</button>')
  +'<p class="hr-note" id="hrRInfo">Choose the filters, then press Load Employees.</p><div class="hr-scroll" id="hrRWrap" hidden><table class="hr-tbl"><thead>'+TH_RUN+'</thead><tbody id="hrRBody"></tbody><tfoot id="hrRFoot"></tfoot></table></div>'
  +'<div class="hr-acts" style="margin-top:1rem;justify-content:flex-end"><button class="btn btn-outline" id="hrRReset" type="button">Reset entries</button><button class="btn" id="hrRSave" type="button">Save to Payroll History</button></div>'
- +'<p class="hr-note">Gross = Days Worked × (Daily Rate + Allowance) + Holiday Pay + Overtime Pay. Net = Gross − Tax, SSS, PhilHealth, Pag-IBIG, Cash Advance, Credit and Credit Balance. Leave a box empty for zero. Press Enter to move down a column.</p></div></div>'
+ +'<p class="hr-note">Press ⏱ beside a name to enter hours of overtime, night shift, rest-day and holiday work, lates and absences: Days Worked, Holiday Pay and Overtime Pay are then computed for you. Monthly-paid employees start at half a month of days (factor ÷ 24).</p><p class="hr-note">Gross = Days Worked × (Daily Rate + Allowance) + Holiday Pay + Overtime Pay. Net = Gross − Tax, SSS, PhilHealth, Pag-IBIG, Cash Advance, Credit and Credit Balance. Leave a box empty for zero. Press Enter to move down a column.</p></div></div>'
  +'<div id="tab-hr-slips" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Generate Payslips</h2></div>'+FBAR('hrS','<button class="btn" id="hrSGen" type="button">Generate Payslips</button><button class="btn btn-outline" id="hrSPrint" type="button" disabled>Print</button>')
  +'<p class="hr-note" id="hrSInfo">Payslips come from saved payroll runs. Four payslips are printed on each A4 page.</p><div class="hr-prev" id="hrSPrev" hidden></div></div></div>'
  +'<div id="tab-hr-print" class="tab-section"><div class="card"><div class="hr-head"><h2 style="margin:0">Generate Printable Payroll</h2></div>'+FBAR('hrP','<button class="btn" id="hrPGen" type="button">Generate Payroll</button><button class="btn btn-outline" id="hrPPrint" type="button" disabled>Print</button>')
@@ -5402,17 +5417,19 @@ function openEmp(id){
   +'<div class="form-group"><label for="hrfStat">Employment Status</label><select id="hrfStat">'+opt(statusList(),v.status)+'</select></div>'
   +'<div class="form-group"><label for="hrfHired">Date Hired</label><input type="date" id="hrfHired" value="'+esc(v.hired)+'"></div>'
   +'<div class="form-group"><label for="hrfFreq">Pay Frequency</label><select id="hrfFreq">'+opt(freqList(),v.freq)+'</select></div>'
-  +'<div class="form-group"><label for="hrfRate">Daily Rate *</label><input type="number" id="hrfRate" min="0" step="0.01" inputmode="decimal" value="'+(v.rate||'')+'"></div>'
+  +'<div class="form-group"><label for="hrfBasis">Pay Basis</label><select id="hrfBasis"><option value="daily"'+(v.basis!=='monthly'?' selected':'')+'>Daily-paid</option><option value="monthly"'+(v.basis==='monthly'?' selected':'')+'>Monthly-paid</option></select></div>'+'<div class="form-group hrf-mo"><label for="hrfMonthly">Monthly Rate *</label><input type="number" id="hrfMonthly" min="0" step="0.01" inputmode="decimal" value="'+(v.monthly||'')+'"></div>'+'<div class="form-group hrf-mo"><label for="hrfFactor">Days per year (factor)</label><select id="hrfFactor">'+[[261,'261 – works 5 days a week'],[313,'313 – works 6 days a week'],[365,'365 – paid every day of the year']].map(x=>'<option value="'+x[0]+'"'+((+v.factor||261)===x[0]?' selected':'')+'>'+x[1]+'</option>').join('')+'</select></div>'+'<div class="form-group"><label for="hrfRate">Daily Rate *</label><input type="number" id="hrfRate" min="0" step="0.01" inputmode="decimal" value="'+(v.rate||'')+'"></div>'
   +'<div class="form-group"><label for="hrfAl">Daily Meal Allowance</label><input type="number" id="hrfAl" min="0" step="0.01" inputmode="decimal" value="'+(v.allowance||'')+'"></div></div>'
   +'<label class="hr-chk"><input type="checkbox" id="hrfActive"'+(v.active!==false?' checked':'')+'> Active (included when loading a payroll run)</label>'
   +'<div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="submit" class="btn">Save Employee</button></div></form>');
  m.querySelector('[data-x]').onclick=()=>m.remove();
  m.querySelector('form').onsubmit=ev=>{ev.preventDefault();saveEmp(m,id)};
+ {const sb=m.querySelector('#hrfBasis'),mo=()=>{const on=sb.value==='monthly';m.querySelectorAll('.hrf-mo').forEach(x=>x.style.display=on?'':'none');const r=m.querySelector('#hrfRate');r.readOnly=on;r.title=on?'Monthly rate × 12 ÷ factor':'';if(on){const mv=parseFloat(m.querySelector('#hrfMonthly').value)||0,f=+m.querySelector('#hrfFactor').value||261;r.value=mv?(Math.round(mv*12/f*100)/100).toFixed(2):''}};sb.onchange=mo;m.querySelector('#hrfMonthly').oninput=mo;m.querySelector('#hrfFactor').onchange=mo;mo()}
  m.querySelector('#hrfLast').focus();
 }
 function saveEmp(m,id){
  const g=k=>m.querySelector('#hrf'+k).value.trim();
- const rec={last:g('Last').toUpperCase(),first:g('First').toUpperCase(),mi:miFmt(g('Mi')),business:g('Biz').toUpperCase(),position:g('Pos').toUpperCase(),status:g('Stat')||'REGULAR',hired:g('Hired'),freq:g('Freq')||'SEMI-MONTHLY',rate:Math.round((parseFloat(g('Rate'))||0)*100)/100,allowance:Math.max(0,Math.round((parseFloat(g('Al'))||0)*100)/100),active:m.querySelector('#hrfActive').checked};
+ const rec={last:g('Last').toUpperCase(),first:g('First').toUpperCase(),mi:miFmt(g('Mi')),business:g('Biz').toUpperCase(),position:g('Pos').toUpperCase(),status:g('Stat')||'REGULAR',hired:g('Hired'),freq:g('Freq')||'SEMI-MONTHLY',rate:Math.round((parseFloat(g('Rate'))||0)*100)/100,allowance:Math.max(0,Math.round((parseFloat(g('Al'))||0)*100)/100),active:m.querySelector('#hrfActive').checked,basis:m.querySelector('#hrfBasis').value==='monthly'?'monthly':'daily',monthly:Math.round((parseFloat(g('Monthly'))||0)*100)/100,factor:+m.querySelector('#hrfFactor').value||261};
+ if(rec.basis==='monthly'&&!(rec.monthly>0))return toast('Enter the monthly rate.');if(rec.basis!=='monthly'){rec.monthly=0}
  if(!rec.last||!rec.first)return toast('Enter the last name and first name.');
  if(!rec.business)return toast('Enter the business this employee belongs to.');
  if(!(rec.rate>0))return toast('Enter a daily rate greater than zero.');
@@ -5496,7 +5513,7 @@ function loadRun(){
  draft=list.map(e=>{
   const s=saved.get(e.id),b={empId:e.id,name:fullName(e),business:e.business,position:e.position,status:e.status,saved:!!s};
   INK.forEach(k=>b[k[0]]=s?(+s[k[0]]||0):0);if(s)Object.keys(s).forEach(k=>{if(/^x_/.test(k))b[k]=+s[k]||0});
-  b.rate=s?+s.rate||0:e.rate;b.allowance=s?+s.allowance||0:e.allowance;['erSss','erEc','erPh','erPg'].forEach(k=>b[k]=s?+s[k]||0:0);if(s&&s.man)b._man=Object.assign({},s.man);return b;
+  b.rate=s?+s.rate||0:e.rate;if(s&&s.tm)b.tm=Object.assign({},s.tm);else if(!s&&e.basis==='monthly'){b.days=Math.round((+e.factor||261)/24*10000)/10000;b.tm={monthly:1}}b.allowance=s?+s.allowance||0:e.allowance;['erSss','erEc','erPh','erPg'].forEach(k=>b[k]=s?+s[k]||0:0);if(s&&s.man)b._man=Object.assign({},s.man);return b;
  });
  if(window.hrAutoFill)try{window.hrAutoFill(draft,f)}catch(err){console.error(err)}
  runF=f;renderRun();
@@ -5510,7 +5527,7 @@ function renderRun(){
  $('hrRInfo').textContent=draft.length+' employee'+(draft.length===1?'':'s')+' loaded for '+fText(runF)+(sv?'. '+sv+' already saved for this period; their saved figures are shown and will be replaced when you save.':'.');
  $('hrRBody').innerHTML=draft.map((r,i)=>{
   const c=calc(r);
-  return '<tr><td>'+esc(r.name)+(r.saved?' <span class="badge badge-vat" title="Already saved for this period">saved</span>':'')+'</td><td class="hr-bz">'+esc(r.business)+'</td><td class="number">'+n2(c.rate)+'</td><td class="number">'+n2(c.al)+'</td>'
+  return '<tr><td>'+esc(r.name)+'<button type="button" class="btn btn-outline btn-sm" data-ajtm="'+i+'" title="Time, overtime, holiday, night shift, lates and absences" style="margin-left:6px;padding:1px 7px">⏱'+(r.tm&&Object.keys(r.tm).some(k=>k!=='monthly'&&+r.tm[k])?' ✓':'')+'</button>'+(r.saved?' <span class="badge badge-vat" title="Already saved for this period">saved</span>':'')+'</td><td class="hr-bz">'+esc(r.business)+'</td><td class="number">'+n2(c.rate)+'</td><td class="number">'+n2(c.al)+'</td>'
   +IK().map(k=>'<td><input class="hr-in" type="number" inputmode="decimal" min="0"'+(k[0]==='days'?' max="16"':'')+' step="'+k[2]+'" data-i="'+i+'" data-k="'+k[0]+'" placeholder="0" value="'+(r[k[0]]||'')+'" aria-label="'+esc(k[1]+' for '+r.name)+'"></td>').join('')
   +'<td class="number g">'+n2(c.gross)+'</td><td class="number nt'+(c.net<0?' neg':'')+'">'+n2(c.net)+'</td></tr>';
  }).join('');
@@ -5545,7 +5562,7 @@ function saveRun(){
  const r2=n=>Math.round(n)/100;
  RUNS().push({id:'run_'+uid(),savedAt:new Date().toISOString(),business:runF.biz,status:runF.stat,month:runF.month,year:runF.year,quincena:runF.q,
   rows:rows.map(r=>{const c=calc(r),o={empId:r.empId,name:r.name,business:r.business,position:r.position,status:r.status,rate:+r.rate||0,allowance:+r.allowance||0};
-   INK.forEach(k=>o[k[0]]=Math.round((+r[k[0]]||0)*100)/100);Object.keys(r).forEach(k=>{if(/^x_/.test(k)&&+r[k])o[k]=Math.round(+r[k]*100)/100});['erSss','erEc','erPh','erPg'].forEach(k=>{if(+r[k])o[k]=Math.round(+r[k]*100)/100});if(r._man&&Object.keys(r._man).length)o.man=Object.assign({},r._man);o.gross=r2(c.gross);o.deductions=r2(c.ded);o.net=r2(c.net);return o})});
+   INK.forEach(k=>o[k[0]]=k[0]==='days'?Math.round((+r[k[0]]||0)*10000)/10000:Math.round((+r[k[0]]||0)*100)/100);Object.keys(r).forEach(k=>{if(/^x_/.test(k)&&+r[k])o[k]=Math.round(+r[k]*100)/100});['erSss','erEc','erPh','erPg'].forEach(k=>{if(+r[k])o[k]=Math.round(+r[k]*100)/100});if(r._man&&Object.keys(r._man).length)o.man=Object.assign({},r._man);if(r.tm)o.tm=Object.assign({},r.tm);o.gross=r2(c.gross);o.deductions=r2(c.ded);o.net=r2(c.net);return o})});
  save();
  const p={month:runF.month,year:runF.year,q:runF.q};preset.slips=Object.assign({},p);preset.print=Object.assign({},p);
  const skipped=draft.length-rows.length;
@@ -5695,6 +5712,7 @@ function openPaid(run){
   agg.forEach((v,cd)=>{const n=v.d-v.c;if(n>0){lines.push({accountCode:cd,debit:n/100,credit:0});dr+=n}else if(n<0){lines.push({accountCode:cd,debit:0,credit:-n/100});cr-=n}});
   if(dr!==cr||!lines.length)return toast('The entry does not balance, so nothing was posted. Check the accounts chosen.');
   lines.sort((a,b)=>(b.debit>0)-(a.debit>0));
+  if(window.AJLOCK&&AJLOCK.is(date))return toast(AJLOCK.msg());
   const id='entry_hr_'+run.id,ref='PR-'+run.year+'-'+String(run.month).padStart(2,'0')+'-'+(run.quincena===1?'1ST':'2ND');
   c.journalEntries=c.journalEntries.filter(e=>e.id!==id);
   c.journalEntries.push({id,date,ref,desc:'Payroll – '+per+' • '+who,lines,fileAttachment:null,src:'hr',hrRunId:run.id});
@@ -5707,7 +5725,7 @@ function openPaid(run){
 function unpay(run){
  syncPaid();if(!run.paid)return renderHist();
  if(!confirm('Mark '+periodLabel(run.year,run.month,run.quincena)+' as unpaid?\n\nThis removes its payroll journal entry ('+((jeOfRun(run)||{}).ref||'')+') from the books.'))return;
- const c=C();c.journalEntries=c.journalEntries.filter(e=>e.id!==run.paid.jeId);delete run.paid;save();refreshBooks();renderHist();
+ if(window.AJLOCK&&run.paid&&AJLOCK.is(run.paid.date))return toast(AJLOCK.msg());const c=C();c.journalEntries=c.journalEntries.filter(e=>e.id!==run.paid.jeId);delete run.paid;save();refreshBooks();renderHist();
  toast('Payroll marked unpaid. Its journal entry was removed.','success');
 }
 
@@ -5776,11 +5794,11 @@ wrap('switchCompany',reset);
 // keep Human Resources data when a company backup is imported
 const cleanHr=h=>{
  const D=/^\d{4}-\d{2}-\d{2}$/,S=(v,n)=>String(v==null?'':v).slice(0,n||120),N=v=>{const x=parseFloat(v);return Number.isFinite(x)&&x>0?Math.round(x*100)/100:0},Z=v=>{const x=parseFloat(v);return Number.isFinite(x)?Math.round(x*100)/100:0};
- const emps=(Array.isArray(h.employees)?h.employees:[]).filter(e=>e&&typeof e==='object').map(e=>({id:safeId(e.id)||'emp_'+uid(),last:S(e.last),first:S(e.first),mi:S(e.mi,4),business:S(e.business),position:S(e.position),status:S(e.status,30)||'REGULAR',hired:D.test(e.hired||'')?e.hired:'',freq:S(e.freq,30)||'SEMI-MONTHLY',rate:N(e.rate),allowance:N(e.allowance),active:e.active!==false}));
+ const emps=(Array.isArray(h.employees)?h.employees:[]).filter(e=>e&&typeof e==='object').map(e=>({id:safeId(e.id)||'emp_'+uid(),last:S(e.last),first:S(e.first),mi:S(e.mi,4),business:S(e.business),position:S(e.position),status:S(e.status,30)||'REGULAR',hired:D.test(e.hired||'')?e.hired:'',freq:S(e.freq,30)||'SEMI-MONTHLY',rate:N(e.rate),allowance:N(e.allowance),active:e.active!==false,basis:e.basis==='monthly'?'monthly':'daily',monthly:N(e.monthly),factor:[261,313,365].includes(+e.factor)?+e.factor:261}));
  const runs=(Array.isArray(h.runs)?h.runs:[]).filter(r=>r&&typeof r==='object'&&Array.isArray(r.rows)&&+r.month>=1&&+r.month<=12&&+r.year>=2000&&+r.year<=2100).map(r=>({
   id:safeId(r.id)||'run_'+uid(),savedAt:S(r.savedAt,40),paid:r.paid&&typeof r.paid==='object'&&D.test(r.paid.date||'')?{date:r.paid.date,jeId:safeId(r.paid.jeId),cash:parseInt(r.paid.cash,10)||0,at:S(r.paid.at,40)}:undefined,business:S(r.business)||'ALL',status:S(r.status,30)||'ALL',month:Math.floor(+r.month),year:Math.floor(+r.year),quincena:+r.quincena===2?2:1,
   rows:r.rows.filter(w=>w&&typeof w==='object').map(w=>{const o={empId:safeId(w.empId),name:S(w.name),business:S(w.business),position:S(w.position),status:S(w.status,30),rate:N(w.rate),allowance:N(w.allowance)};
-   INK.forEach(k=>o[k[0]]=N(w[k[0]]));Object.keys(w).forEach(k=>{if(/^x_\w{1,30}$/.test(k)&&N(w[k]))o[k]=N(w[k])});['erSss','erEc','erPh','erPg'].forEach(k=>{if(N(w[k]))o[k]=N(w[k])});if(w.man&&typeof w.man==='object'){o.man={};['tax','sss','philhealth','pagibig'].forEach(k=>{if(w.man[k])o.man[k]=true})}o.gross=Z(w.gross);o.deductions=Z(w.deductions);o.net=Z(w.net);return o})
+   INK.forEach(k=>o[k[0]]=N(w[k[0]]));Object.keys(w).forEach(k=>{if(/^x_\w{1,30}$/.test(k)&&N(w[k]))o[k]=N(w[k])});['erSss','erEc','erPh','erPg'].forEach(k=>{if(N(w[k]))o[k]=N(w[k])});if(w.tm&&typeof w.tm==='object'){o.tm={};Object.keys(w.tm).forEach(k=>{if(/^\w{1,12}$/.test(k)&&Number.isFinite(+w.tm[k]))o.tm[k]=+w.tm[k]})}if(w.man&&typeof w.man==='object'){o.man={};['tax','sss','philhealth','pagibig'].forEach(k=>{if(w.man[k])o.man[k]=true})}o.gross=Z(w.gross);o.deductions=Z(w.deductions);o.net=Z(w.net);return o})
  }));
  const ac={};if(h.acct&&typeof h.acct==='object')Object.keys(h.acct).forEach(k=>{const v=parseInt(h.acct[k],10);if(/^\w{1,12}$/.test(k)&&Number.isInteger(v))ac[k]=v});
  const items=(Array.isArray(h.items)?h.items:[]).filter(x=>x&&x.id&&x.name).slice(0,60).map(x=>({id:String(x.id).replace(/\W/g,'').slice(0,30),name:S(x.name,40),kind:x.kind==='D'?'D':'E',tax:['T','DM','N'].includes(x.tax)?x.tax:'T',dm:S(x.dm,12),limit:Math.max(0,parseInt(x.limit,10)||0),per:['M','S','Y','D','N'].includes(x.per)?x.per:'N',sss:!!x.sss,active:x.active!==false}));
@@ -6069,6 +6087,7 @@ function openCheck(id,pre){
   if(rec.status!=='CANCELLED'){if(!(rec.amount>0))return toast('Enter the check amount.');if(!DT.test(rec.due))return toast('Enter the check date / due date.')}
   if(rec.issued&&!DT.test(rec.issued))rec.issued='';
   const a=accOf(rec.acct);rec.debit=a&&a.gl?(+q('#bkfDr').value||null):(k?k.debit:null);
+  if(window.AJLOCK&&[rec.issued,rec.due,rec.cleared,k&&k.issued,k&&k.due,k&&k.cleared].some(x=>x&&AJLOCK.is(x))&&!(k&&k.status===rec.status&&k.amount===rec.amount&&k.acct===rec.acct&&k.issued===rec.issued&&k.due===rec.due&&k.cleared===rec.cleared))return toast(AJLOCK.msg());
   if(k)Object.assign(k,rec);else{b.seq.txn=(b.seq.txn||0)+1;b.checks.push(Object.assign({id:'chk_'+uid(),txn:b.seq.txn},rec))}
   lastAcct=rec.acct;commit();m.remove();rerender();toast('Check '+rec.number+' saved.','success');
  };
@@ -6173,6 +6192,7 @@ function openTxn(id){
   if(rec.source&&rec.source===rec.acct)return toast('The from and to accounts must be different.');
   rec.counter=q('#bktCtrW').style.display!=='none'?(+q('#bktCtr').value||null):(t?t.counter:null);
   if(q('#bktCtrW').style.display!=='none'&&!rec.counter&&!confirm('No account was chosen for the other side, so this will not post to the books. Save anyway?'))return;
+  if(window.AJLOCK&&(AJLOCK.is(rec.date)||(t&&AJLOCK.is(t.date))))return toast(AJLOCK.msg());
   if(t)Object.assign(t,rec);else b.txns.push(Object.assign({id:'btx_'+uid()},rec));
   lastAcct=rec.acct;commit();m.remove();rerender();toast('Transaction saved.','success');
  };
@@ -6871,7 +6891,7 @@ const findA=(cat,rx)=>(coa().find(a=>(!cat||a.category===cat)&&rx.test(a.title))
 const bankAcc=id=>((C().bank&&C().bank.accounts)||[]).find(a=>a.id===id);
 const bankGl=id=>{const a=bankAcc(id);return a&&a.gl&&coa().some(x=>x.code===a.gl)?a.gl:null};
 function cashOnHand(){const linked=new Set(((C().bank&&C().bank.accounts)||[]).map(a=>a.gl).filter(Boolean));const cs=coa().filter(a=>a.roleTag==='cash'&&!linked.has(a.code));return (cs.find(a=>/hand|petty|undeposit|fund/i.test(a.title))||cs[0]||{}).code||null}
-const capital=()=>findA('Equity',/capital|contribut/i)||findA('Equity',/./);
+const capital=()=>window.isCorpCo&&isCorpCo(C())?findA('Liability',/advances? from (stockholder|shareholder|officer)|due to (stockholder|shareholder|officer)/i):(findA('Equity',/capital|contribut/i)||findA('Equity',/./));
 const okc=v=>coa().some(a=>a.code===+v)?+v:null;
 const memoKey=(it,which)=>{const d=it.data;return it.kind+'|'+which+'|'+(which==='p'?nk(d.payee||d.from):which==='c'?(d.category||d.forWhat||d.from||d.type):'')};
 // Returns the entry the admin will see: [{side:'D'|'C', amount, code|null, fixed:bool, template:[title,category]|null}]
@@ -6888,7 +6908,7 @@ function suggest(it){
   else{pick('D',[mp.dr,mc.dr,def],tpl);L.push({side:'C',amount:amt,code:gS||gA,fixed:true,note:gS||gA?'':'Bank account not linked to the books (monitor only)'})}}
  if(it.kind==='expense'){const i=Math.max(0,EXP_CATS.indexOf(d.category));
   pick('D',[mp.dr,mc.dr,findA('Expense',EXP_RX[i])],[EXP_NEW[i],'Expense']);
-  pick('C',[mp.cr&&d.paid===(M[memoKey(it,'p')]||{}).paid?mp.cr:null,d.paid==='unpaid'?byRole('ap'):d.paid==='owner'?capital():cashOnHand()],d.paid==='unpaid'?['Accounts Payable','Liability']:d.paid==='owner'?['Owner’s Capital','Equity']:['Cash on Hand','Asset'])}
+  pick('C',[mp.cr&&d.paid===(M[memoKey(it,'p')]||{}).paid?mp.cr:null,d.paid==='unpaid'?byRole('ap'):d.paid==='owner'?capital():cashOnHand()],d.paid==='unpaid'?['Accounts Payable','Liability']:d.paid==='owner'?(window.isCorpCo&&isCorpCo(C())?['Advances from Stockholders','Liability']:['Owner’s Capital','Equity']):['Cash on Hand','Asset'])}
  if(it.kind==='sale'){pick('D',[byRole('ar')],['Accounts Receivable','Asset']);pick('C',[mp.cr,mc.cr,findA('Revenue',/sales|service|revenue|income/i)],['Sales','Revenue'])}
  if(it.kind==='collection'){
   pick('D',[d.as==='bank'?bankGl(d.acct):null,d.as!=='bank'?cashOnHand():null],['Cash on Hand','Asset']);
@@ -6909,7 +6929,7 @@ function newAcct(tpl){const ch=C().chartOfAccounts,ex=ch.find(a=>a.title.toLower
  const base={Expense:6000,Revenue:4100,Liability:2200,Asset:1200,Equity:3100}[tpl[1]]||9000;let n=base;while(ch.some(a=>a.code===n))n++;
  ch.push(acct(n,tpl[0],tpl[1],SUBCLASS_DEFAULT[tpl[1]],tpl[1]==='Liability'||tpl[1]==='Equity'||tpl[1]==='Revenue'?'Credit':'Debit',/^cash on hand$/i.test(tpl[0])?{roleTag:'cash'}:/^accounts payable$/i.test(tpl[0])?{roleTag:'ap'}:/^accounts receivable$/i.test(tpl[0])?{roleTag:'ar'}:{}));ch.sort((a,b)=>a.code-b.code);return n}
 // Post one item with the chosen account codes (array aligned with suggest()). Returns an error message or ''.
-function postItem(it,codes,date){
+function postItem(it,codes,date){if(window.AJLOCK){const dd=date||(it.data&&(it.data.date||it.data.issued));if(dd&&AJLOCK.is(dd))return AJLOCK.msg()}
  const c=C(),d=it.data,L=suggest(it),ok=appliesOk(it);if(ok!==true)return ok;
  const final=L.map((l,i)=>{if(l.fixed)return l.code;const v=codes&&codes[i]!=null?codes[i]:(l.code||(l.tpl?'new':null));if(v==='new')return newAcct(l.tpl);return okc(v)});
  if(final.some((v,i)=>!v&&!L[i].fixed))return 'Choose an account for every line.';
@@ -7101,7 +7121,7 @@ window.handleLoginSubmit=async function(e){
   if(u.active===false)return toast('This login is inactive. Ask the admin.');
   fails=0;window.currentUser={id:u.id,name:u.name,role:u.role};setTimeout(()=>afterLogin(u,comp),700);
  }else{
-  if(comp.passwordHash){const h=await hashPassword($('loginPassword').value);if(h!==comp.passwordHash)return toast('Incorrect Password!')}
+  if(comp.passwordHash){if(!(await ajCompanyPwCheck(comp,$('loginPassword').value)))return toast('Incorrect Password!')}
   window.currentUser={id:'legacy',name:'Admin',role:'admin',legacy:true};
  }
  $('loginScreen').classList.add('hidden');$('loginPassword').value='';$('loginUsername').value='';
@@ -7417,8 +7437,8 @@ function fingerprint(comp,fy){
 const changedYears=comp=>closings(comp).filter(x=>x.fp!==fingerprint(comp,x));
 
 // ---------- locking ----------
-const locked=(comp,date)=>{const t=closedThrough(comp);return !!t&&!!date&&date<=t};
-const lockMsg=comp=>'This date falls in a closed fiscal year (closed through '+fdl(closedThrough(comp))+'). Reopen the year in Books > Year-End Closing to change it.';
+const locked=(comp,date)=>window.AJLOCK?AJLOCK.is(date,comp):(()=>{const t=closedThrough(comp);return !!t&&!!date&&date<=t})();
+const lockMsg=comp=>window.AJLOCK?AJLOCK.msg(comp):'This date falls in a closed fiscal year (closed through '+fdl(closedThrough(comp))+'). Reopen the year in Books > Year-End Closing to change it.';
 ['openJournalModal','deleteJournalEntry'].forEach(n=>{const o=window[n];window[n]=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);
  if(e&&isClose(e))return toast('This is a closing entry. To undo it, reopen the year in Books > Year-End Closing.');
  if(e&&locked(c,e.date))return toast(lockMsg(c));return o.apply(this,arguments)}});
@@ -7792,7 +7812,7 @@ const cashAccts=()=>C().chartOfAccounts.filter(a=>a.roleTag==='cash'&&!a.isContr
 function refreshBooks(){try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}}
 function postJE(id,date,ref,desc,lines,extra){const c=C();c.journalEntries=c.journalEntries.filter(e=>e.id!==id);c.journalEntries.push(Object.assign({id,date,ref,desc,lines,fileAttachment:null,src:'tax'},extra||{}));}
 const dropJE=id=>{const c=C();c.journalEntries=c.journalEntries.filter(e=>e.id!==id)};
-const lockedDate=d=>{const c=C(),cl=Array.isArray(c.closings)?c.closings:[];const t=cl.reduce((m,x)=>x.end>m?x.end:m,'');return t&&d<=t};
+const lockedDate=d=>{if(window.AJLOCK)return AJLOCK.is(d);const c=C(),cl=Array.isArray(c.closings)?c.closings:[];const t=cl.reduce((m,x)=>x.end>m?x.end:m,'');return t&&d<=t};
 
 // ---------- styles, nav, pages ----------
 document.body.querySelector(':scope>svg').insertAdjacentHTML('beforeend','<symbol id="i-tax" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9.5 16.5l6-6"/><circle cx="10" cy="11" r="1.1"/><circle cx="15" cy="16" r="1.1"/></symbol>');
@@ -8219,8 +8239,8 @@ X.opts=(list,sel,ph)=>(ph!=null?'<option value="">'+esc(ph)+'</option>':'')+list
 X.byCat=(...cats)=>C().chartOfAccounts.filter(a=>cats.includes(a.category)&&a.roleTag!=='cash').sort((a,b)=>a.code-b.code);
 // journal
 X.closedThrough=()=>{const cl=(C()&&Array.isArray(C().closings))?C().closings:[];return cl.reduce((m,x)=>x.end>m?x.end:m,'')};
-X.locked=d=>{const t=X.closedThrough();return !!t&&!!d&&d<=t};
-X.lockMsg=()=>'That date is in a closed fiscal year (closed through '+X.fdl(X.closedThrough())+'). Use a later date or reopen the year in Books > Year-End Closing.';
+X.locked=d=>window.AJLOCK?AJLOCK.is(d):(()=>{const t=X.closedThrough();return !!t&&!!d&&d<=t})();
+X.lockMsg=()=>window.AJLOCK?AJLOCK.msg():'That date is in a closed fiscal year (closed through '+X.fdl(X.closedThrough())+'). Use a later date or reopen the year in Books > Year-End Closing.';
 X.je=id=>C().journalEntries.find(e=>e.id===id);
 X.post=(id,date,ref,desc,lines,src,extra)=>{const agg=new Map();lines.forEach(([code,dr,cr])=>{if(!code)return;const v=agg.get(+code)||0;agg.set(+code,v+(dr||0)-(cr||0))});
  const out=[];let d=0,k=0;agg.forEach((v,code)=>{if(v>0){out.push({accountCode:code,debit:v/100,credit:0});d+=v}else if(v<0){out.push({accountCode:code,debit:0,credit:-v/100});k-=v}});
@@ -8309,8 +8329,8 @@ const ym=d=>d.slice(0,7);
 const ymLabel=k=>X.MN[+k.slice(5,7)-1].slice(0,3)+' '+k.slice(0,4);
 // accounts for a category (created the first time they are needed)
 function accts(cid){const k=cat(cid);
- if(!k.asset||!X.acct(k.asset))k.asset=X.ensureAcct(k.base,k.name,'Asset',{sub:'Non-current Asset'});
- if(k.life>0){if(!k.ad||!X.acct(k.ad))k.ad=X.ensureAcct(k.base+1,'Accumulated Depreciation – '+k.name,'Asset',{sub:'Non-current Asset',normal:'Credit',contra:true,contraOf:k.asset});
+ if(!k.asset||!X.acct(k.asset))k.asset=X.ensureAcct(k.base,k.name,'Asset',{sub:'Non-Current Asset'});
+ if(k.life>0){if(!k.ad||!X.acct(k.ad))k.ad=X.ensureAcct(k.base+1,'Accumulated Depreciation – '+k.name,'Asset',{sub:'Non-Current Asset',normal:'Credit',contra:true,contraOf:k.asset});
   if(!k.exp||!X.acct(k.exp))k.exp=X.ensureAcct(6200,'Depreciation Expense','Expense')}
  return k}
 
@@ -9836,27 +9856,28 @@ $('rx-books').addEventListener('click',e=>{const b=e.target.closest('[data-k]');
 // =====================================================================================
 const sig=e=>e.date+'|'+e.ref+'|'+e.desc+'|'+e.lines.map(l=>l.accountCode+':'+l.debit+':'+l.credit).join(',');
 let snap=null,snapCo=null;
-function takeSnap(){const c=C();snapCo=c?c.id:null;snap=c?new Map(c.journalEntries.map(e=>[e.id,sig(e)])):null}
+const mini=e=>({date:e.date,ref:e.ref,desc:e.desc,src:e.src||'',lines:e.lines.map(l=>[l.accountCode,+l.debit||0,+l.credit||0])});
+function takeSnap(){const c=C();snapCo=c?c.id:null;snap=c?new Map(c.journalEntries.map(e=>[e.id,{s:sig(e),e:mini(e)}])):null}
 const amtOf=e=>e.lines.reduce((s,l)=>s+(+l.debit||0),0);
-const SRC={inv:'Inventory',hr:'Payroll',bank:'Banking',queue:'For Posting',close:'Year-End Closing',tax:'Taxes & Filings',fa:'Fixed Assets',ar:'Sales & Receivables',ap:'Purchases & Payables',recur:'Recurring Entries',rec:'Bank Reconciliation',re:'Real Estate',hr13:'13th Month Pay'};
+const SRC={rev:'Reversal',inv:'Inventory',hr:'Payroll',bank:'Banking',queue:'For Posting',close:'Year-End Closing',tax:'Taxes & Filings',fa:'Fixed Assets',ar:'Sales & Receivables',ap:'Purchases & Payables',recur:'Recurring Entries',rec:'Bank Reconciliation',re:'Real Estate',hr13:'13th Month Pay'};
 const oSave=window.saveToLocalStorage;
 window.saveToLocalStorage=function(){try{const c=C();if(c&&snap&&snapCo===c.id&&!c.workspace){if(!Array.isArray(c.audit))c.audit=[];const now=new Date().toISOString(),by=X.who(),seen=new Set();
- c.journalEntries.forEach(e=>{seen.add(e.id);const s=sig(e),p=snap.get(e.id);if(p===s)return;c.audit.push({at:now,by,act:p?'Changed':'Added',ref:String(e.ref||'').slice(0,40),date:e.date,desc:String(e.desc||'').slice(0,120),amt:amtOf(e),src:e.src||''})});
- snap.forEach((s,id)=>{if(!seen.has(id)){const[d,ref,desc]=s.split('|');c.audit.push({at:now,by,act:'Deleted',ref:ref.slice(0,40),date:d,desc:String(desc).slice(0,120),amt:0,src:''})}});
- if(c.audit.length>5000)c.audit=c.audit.slice(-5000);snap=new Map(c.journalEntries.map(e=>[e.id,sig(e)]))}}catch(err){}return oSave.apply(this,arguments)};
+ c.journalEntries.forEach(e=>{seen.add(e.id);const s=sig(e),p=snap.get(e.id);if(p&&p.s===s)return;c.audit.push({at:now,by,act:p?'Changed':'Added',ref:String(e.ref||'').slice(0,40),date:e.date,desc:String(e.desc||'').slice(0,120),amt:amtOf(e),src:e.src||'',lines:mini(e).lines,before:p?p.e:undefined})});
+ snap.forEach((p,id)=>{if(!seen.has(id)){const v=(c.voided||[]).find(x=>x.entry&&x.entry.id===id&&!x.logged);if(v)v.logged=1;c.audit.push({at:now,by,act:v?'Voided':'Deleted',ref:String(p.e.ref||'').slice(0,40),date:p.e.date,desc:String(p.e.desc||'').slice(0,120),amt:p.e.lines.reduce((t,l)=>t+l[1],0),src:p.e.src||'',before:p.e,why:v?v.reason:''})}});
+ if(c.audit.length>100000)c.audit=c.audit.slice(-100000);snap=new Map(c.journalEntries.map(e=>[e.id,{s:sig(e),e:mini(e)}]))}}catch(err){}return oSave.apply(this,arguments)};
 ['switchCompany','handleLoginSubmit'].forEach(n=>{const o=window[n];if(typeof o==='function')window[n]=function(){const r=o.apply(this,arguments);Promise.resolve(r).then(()=>setTimeout(takeSnap,0));return r}});
 setTimeout(takeSnap,0);
 let auQ='',auA='ALL';
 X.page('bx-audit','Audit Trail','booksSubMenu',renderAudit);
 function renderAudit(){const box=$('bx-audit');if(window.currentUser&&window.currentUser.role!=='admin'){box.innerHTML='<div class="rq-note">Only an Admin can see the audit trail.</div>';return}
  const L=(C().audit||[]).slice().reverse().filter(x=>(auA==='ALL'||x.act===auA)&&(!auQ||(x.by+' '+x.ref+' '+x.desc).toLowerCase().includes(auQ.toLowerCase()))).slice(0,500);
- box.innerHTML='<div class="erp-head"><div><h2>Audit Trail</h2><p>Every journal entry added, changed or deleted, with who did it and when. Kept for the last 5,000 changes.</p></div><div class="acts"><button class="btn btn-outline" data-u="csv">Export CSV</button></div></div>'
- +'<div class="erp-bar"><div class="form-group grow"><label for="auQ">Search</label><input type="search" id="auQ" value="'+esc(auQ)+'" placeholder="User, reference or particulars"></div><div class="form-group"><label for="auA">Action</label><select id="auA"><option value="ALL">All</option><option>Added</option><option>Changed</option><option>Deleted</option></select></div></div>'
+ box.innerHTML='<div class="erp-head"><div><h2>Audit Trail</h2><p>Every journal entry added, changed or deleted, with who did it and when. Each change keeps the amounts before and after; voided entries keep the reason given.</p></div><div class="acts"><button class="btn btn-outline" data-u="csv">Export CSV</button></div></div>'
+ +'<div class="erp-bar"><div class="form-group grow"><label for="auQ">Search</label><input type="search" id="auQ" value="'+esc(auQ)+'" placeholder="User, reference or particulars"></div><div class="form-group"><label for="auA">Action</label><select id="auA"><option value="ALL">All</option><option>Added</option><option>Changed</option><option>Deleted</option><option>Voided</option></select></div></div>'
  +'<div class="hr-scroll"><table class="hr-tbl erp-tbl"><thead><tr><th>When</th><th>User</th><th>Action</th><th>Entry date</th><th>Ref</th><th>Particulars</th><th>From</th><th class="number">Amount</th></tr></thead><tbody>'
- +(L.length?L.map(x=>'<tr><td style="white-space:nowrap">'+esc(new Date(x.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}))+'</td><td>'+esc(x.by)+'</td><td><span class="st '+(x.act==='Deleted'?'od':x.act==='Changed'?'part':'paid')+'">'+x.act+'</span></td><td>'+esc(X.fdl(x.date))+'</td><td>'+esc(x.ref)+'</td><td class="wrap">'+esc(x.desc)+'</td><td>'+esc(SRC[x.src]||(x.src?x.src:'Manual'))+'</td><td class="number">'+(x.amt?n2(Math.round(x.amt*100)):'')+'</td></tr>').join(''):'<tr><td colspan="8" class="erp-empty">No changes recorded yet. Changes are recorded from now on.</td></tr>')+'</tbody></table></div>';
+ +(L.length?L.map(x=>'<tr><td style="white-space:nowrap">'+esc(new Date(x.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}))+'</td><td>'+esc(x.by)+'</td><td><span class="st '+(x.act==='Deleted'||x.act==='Voided'?'od':x.act==='Changed'?'part':'paid')+'">'+x.act+'</span></td><td>'+esc(X.fdl(x.date))+'</td><td>'+esc(x.ref)+'</td><td class="wrap">'+esc(x.desc)+(window.AJAUD?AJAUD.detail(x):'')+'</td><td>'+esc(SRC[x.src]||(x.src?x.src:'Manual'))+'</td><td class="number">'+(x.amt?n2(Math.round(x.amt*100)):'')+'</td></tr>').join(''):'<tr><td colspan="8" class="erp-empty">No changes recorded yet. Changes are recorded from now on.</td></tr>')+'</tbody></table></div>';
  $('auA').value=auA;$('auA').onchange=e=>{auA=e.target.value;renderAudit()};$('auQ').oninput=e=>{auQ=e.target.value;const p=e.target.selectionStart;renderAudit();$('auQ').focus();$('auQ').setSelectionRange(p,p)}}
-$('bx-audit').addEventListener('click',e=>{if(!e.target.closest('[data-u]'))return;X.dl(X.slug(C().name)+'_audit_trail.csv',X.csv([['When','User','Action','Entry date','Ref','Particulars','From','Amount']].concat((C().audit||[]).map(x=>[x.at,x.by,x.act,x.date,x.ref,x.desc,SRC[x.src]||x.src||'Manual',x.amt]))))});
-X.keep('audit',d=>X.cleanList(d,x=>({at:X.S(x.at,40),by:X.S(x.by,80),act:['Added','Changed','Deleted'].includes(x.act)?x.act:'Changed',ref:X.S(x.ref,40),date:X.S(x.date,10),desc:X.S(x.desc,120),amt:X.N(x.amt),src:X.S(x.src,12)})).slice(-5000));
+$('bx-audit').addEventListener('click',e=>{if(!e.target.closest('[data-u]'))return;X.dl(X.slug(C().name)+'_audit_trail.csv',X.csv([['When','User','Action','Entry date','Ref','Particulars','From','Amount','Reason','Before','After']].concat((C().audit||[]).map(x=>[x.at,x.by,x.act,x.date,x.ref,x.desc,SRC[x.src]||x.src||'Manual',x.amt,x.why||'',window.AJAUD?AJAUD.txt(x.before):'',window.AJAUD?AJAUD.txt(x.lines?{lines:x.lines}:null):'']))))});
+X.keep('audit',d=>X.cleanList(d,x=>({at:X.S(x.at,40),by:X.S(x.by,80),act:['Added','Changed','Deleted','Voided'].includes(x.act)?x.act:'Changed',ref:X.S(x.ref,40),date:X.S(x.date,10),desc:X.S(x.desc,120),amt:X.N(x.amt),src:X.S(x.src,12),why:x.why?X.S(x.why,300):undefined,lines:Array.isArray(x.lines)?x.lines.slice(0,300).map(l=>[parseInt(l[0],10)||0,X.N(l[1]),X.N(l[2])]):undefined,before:x.before&&typeof x.before==='object'&&Array.isArray(x.before.lines)?{date:X.S(x.before.date,10),ref:X.S(x.before.ref,40),desc:X.S(x.before.desc,200),src:X.S(x.before.src,12),lines:x.before.lines.slice(0,300).map(l=>[parseInt(l[0],10)||0,X.N(l[1]),X.N(l[2])])}:undefined})).slice(-100000));
 
 // =====================================================================================
 // 13TH MONTH PAY (HR menu)
@@ -9961,7 +9982,7 @@ async function verifyMember(m){
  const us=(m.users||[]).filter(u=>u.role==='admin'&&u.active!==false);
  if(us.length){const un=prompt('To add '+m.name+', enter the username of one of its Admins:');if(un==null)return false;const u=us.find(x=>x.username.toLowerCase()===un.trim().toLowerCase());const pw=prompt('Password for '+un+':');if(pw==null)return false;
   if(!u||!window.RQAPI||!(await window.RQAPI.checkPw(u,pw))){toast('Incorrect Admin login for '+m.name+'.');return false}return true}
- if(m.passwordHash){const pw=prompt(m.name+' is password-protected. Enter its password:');if(pw==null)return false;if((await hashPassword(pw))!==m.passwordHash){toast('Incorrect password for '+m.name+'.');return false}}
+ if(m.passwordHash){const pw=prompt(m.name+' is password-protected. Enter its password:');if(pw==null)return false;if(!(await ajCompanyPwCheck(m,pw))){toast('Incorrect password for '+m.name+'.');return false}}
  return true}
 function memberDlg(first){const c=C(),g=c.group||{umbrella:true,members:[],map:{},hrCharge:false};
  const others=companies.filter(x=>x.id!==c.id&&!x.workspace&&!isUmb(x)),cur=new Set(g.members||[]);
@@ -12272,12 +12293,12 @@ function fixMacNames(c){let n=0;const f=(o,k)=>{if(o&&typeof o[k]==='string'){co
   tb.querySelectorAll('button[onclick^="openJournalModal("]').forEach(b=>{const m=/openJournalModal\('([^']+)'/.exec(b.getAttribute('onclick')||'');const e=m&&byId.get(m[1]);if(!e)return;
    if(!manual(e)){const cb=document.createElement('input');cb.type='checkbox';cb.disabled=true;cb.title=why(e)||'You cannot delete journal entries';cb.style.marginRight='6px';cb.style.opacity='.35';b.parentElement.prepend(cb);return}shown.push(e.id);
    const cb=document.createElement('input');cb.type='checkbox';cb.title='Select';cb.setAttribute('aria-label','Select entry '+(e.ref||''));cb.style.marginRight='6px';cb.checked=JS.has(e.id);cb.onchange=()=>{cb.checked?JS.add(e.id):JS.delete(e.id);paintBar()};b.parentElement.prepend(cb)});
-  function paintBar(){if(!bar)return;bar.innerHTML='<button type="button" class="btn btn-outline btn-sm" id="jAll">Select all shown ('+shown.length+')</button>'+(JS.size?'<button type="button" class="btn btn-outline btn-sm" id="jNone">Clear</button><button type="button" class="btn btn-danger btn-sm" id="jDel">Delete selected ('+JS.size+')</button>':'')+'<small class="bk-mut">Use the period and search filters above to narrow the list first. Greyed boxes belong to invoices, bills, services, leases or fixed assets; delete those in their module.</small>';
+  function paintBar(){if(!bar)return;bar.innerHTML='<button type="button" class="btn btn-outline btn-sm" id="jAll">Select all shown ('+shown.length+')</button>'+(JS.size?'<button type="button" class="btn btn-outline btn-sm" id="jNone">Clear</button><button type="button" class="btn btn-danger btn-sm" id="jDel">Void selected ('+JS.size+')</button>':'')+'<small class="bk-mut">Use the period and search filters above to narrow the list first. Greyed boxes belong to invoices, bills, services, leases or fixed assets; cancel those in their module.</small>';
    bar.querySelector('#jAll').onclick=()=>{shown.forEach(id=>JS.add(id));tb.querySelectorAll('input[type=checkbox]:not(:disabled)').forEach(x=>x.checked=true);paintBar()};
    const n=bar.querySelector('#jNone');if(n)n.onclick=()=>{JS.clear();tb.querySelectorAll('input[type=checkbox]').forEach(x=>x.checked=false);paintBar()};
    const d=bar.querySelector('#jDel');if(d)d.onclick=()=>{const L=c.journalEntries.filter(e=>JS.has(e.id)&&manual(e));if(!L.length)return;const re=L.filter(e=>e.src==='re').length;
-    if(!confirm('Delete '+L.length+' journal entr'+(L.length===1?'y':'ies')+'?'+(re?'\n\n'+re+' of them came from Real Estate; the matching rent payments, utility readings or deposits are removed too.':'')+'\n\nThis cannot be undone.'))return;
-    c.journalEntries=c.journalEntries.filter(e=>!JS.has(e.id));JS.clear();if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter();toast(L.length+' entr'+(L.length===1?'y':'ies')+' deleted.','success')}}
+    if(!confirm('Void '+L.length+' journal entr'+(L.length===1?'y':'ies')+'?'+(re?'\n\n'+re+' of them came from Real Estate; the matching rent payments, utility readings or deposits are removed too.':'')+'\n\nThey stay in the journal marked VOID, with your reason.'))return;const why=window.AJVOID?prompt('Reason for voiding (required):'):'x';if(why===null)return;if(!String(why).trim())return toast('Enter a reason.');
+    if(window.AJVOID){let n=0;L.forEach(e=>{if(AJVOID.voidOne(c,e,String(why).trim(),true))n++});if(n<L.length)toast((L.length-n)+' could not be voided (locked period or already reversed).')}else c.journalEntries=c.journalEntries.filter(e=>!JS.has(e.id));JS.clear();if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter();toast(L.length+' entr'+(L.length===1?'y':'ies')+' voided.','success')}}
   paintBar()}}
 // ---------- type-to-search for name boxes (replaces the browser's own suggestion list everywhere) ----------
 // Matches any part of the name in any order, ignores accents (nina finds NIÑA), shows the room / balance under each name.
@@ -12504,6 +12525,526 @@ function renderOv(){const home=$('tab-home'),c=C();if(!home||!c)return;let ov=$(
 {const o=window.calculateDashboardMetrics;window.calculateDashboardMetrics=function(){const r=o.apply(this,arguments);try{renderOv()}catch(e){console.error(e)}return r}}
 {const o=window.showTab;window.showTab=function(t){const r=o.apply(this,arguments);if(t==='home')try{renderOv()}catch(e){console.error(e)}return r}}
 window.AJDS={renderOv,fmtD};
+})();
+
+
+// ===== Company setup v2: VAT question, equity by organization type, fuller standard chart of accounts, Income Statement with gross profit and an IFRS 18 / PFRS 18 format =====
+(function(){
+const $=id=>document.getElementById(id);
+const A=(code,title,category,sub,normal,extra)=>Object.assign({code,title,category,subCategoryClass:sub,roleTag:'none',isContra:false,normal,initialBalance:0},extra||{});
+const isCorpCo=c=>/corporation/i.test((c&&c.entity)||'');
+const isPartCo=c=>/partnership/i.test((c&&c.entity)||'');
+const vatKind=c=>{const t=c&&c.tax&&c.tax.profile&&c.tax.profile.biz;if(t)return t;return /non/i.test((c&&c.vat)||'Non')?'PT':'VAT'};
+window.isCorpCo=isCorpCo;window.isPartCo=isPartCo;
+
+// ---------- cost of sales: direct-cost accounts that come with the service lines ----------
+const COS_CODES=[5000,5030,5040,5210,5220,5230,5240,5270,5280,5290,5300,5310,5320,5330,5340,5350,5360,5370,5380,5390,5400,5410,5420,5430,5440,5450,5460];
+const tplTitle=new Map();
+SERVICE_LINES.forEach(s=>s.accounts.forEach(a=>{
+ if(a.category==='Expense'&&COS_CODES.includes(a.code))a.subCategoryClass='Cost of Sales';
+ if(a.category==='Revenue'&&/^other/i.test(a.subCategoryClass||''))a.subCategoryClass='Other Income';
+ tplTitle.set(a.code,a.title)}));
+
+// ---------- the standard chart of accounts, by organization type and business tax ----------
+function standardCOAFor(c){
+ const vk=vatKind(c),corp=isCorpCo(c),part=isPartCo(c);
+ const L=[
+  A(1010,'Cash on Hand','Asset','Current Asset','Debit',{roleTag:'cash'}),
+  A(1020,'Cash in Bank','Asset','Current Asset','Debit',{roleTag:'cash'}),
+  A(1030,'Accounts Receivable','Asset','Current Asset','Debit',{roleTag:'ar'}),
+  A(1040,'Allowance for Doubtful Accounts','Asset','Current Asset','Credit',{isContra:true,contraOf:1030}),
+  A(1130,'Advances to Employees','Asset','Current Asset','Debit'),
+  A(1150,'Prepaid Expenses','Asset','Current Asset','Debit'),
+  A(1160,'Creditable Withholding Tax','Asset','Current Asset','Debit')];
+ if(vk==='VAT')L.push(A(1170,'Input VAT','Asset','Current Asset','Debit'));
+ [[1530,'Furniture and Fixtures'],[1540,'Office Equipment'],[1550,'Computer Equipment'],[1560,'Transportation Equipment']].forEach(([n,t])=>{
+  L.push(A(n,t,'Asset','Non-Current Asset','Debit'));L.push(A(n+1,'Accumulated Depreciation – '+t,'Asset','Non-Current Asset','Credit',{isContra:true,contraOf:n}))});
+ L.push(A(2010,'Accounts Payable','Liability','Current Liability','Credit',{roleTag:'ap'}),
+  A(2105,'Accrued Expenses','Liability','Current Liability','Credit'),
+  A(2110,'Withholding Tax Payable','Liability','Current Liability','Credit'),
+  A(2115,'Expanded Withholding Tax Payable','Liability','Current Liability','Credit'),
+  A(2120,'SSS Contributions Payable','Liability','Current Liability','Credit'),
+  A(2130,'PhilHealth Contributions Payable','Liability','Current Liability','Credit'),
+  A(2140,'Pag-IBIG Contributions Payable','Liability','Current Liability','Credit'));
+ if(vk==='PT')L.push(A(2150,'Percentage Tax Payable','Liability','Current Liability','Credit'));
+ if(vk==='VAT')L.push(A(2165,'Output VAT Payable','Liability','Current Liability','Credit'));
+ L.push(A(2170,'Income Tax Payable','Liability','Current Liability','Credit'));
+ if(corp)L.push(A(2410,'Advances from Stockholders','Liability','Current Liability','Credit'));
+ L.push(A(2510,'Loans Payable','Liability','Non-Current Liability','Credit'));
+ L.push(A(3000,'Beginning Balance Equity','Equity','Equity','Credit'));
+ if(corp)L.push(A(3010,'Share Capital','Equity','Equity','Credit'),A(3015,'Additional Paid-in Capital','Equity','Equity','Credit'),
+  A(3200,'Retained Earnings','Equity','Equity','Credit'),A(3210,'Dividends Declared','Equity','Equity','Debit',{isContra:true,contraOf:3200}));
+ else if(part)L.push(A(3010,"Partners' Capital",'Equity','Equity','Credit'),A(3020,"Partners' Drawings",'Equity','Equity','Debit',{isContra:true,contraOf:3010}));
+ else L.push(A(3010,"Owner's Capital",'Equity','Equity','Credit'),A(3020,"Owner's Drawings",'Equity','Equity','Debit',{isContra:true,contraOf:3010}));
+ L.push(A(4010,'Service Revenue','Revenue','Operating Revenue','Credit'),
+  A(4920,'Interest Income','Revenue','Other Income','Credit'),
+  A(4930,'Other Income','Revenue','Other Income','Credit'),
+  A(5010,'Rent Expense','Expense','Operating Expense','Debit'),
+  A(5020,'Utilities Expense','Expense','Operating Expense','Debit'),
+  A(5100,'Salaries and Wages Expense','Expense','Operating Expense','Debit'),
+  A(5120,'SSS, PhilHealth and Pag-IBIG Contributions Expense','Expense','Operating Expense','Debit'),
+  A(5130,'13th Month Pay','Expense','Operating Expense','Debit'),
+  A(6010,'Supplies Expense','Expense','Operating Expense','Debit'),
+  A(6020,'Communication Expense','Expense','Operating Expense','Debit'),
+  A(6030,'Fuel and Transportation Expense','Expense','Operating Expense','Debit'),
+  A(6040,'Repairs and Maintenance Expense','Expense','Operating Expense','Debit'),
+  A(6050,'Professional Fees Expense','Expense','Operating Expense','Debit'),
+  A(6060,'Insurance Expense','Expense','Operating Expense','Debit'),
+  A(6070,'Advertising and Promotions Expense','Expense','Operating Expense','Debit'),
+  A(6100,'Taxes and Licenses','Expense','Operating Expense','Debit'),
+  A(6150,'Bank Charges','Expense','Operating Expense','Debit'),
+  A(6190,'Miscellaneous Expense','Expense','Operating Expense','Debit'),
+  A(6200,'Depreciation Expense','Expense','Operating Expense','Debit'),
+  A(6300,'Interest Expense','Expense','Other Expense','Debit',{ifrs18:'financing'}),
+  A(6900,'Income Tax Expense','Expense','Income Tax Expense','Debit'));
+ return L;
+}
+window.standardCOAFor=standardCOAFor;
+// contra links for the new template accounts (used when older files are opened)
+[standardCOAFor({entity:'Corporation',vat:'VAT Registered'}),standardCOAFor({entity:'Partnership'})].forEach(list=>list.forEach(a=>{if(a.isContra&&!defaultCOATemplate.some(x=>x.code===a.code&&x.title===a.title))defaultCOATemplate.push(a)}));
+
+// ---------- income statement sections ----------
+const SUB_NORM={'Non-current Asset':'Non-Current Asset','Non-current Liability':'Non-Current Liability','Other Revenue':'Other Income'};
+const TAX_RX=/income tax expense|provision for income tax|^final tax/i;
+function isSection(a){
+ if(a.category==='Revenue')return /^other/i.test(a.subCategoryClass||'')?'oi':'rev';
+ const s=a.subCategoryClass||'';
+ if(s==='Cost of Sales')return 'cos';if(s==='Other Expense')return 'ox';if(s==='Income Tax Expense'||TAX_RX.test(a.title||''))return 'tax';return 'opex';
+}
+const INV_RX=/interest income|dividend|investment|investment property|fair value gain|fair value loss/i;
+const FIN_RX=/interest expense|finance (cost|charge)|interest on (loan|lease|borrowing)|loan interest|unwinding/i;
+function ifrsCat(a){
+ if(['operating','investing','financing','tax'].includes(a.ifrs18))return a.ifrs18;
+ if(isSection(a)==='tax')return 'tax';
+ if(FIN_RX.test(a.title||''))return 'financing';
+ if(INV_RX.test(a.title||'')&&!/disposal of (assets|property|equipment)/i.test(a.title||''))return 'investing';
+ return 'operating';
+}
+window.ISCLASS={isSection,ifrsCat};
+
+window.buildIncomeStatementBody=function(comp,params,bp,pp,cmp){
+ const ccy=comp.currency,E={drCents:0,crCents:0},span=cmp?5:2;
+ const head=cmp?`<thead><tr><th></th><th class="number">${params.curCol}</th><th class="number">${params.prevCol}</th><th class="number">Change</th><th class="number">%</th></tr></thead>`:'';
+ const byCode=new Map(comp.chartOfAccounts.map(a=>[a.code,a]));
+ const base=a=>{const p=a.isContra&&a.contraOf?byCode.get(a.contraOf):null;return p&&!p.isContra&&p.category===a.category?p:a};
+ const rows=[];
+ orderWithContras(comp.chartOfAccounts).forEach(acc=>{
+  if(acc.category!=='Revenue'&&acc.category!=='Expense')return;
+  const b=bp.get(acc.code)||E,p=cmp?(pp.get(acc.code)||E):E,rev=acc.category==='Revenue';
+  const cur=rev?b.crCents-b.drCents:b.drCents-b.crCents,prev=rev?p.crCents-p.drCents:p.drCents-p.crCents;
+  if(!cur&&!prev)return;
+  const bs=base(acc);rows.push({acc,rev,sec:isSection(bs),cat:ifrsCat(bs),cur,prev,eff:rev?cur:-cur,peff:rev?prev:-prev});
+ });
+ const S=(l,k)=>l.reduce((s,r)=>s+r[k],0);
+ const line=(lbl,c,p,bold)=>`<tr${bold?' style="font-weight:bold;"':''}><td>${lbl}</td>${cmpCells(c,p,ccy,cmp)}</tr>`;
+ const h4=(t,first)=>`<h4 style="border-bottom: 1px solid #d3e6df; padding-bottom: 4px;${first?'':' margin-top: 1.5rem;'}">${t}</h4>`;
+ const tbl=(body,foot)=>`<table>${head}<tbody>${body}</tbody>${foot?`<tfoot>${foot}</tfoot>`:''}</table>`;
+ const lines=(l,k)=>l.map(r=>line(acctLabel(r.acc),r[k],r[k==='eff'?'peff':'prev'])).join('');
+ const sub=(lbl,c,p)=>`<table style="margin-top:.6rem;"><tbody><tr style="font-weight:bold;border-top:1px solid var(--border-color,#cbd5e1);"><td>${lbl}</td>${cmpCells(c,p,ccy,cmp)}</tr></tbody></table>`;
+ const final=(lbl,c,p)=>`<table style="margin-top: 2rem; border: 2px solid var(--fiery-navy-deep);"><tfoot><tr style="font-weight:bold; font-size: 1.1rem;"><td>${lbl}</td>${cmpCells(c,p,ccy,cmp)}</tr></tfoot></table>`;
+ if(!rows.length)return `<p style="color:var(--text-muted)">No revenues or expenses recorded for this period.</p>`+final('Net Income / (Loss)',0,0);
+ const ni=S(rows,'eff'),pni=S(rows,'peff');
+
+ if(params.isLayout!=='ifrs18'){
+  const g=k=>rows.filter(r=>r.sec===k);const R=g('rev'),COS=g('cos'),OX=g('opex'),OI=g('oi'),OE=g('ox'),TX=g('tax');
+  let h='';
+  h+=h4('Revenues',true)+tbl(R.length?lines(R,'cur'):`<tr><td colspan="${span}" style="color:var(--text-muted)">No revenues recorded for this period.</td></tr>`,line('Total Revenues',S(R,'cur'),S(R,'prev'),true));
+  let run=S(R,'cur'),prun=S(R,'prev');
+  if(COS.length){h+=h4('Cost of Sales')+tbl(lines(COS,'cur'),line('Total Cost of Sales',S(COS,'cur'),S(COS,'prev'),true));run-=S(COS,'cur');prun-=S(COS,'prev');h+=sub('Gross Profit',run,prun)}
+  if(OX.length){h+=h4('Operating Expenses')+tbl(lines(OX,'cur'),line('Total Operating Expenses',S(OX,'cur'),S(OX,'prev'),true));run-=S(OX,'cur');prun-=S(OX,'prev')}
+  const more=OI.length||OE.length||TX.length;
+  if(more)h+=sub('Operating Income / (Loss)',run,prun);
+  if(OI.length||OE.length){const L=OI.concat(OE);h+=h4('Other Income and (Expenses)')+tbl(lines(L,'eff'),line('Total Other Income (Expenses), net',S(L,'eff'),S(L,'peff'),true));run+=S(L,'eff');prun+=S(L,'peff')}
+  if(TX.length){h+=sub('Income Before Income Tax',run,prun)+h4('Income Tax Expense')+tbl(lines(TX,'cur'),line('Total Income Tax Expense',S(TX,'cur'),S(TX,'prev'),true))}
+  return h+final('Net Income / (Loss)',ni,pni);
+ }
+
+ // IFRS 18 / PFRS 18: operating, investing, financing and income tax categories with the two required subtotals
+ const C=k=>rows.filter(r=>r.cat===k);const OP=C('operating'),IV=C('investing'),FN=C('financing'),TX=C('tax');
+ const og=k=>OP.filter(r=>r.sec===k);const R=og('rev'),COS=og('cos'),OX=og('opex'),OI=og('oi'),OE=og('ox');
+ let h=`<p style="font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:#475569;margin:0 0 .3rem;font-weight:700">Operating category</p>`;
+ h+=h4('Revenue',true)+tbl(R.length?lines(R,'cur'):`<tr><td colspan="${span}" style="color:var(--text-muted)">No revenue recorded for this period.</td></tr>`,line('Total Revenue',S(R,'cur'),S(R,'prev'),true));
+ let run=S(R,'cur'),prun=S(R,'prev');
+ if(COS.length){h+=h4('Cost of Sales')+tbl(lines(COS,'cur'),line('Total Cost of Sales',S(COS,'cur'),S(COS,'prev'),true));run-=S(COS,'cur');prun-=S(COS,'prev');h+=sub('Gross Profit',run,prun)}
+ if(OX.length){h+=h4('Operating Expenses (by nature)')+tbl(lines(OX,'cur'),line('Total Operating Expenses',S(OX,'cur'),S(OX,'prev'),true));run-=S(OX,'cur');prun-=S(OX,'prev')}
+ if(OI.length||OE.length){const L=OI.concat(OE);h+=h4('Other Operating Income and (Expenses)')+tbl(lines(L,'eff'),line('Total',S(L,'eff'),S(L,'peff'),true));run+=S(L,'eff');prun+=S(L,'peff')}
+ h+=sub('Operating Profit / (Loss)',run,prun);
+ const cat=(title,L,subLbl)=>{let x=`<p style="font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:#475569;margin:1.6rem 0 .3rem;font-weight:700">${title}</p>`;
+  x+=tbl(L.length?lines(L,'eff'):`<tr><td colspan="${span}" style="color:var(--text-muted)">None for this period.</td></tr>`,L.length?line('Total',S(L,'eff'),S(L,'peff'),true):'');
+  run+=S(L,'eff');prun+=S(L,'peff');return x+sub(subLbl,run,prun)};
+ h+=cat('Investing category',IV,'Profit / (Loss) Before Financing and Income Taxes');
+ h+=cat('Financing category',FN,'Profit / (Loss) Before Income Taxes');
+ if(TX.length){h+=`<p style="font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:#475569;margin:1.6rem 0 .3rem;font-weight:700">Income taxes</p>`+tbl(lines(TX,'cur'),line('Total Income Tax Expense',S(TX,'cur'),S(TX,'prev'),true))}
+ h+=final('Profit / (Loss) for the Period',ni,pni);
+ // when cost of sales (a function) is shown, IFRS 18 asks for certain expenses by nature in the notes
+ let note='Prepared using the IFRS 18 / PFRS 18 categories. Operating expenses are presented by nature'+(COS.length?', with cost of sales presented by function (mixed presentation)':'')+'. Each account’s category can be set in Settings › Chart of Accounts.';
+ if(COS.length){const ex=rows.filter(r=>!r.rev),pick=rx=>{const l=ex.filter(r=>rx.test(r.acc.title||''));return[S(l,'cur'),S(l,'prev')]};
+  const nat=[['Employee benefits',/salar|wage|13th|bonus|allowance|contribution|benefit|personnel|labor|commission/i],['Depreciation',/depreciation/i],['Amortisation',/amorti[sz]ation/i],['Inventory write-downs and adjustments',/inventory adjust|write-?down|obsolescence/i]].map(([t,rx])=>[t].concat(pick(rx))).filter(x=>x[1]||x[2]);
+  if(nat.length)h+=h4('Note: specified expenses by nature (included above)')+tbl(nat.map(x=>line(x[0],x[1],x[2])).join(''),'')}
+ return h+`<p style="font-size:.8rem;color:#475569;margin-top:1rem;">${note}</p>`;
+};
+
+// ---------- statement of changes in equity (corporations) ----------
+window.buildChangesInEquityBody=function(comp,params){
+ const ents=params.entries||comp.journalEntries,start=params.startDateStr,end=params.endDateStr,before=prevDay(start),c=comp.currency,E={drCents:0,crCents:0};
+ const b0=computeAccountBalances(ents.filter(e=>e.date<=before||(isInit(e)&&e.date<=end)),end),b1=computeAccountBalances(ents.filter(e=>!isInit(e)),end,start);
+ const eq=comp.chartOfAccounts.filter(a=>a.category==='Equity'),net=(m,a)=>{const x=m.get(a.code)||E;return x.crCents-x.drCents};
+ const isRE=a=>/retained|accumulated (profit|earnings|deficit)|\bdeficit\b/i.test(a.title),isDiv=a=>/dividend/i.test(a.title);
+ const cols=eq.filter(a=>!isRE(a)&&!isDiv(a)&&(net(b0,a)||net(b1,a)||/share capital|capital stock|paid-in/i.test(a.title)));
+ const reBeg=eq.filter(a=>isRE(a)||isDiv(a)).reduce((s,a)=>s+net(b0,a),0)+periodNetIncomeCents(comp,before,null,ents);
+ const ni=periodNetIncomeCents(comp,end,start,ents),div=eq.filter(isDiv).reduce((s,a)=>s+net(b1,a),0),reOther=eq.filter(isRE).reduce((s,a)=>s+net(b1,a),0);
+ const begs=cols.map(a=>net(b0,a)),movs=cols.map(a=>net(b1,a));
+ let adj=0;
+ if(params.basisKey==='cash'){const na=bal=>{let t=0;comp.chartOfAccounts.forEach(a=>{if(a.category!=='Asset'&&a.category!=='Liability')return;const b=bal.get(a.code)||E;const n=(a.normal==='Debit'?b.drCents-b.crCents:b.crCents-b.drCents)*(a.isContra?-1:1);t+=a.category==='Asset'?n:-n});return t};
+  const endTot=na(computeAccountBalances(ents,end)),calc=begs.reduce((s,x)=>s+x,0)+movs.reduce((s,x)=>s+x,0)+reBeg+ni+div+reOther;adj=endTot-calc}
+ const f=x=>x?formatMoney(fromCents(x),c):'–';
+ const hdr='<tr><th></th>'+cols.map(a=>`<th class="number">${escapeHtml(a.title)}</th>`).join('')+'<th class="number">Retained Earnings</th><th class="number">Total Equity</th></tr>';
+ const row=(lbl,vals,re,bold)=>{const t=vals.reduce((s,x)=>s+x,0)+re;if(!bold&&!t&&!re&&vals.every(x=>!x))return '';return `<tr${bold?' style="font-weight:bold;"':''}><td>${lbl}</td>${vals.map(v=>`<td class="number">${f(v)}</td>`).join('')}<td class="number">${f(re)}</td><td class="number">${f(t)}</td></tr>`};
+ const z=cols.map(()=>0),endV=cols.map((a,i)=>begs[i]+movs[i]),reEnd=reBeg+ni+div+reOther+adj;
+ return `<div style="overflow-x:auto"><table><thead>${hdr}</thead><tbody>`
+  +row('Balance at beginning of period',begs,reBeg,true)
+  +row('Issuance of shares and other capital changes',movs,0)
+  +row('Profit / (loss) for the period',z,ni)
+  +row('Dividends declared',z,div)
+  +row('Other changes in retained earnings',z,reOther)
+  +(adj?row('Cash-basis adjustment (receivables / payables)',z,adj):'')
+  +`</tbody><tfoot>${row('Balance at end of period',endV,reEnd,true)}</tfoot></table></div>`;
+};
+
+// ---------- titles and headings that depend on the organization type ----------
+window.reportTitleFor=function(comp,type){
+ if(type==='oe'&&comp){if(isCorpCo(comp))return 'Statement of Changes in Equity';if(isPartCo(comp))return "Statement of Changes in Partners' Equity"}
+ return reportTitles[type];
+};
+window.equityHeading=c=>isCorpCo(c)?"Stockholders' Equity":isPartCo(c)?"Partners' Equity":"Owner's Equity & Capital";
+function navLabels(){const c=activeCompany&&activeCompany();const li=$('nav-sub-rpt-oe');if(!li||!c)return;const t=isCorpCo(c)?'Changes in Equity':isPartCo(c)?"Partners' Equity":"Owner's Equity";const sp=li.querySelector('.nav-text')||li;if(sp.children.length===0)sp.textContent=t;else{const n=[...sp.childNodes].reverse().find(x=>x.nodeType===3&&x.textContent.trim());if(n)n.textContent=' '+t}}
+const oST=window.showTab;window.showTab=function(){const r=oST.apply(this,arguments);try{navLabels()}catch(e){}return r};
+
+// ---------- report options: Income Statement format ----------
+const oORP=window.openReportPromptModal;
+window.openReportPromptModal=function(type){const r=oORP.apply(this,arguments);const g=$('rptIsLayoutGroup'),c=activeCompany();if(g){g.classList.toggle('hidden',type!=='is');if(c)$('rptIsLayout').value=c.isLayout==='ifrs18'?'ifrs18':'classic'}return r};
+const oGFR=window.generateFinancialReport;
+window.generateFinancialReport=function(e){const c=activeCompany(),t=($('rptTargetType')||{}).value;if(c&&t==='is'){c.isLayout=$('rptIsLayout').value==='ifrs18'?'ifrs18':'classic'}return oGFR.apply(this,arguments)};
+
+// ---------- company creation: business tax registration ----------
+function syncVatOpts(){const ent=$('newCompEntity'),s=$('newCompVat');if(!ent||!s)return;const ind=/sole|individual/i.test(ent.value);const o=s.querySelector('option[value="EIGHT"]');if(o){o.disabled=!ind;o.hidden=!ind;if(!ind&&s.value==='EIGHT')s.value='PT'}}
+document.addEventListener('change',e=>{if(e.target&&e.target.id==='newCompEntity')syncVatOpts()});
+const oOCM=window.openCreateCompanyModal;window.openCreateCompanyModal=function(){const r=oOCM.apply(this,arguments);try{const s=$('newCompVat');if(s)s.value='';syncVatOpts()}catch(e){}return r};
+setTimeout(syncVatOpts,0);
+
+// ---------- account form: more sub-classes and the IFRS 18 category ----------
+const SUBS={Asset:['Current Asset','Non-Current Asset'],Liability:['Current Liability','Non-Current Liability'],Equity:['Equity'],Revenue:['Operating Revenue','Other Income'],Expense:['Operating Expense','Cost of Sales','Other Expense','Income Tax Expense']};
+window.AJ_SUBS=SUBS;
+function syncAccForm(){const cat=($('accCategory')||{}).value,s=$('accSubCategoryClass');if(!s)return;[...s.options].forEach(o=>{const ok=(SUBS[cat]||[]).includes(o.value);o.hidden=!ok;o.disabled=!ok});if(!(SUBS[cat]||[]).includes(s.value))s.value=(SUBS[cat]||[''])[0];const g=$('accIfrs18Group');if(g)g.classList.toggle('hidden',!(cat==='Revenue'||cat==='Expense'))}
+window.syncAccForm=syncAccForm;
+document.addEventListener('change',e=>{if(e.target&&e.target.id==='accCategory')syncAccForm()});
+
+// ---------- bring older companies up to date (once per company) ----------
+function migrate(c){
+ if(!c||!Array.isArray(c.chartOfAccounts)||c.coaV2)return c;
+ c.chartOfAccounts.forEach(a=>{
+  if(SUB_NORM[a.subCategoryClass])a.subCategoryClass=SUB_NORM[a.subCategoryClass];
+  if(a.category==='Expense'&&(a.subCategoryClass==='Operating Expense'||!a.subCategoryClass)){
+   if((COS_CODES.includes(a.code)&&tplTitle.get(a.code)===a.title)||/^cost of (goods sold|sales|services|parts used)/i.test(a.title))a.subCategoryClass='Cost of Sales';
+   else if(TAX_RX.test(a.title)&&!/^final tax/i.test(a.title))a.subCategoryClass='Income Tax Expense';
+   else if(/^interest expense$/i.test(a.title)||/^loss on disposal/i.test(a.title))a.subCategoryClass='Other Expense'}
+  if(a.category==='Revenue'&&(a.subCategoryClass==='Operating Revenue'||!a.subCategoryClass)&&/^(interest income|other income|gain on disposal)/i.test(a.title))a.subCategoryClass='Other Income';
+ });
+ c.coaV2=true;return c;
+}
+window.ajMigrateCoaV2=migrate;
+const oLF=window.loadFromLocalStorage;window.loadFromLocalStorage=function(){const r=oLF.apply(this,arguments);try{(companies||[]).forEach(migrate)}catch(e){console.error(e)}return r};
+const oSC=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=oSC.apply(this,arguments);try{migrate(o)}catch(e){}return o};
+})();
+
+
+// ===== Protecting posted books (period lock, void and reverse, full audit), payroll time and premiums, sign-in security =====
+(function(){
+const $=id=>document.getElementById(id),C=()=>(typeof activeCompany==='function'?activeCompany():null);
+const DT=/^\d{4}-\d{2}-\d{2}$/;
+const fdl=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const who=()=>window.currentUser?window.currentUser.name:'Admin';
+const isAdmin=()=>!window.currentUser||window.currentUser.role==='admin';
+const today=()=>localDateStr(new Date());
+const refreshBooks=()=>{try{fillLedgerFilter();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}};
+function modal(html,w){const m=document.createElement('div');m.className='modal-overlay aj3-modal';m.innerHTML='<div class="modal" style="max-width:'+(w||560)+'px">'+html+'</div>';m.addEventListener('mousedown',e=>{if(e.target===m)m.remove()});document.body.appendChild(m);m.querySelectorAll('[data-x]').forEach(x=>x.onclick=()=>m.remove());return m}
+document.head.insertAdjacentHTML('beforeend','<style>.aj-void td{opacity:.55;text-decoration:line-through}.aj-void td.aj-keep{text-decoration:none;opacity:.9}.aj-chip{display:inline-block;font-size:.72rem;padding:2px 8px;border-radius:999px;background:rgba(1,99,81,.1);color:#016351;font-weight:700;margin-left:6px}.aj-chip.warn{background:#fef3c7;color:#92400e}.aj-tmgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}.aj-tmgrid .form-group{margin:0}.aj-aud{font-size:.78rem;margin-top:4px}.aj-aud table{width:auto;font-size:.78rem}.aj-aud td{padding:1px 8px 1px 0;border:0}#ajIdleWarn{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99999;background:#1f2937;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);display:flex;gap:12px;align-items:center;font-size:.9rem}@media (max-width:600px){.aj-tmgrid{grid-template-columns:1fr}}</style>');
+
+// =====================================================================
+// 1) PERIOD LOCK
+// =====================================================================
+const closedEnd=c=>(Array.isArray(c&&c.closings)?c.closings:[]).reduce((m,x)=>x.end>m?x.end:m,'');
+function through(c){c=c||C();if(!c)return '';const a=closedEnd(c),b=DT.test(c.lockThrough||'')?c.lockThrough:'';return b>a?b:a}
+const AJLOCK={through,
+ is:(d,c)=>{const t=through(c);return !!t&&!!d&&String(d)<=t},
+ msg:c=>{c=c||C();const t=through(c),cl=closedEnd(c);return 'That date is in a locked period: the books are locked through '+fdl(t)+(cl&&cl===t?' (closed fiscal year)':'')+'. Use a later date, or ask an Admin to change the lock in Books › Period Locks & Closing.'}};
+window.AJLOCK=AJLOCK;
+
+const eom=(y,m)=>{const d=new Date(y,m,0);return localDateStr(d)};
+function lockCard(){
+ const host=$('bookTab-close');if(!host)return;let card=$('ajLockCard');
+ if(!card){card=document.createElement('div');card.id='ajLockCard';card.className='card';host.prepend(card)}
+ const c=C();if(!c)return;const t=DT.test(c.lockThrough||'')?c.lockThrough:'',cl=closedEnd(c),eff=through(c);
+ const now=new Date();const opts=[];for(let i=1;i<=36;i++){const d=new Date(now.getFullYear(),now.getMonth()-i+1,0);opts.push(localDateStr(d))}
+ if(t&&!opts.includes(t))opts.push(t);
+ const log=(Array.isArray(c.lockLog)?c.lockLog:[]).slice(-8).reverse();
+ card.innerHTML='<div class="hr-head"><h2 style="margin:0">Monthly Period Lock</h2></div>'
+  +'<p class="hr-note">Lock a month once it has been reviewed, or once its BIR returns are filed. Nobody can add, edit, void or delete entries dated on or before the lock date, in Books or in any module. To correct a locked month, use <b>Reverse</b> in Books › Journal: it posts the correction in an open month and keeps the original.</p>'
+  +'<div class="bk-kpis"><div class="bk-kpi"><span>Books locked through</span><b>'+(eff?esc(fdl(eff)):'Not locked')+'</b><small>'+(eff?(cl===eff?'closed fiscal year':'monthly lock'):'every month is open')+'</small></div>'
+  +'<div class="bk-kpi"><span>First open day</span><b>'+(eff?esc(fdl(localDateStr(new Date(new Date(eff+'T00:00').getTime()+864e5)))):'–')+'</b><small>entries can be posted from here on</small></div></div>'
+  +(isAdmin()?'<div class="hr-bar" style="align-items:flex-end;margin-top:.6rem"><div class="form-group"><label for="ajLockSel">Lock the books through</label><select id="ajLockSel"><option value="">No monthly lock</option>'+opts.sort().reverse().map(d=>'<option value="'+d+'"'+(d===t?' selected':'')+'>'+esc(fdl(d))+'</option>').join('')+'</select></div><div class="form-group"><button class="btn" id="ajLockGo" type="button">Save lock</button></div></div>'
+   :'<p class="hr-note">Only an Admin can change the lock.</p>')
+  +(log.length?'<details style="margin-top:.6rem"><summary style="cursor:pointer;font-weight:700">Lock history</summary><table class="hr-tbl" style="margin-top:.4rem"><thead><tr><th>When</th><th>By</th><th>From</th><th>To</th></tr></thead><tbody>'+log.map(x=>'<tr><td>'+esc(new Date(x.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}))+'</td><td>'+esc(x.by)+'</td><td>'+esc(x.from?fdl(x.from):'not locked')+'</td><td>'+esc(x.to?fdl(x.to):'not locked')+'</td></tr>').join('')+'</tbody></table></details>':'');
+ const go=$('ajLockGo');if(go)go.onclick=()=>{const v=$('ajLockSel').value,from=t;if(v===from)return toast('No change.');
+  if(v&&v>today())return toast('You can only lock months that have ended.');
+  if((!v||v<from)&&!confirm('Unlock the books after '+(v?fdl(v):'every date')+'? Entries in '+(v?'the months after '+fdl(v):'previously locked months')+' can then be changed again.'))return;
+  if(!Array.isArray(c.lockLog))c.lockLog=[];c.lockLog.push({at:new Date().toISOString(),by:who(),from:from||'',to:v||''});
+  if(v)c.lockThrough=v;else delete c.lockThrough;saveToLocalStorage();lockCard();refreshBooks();toast(v?'Books locked through '+fdl(v)+'.':'Monthly lock removed.','success')};
+}
+{const li=$('nav-sub-close');if(li)li.textContent='Period Locks & Closing'}
+const oSBT=window.showBooksSubTab;window.showBooksSubTab=function(t){const r=oSBT.apply(this,arguments);try{if(t==='close')lockCard()}catch(e){console.error(e)}return r};
+
+// safety net: no journal change dated in a locked period is ever saved, whichever module made it
+let nsnap=null,nco=null;const ser=e=>JSON.stringify([e.date,e.ref,e.desc,e.lines]);
+function nTake(){const c=C();nco=c?c.id:null;nsnap=c?new Map(c.journalEntries.map(e=>[e.id,{s:ser(e),e:JSON.parse(JSON.stringify(e))}])):null}
+const exempt=e=>!e||e.src==='close'||(typeof isInit==='function'&&isInit(e));
+const oSave=window.saveToLocalStorage;
+window.saveToLocalStorage=function(){
+ try{const c=C();if(c&&nsnap&&nco===c.id&&!c.workspace){const t=through(c);if(t){const bad=[],seen=new Set();
+  c.journalEntries=c.journalEntries.filter(e=>{seen.add(e.id);if(exempt(e))return true;const p=nsnap.get(e.id);if(!p&&e.date<=t){bad.push(e.ref||e.id);return false}return true})
+   .map(e=>{const p=nsnap.get(e.id);if(!p||exempt(e)||exempt(p.e)||p.s===ser(e))return e;if(e.date<=t||p.e.date<=t){bad.push(e.ref||e.id);return JSON.parse(JSON.stringify(p.e))}return e});
+  nsnap.forEach((p,id)=>{if(seen.has(id)||exempt(p.e))return;if(p.e.date<=t){bad.push(p.e.ref||id);c.journalEntries.push(JSON.parse(JSON.stringify(p.e)))}});
+  if(bad.length){setTimeout(()=>{toast('Not saved: '+bad.length+' journal change'+(bad.length===1?'':'s')+' dated in the locked period (through '+fdl(t)+'): '+[...new Set(bad)].slice(0,4).join(', ')+(bad.length>4?'…':'')+'. Use a date after the lock.');refreshBooks()},50)}}}}catch(err){console.error(err)}
+ const r=oSave.apply(this,arguments);try{nTake()}catch(e){}return r};
+['switchCompany','handleLoginSubmit'].forEach(n=>{const o=window[n];if(typeof o==='function')window[n]=function(){const r=o.apply(this,arguments);Promise.resolve(r).then(()=>setTimeout(nTake,0));return r}});
+
+// =====================================================================
+// 2) VOID AND REVERSE (instead of deleting), encoder entries, full audit details
+// =====================================================================
+const manualLike=e=>e&&(!e.src||e.src==='rev')&&!(typeof isInit==='function'&&isInit(e));
+function voidOne(c,e,reason,quiet){
+ if(AJLOCK.is(e.date,c)){if(!quiet)toast(AJLOCK.msg(c));return false}
+ if(e.reversedBy&&c.journalEntries.some(x=>x.id===e.reversedBy)){if(!quiet)toast('This entry has a reversal ('+(c.journalEntries.find(x=>x.id===e.reversedBy)||{}).ref+'). Void the reversal first.');return false}
+ if(!Array.isArray(c.voided))c.voided=[];
+ c.voided.push({id:'vd_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),at:new Date().toISOString(),by:who(),reason:String(reason).slice(0,300),entry:JSON.parse(JSON.stringify(e))});
+ c.journalEntries=c.journalEntries.filter(x=>x.id!==e.id);
+ if(e.revOf){const o=c.journalEntries.find(x=>x.id===e.revOf);if(o)delete o.reversedBy}
+ if(e.qId&&Array.isArray(c.queue)){const q=c.queue.find(x=>x.id===e.qId);if(q){q.voided=true;q.note='Voided in Books by '+who()+': '+String(reason).slice(0,120)}}
+ if(!quiet){if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();refreshBooks();toast((e.ref||'Entry')+' voided. It stays in Books › Journal under “Show voided”.','success')}
+ return true;
+}
+function reverseOne(c,e,date,reason){
+ if(!DT.test(date))return 'Enter the reversal date.';if(AJLOCK.is(date,c))return AJLOCK.msg(c);if(date<e.date)return 'The reversal date cannot be before the original entry ('+fdl(e.date)+').';
+ if(e.reversedBy&&c.journalEntries.some(x=>x.id===e.reversedBy))return 'This entry is already reversed.';
+ const id='entry_rev_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+ c.journalEntries.push({id,date,ref:String((e.ref||'JV')+'-REV').slice(0,40),desc:String('Reversal of '+(e.ref||'')+': '+reason).slice(0,200),lines:e.lines.map(l=>({accountCode:l.accountCode,debit:+l.credit||0,credit:+l.debit||0})),fileAttachment:null,src:'rev',revOf:e.id});
+ e.reversedBy=id;if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();refreshBooks();return '';
+}
+function openVoid(id,note,mode){
+ const c=C();if(!c)return;const e=c.journalEntries.find(x=>x.id===id);if(!e)return;
+ const locked=AJLOCK.is(e.date,c),canRev=manualLike(e)&&e.src!=='rev'&&!(e.reversedBy&&c.journalEntries.some(x=>x.id===e.reversedBy));
+ if(locked&&!canRev)return toast(AJLOCK.msg(c));
+ mode=locked?'rev':(mode||'void');
+ const firstOpen=(()=>{const t=through(c);if(!t)return today();const n=new Date(new Date(t+'T00:00').getTime()+864e5);const s=localDateStr(n);return s>today()?s:today()})();
+ const m=modal('<h2 style="margin-top:0">'+(mode==='rev'?'Reverse':'Void')+' '+esc(e.ref||'entry')+'</h2>'
+  +'<p class="hr-note" style="margin-top:-.4rem">'+esc(fdl(e.date))+' · '+esc(e.desc||'')+'</p>'
+  +(locked?'<div class="rq-note" style="margin-bottom:.8rem">This entry is in a locked period, so it can only be reversed in an open month.</div>':'')
+  +(canRev&&!locked?'<div class="form-group"><label>What do you want to do?</label><label style="display:flex;gap:8px;font-weight:500"><input type="radio" name="ajVM" value="void"'+(mode==='void'?' checked':'')+'> Void – the entry stops affecting the books; it stays listed as VOID with your reason</label><label style="display:flex;gap:8px;font-weight:500"><input type="radio" name="ajVM" value="rev"'+(mode==='rev'?' checked':'')+'> Reverse – post an opposite entry on a later date and keep the original (use when the month was already reported or filed)</label></div>':'')
+  +'<div class="form-group" id="ajRevDateG"><label for="ajRevDate">Reversal date</label><input type="date" id="ajRevDate" value="'+firstOpen+'"></div>'
+  +'<div class="form-group"><label for="ajVR">Reason *</label><textarea id="ajVR" rows="2" maxlength="300" placeholder="Wrong amount; duplicate of JV-0012; posted to the wrong account…"></textarea></div>'
+  +(note?'<p class="hr-note">'+esc(note.trim())+'</p>':'')
+  +'<div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn btn-danger" id="ajVGo">'+(mode==='rev'?'Post reversal':'Void entry')+'</button></div>',560);
+ const q=s=>m.querySelector(s),cur=()=>{const r=m.querySelector('input[name=ajVM]:checked');return locked?'rev':(r?r.value:'void')};
+ const sync=()=>{const md=cur();q('#ajRevDateG').style.display=md==='rev'?'':'none';q('#ajVGo').textContent=md==='rev'?'Post reversal':'Void entry'};
+ m.querySelectorAll('input[name=ajVM]').forEach(r=>r.onchange=sync);sync();q('#ajVR').focus();
+ q('#ajVGo').onclick=()=>{const why=q('#ajVR').value.trim();if(!why)return toast('Enter a reason.');
+  if(cur()==='rev'){const err=reverseOne(c,e,q('#ajRevDate').value,why);if(err)return toast(err);m.remove();toast('Reversal posted for '+(e.ref||'the entry')+'.','success');return}
+  if(voidOne(c,e,why))m.remove()};
+}
+function restoreOne(vid){
+ const c=C();if(!c||!Array.isArray(c.voided))return;const v=c.voided.find(x=>x.id===vid);if(!v)return;const e=v.entry;
+ if(!isAdmin())return toast('Only an Admin can restore a voided entry.');
+ if(e.src&&e.src!=='rev')return toast('Entries that came from a module cannot be restored here. Record them again in the module.');
+ if(AJLOCK.is(e.date,c))return toast(AJLOCK.msg(c));
+ if(c.journalEntries.some(x=>x.id===e.id))return toast('An entry with the same ID already exists.');
+ if(e.revOf){const o=c.journalEntries.find(x=>x.id===e.revOf);if(!o)return toast('The original entry of this reversal is no longer in the books.');if(o.reversedBy&&o.reversedBy!==e.id)return toast('The original entry already has another reversal.');o.reversedBy=e.id}
+ if(!confirm('Restore '+(e.ref||'this entry')+' to the books?'))return;
+ c.journalEntries.push(JSON.parse(JSON.stringify(e)));c.voided=c.voided.filter(x=>x.id!==vid);
+ if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();refreshBooks();toast((e.ref||'Entry')+' restored.','success');
+}
+window.AJVOID={open:openVoid,voidOne,reverseOne,restore:restoreOne};
+
+// edits: reversal entries, reversed entries and encoder postings cannot be edited in place
+const oOJM=window.openJournalModal;
+window.openJournalModal=function(id){const c=C(),e=id&&c&&c.journalEntries.find(x=>x.id===id);
+ if(e&&e.src==='rev')return toast('A reversal entry cannot be edited. Void it instead, then reverse the original again if needed.');
+ if(e&&e.reversedBy&&c.journalEntries.some(x=>x.id===e.reversedBy))return toast('This entry was reversed ('+(c.journalEntries.find(x=>x.id===e.reversedBy)||{}).ref+'). Void the reversal first if you need to change it.');
+ if(e&&e.qId)return toast('This entry was posted from For Posting (an encoder entry). To change it, void it here and post a corrected entry.');
+ return oOJM.apply(this,arguments)};
+
+// journal view: Void / Reverse buttons, reversal badges, lock chip and the voided list
+let showVoided=false;
+const oRJ=window.renderFullJournalLog;
+window.renderFullJournalLog=function(){const r=oRJ.apply(this,arguments);try{decorate()}catch(e){console.error(e)}return r};
+function decorate(){
+ const c=C(),tb=$('fullJournalBody');if(!c||!tb)return;
+ const card=tb.closest('.card');let bar=$('ajJBar');
+ if(!bar&&card){bar=document.createElement('div');bar.id='ajJBar';bar.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 .6rem';const tw=tb.closest('table');(tw&&tw.parentElement&&tw.parentElement!==card?tw.parentElement:tw).insertAdjacentElement('beforebegin',bar)}
+ const nV=(c.voided||[]).length,t=through(c);
+ if(bar)bar.innerHTML=(t?'<span class="aj-chip warn" title="Entries on or before this date cannot be changed">🔒 Locked through '+esc(fdl(t))+'</span>':'')
+  +'<label style="display:flex;gap:6px;align-items:center;font-weight:500;font-size:.85rem"><input type="checkbox" id="ajShowV"'+(showVoided?' checked':'')+'> Show voided entries ('+nV+')</label>';
+ const sv=$('ajShowV');if(sv)sv.onchange=()=>{showVoided=sv.checked;renderFullJournalLog()};
+ // per-entry action cells
+ let list=[];try{list=getFilteredJournal(c)}catch(e){}
+ const rows=[...tb.rows];let i=0;
+ list.forEach(e=>{const tr=rows[i];i+=Math.max(1,e.lines.length);if(!tr||tr.cells.length<8)return;const td=tr.cells[tr.cells.length-1];
+  const del=td.querySelector('button[onclick^="deleteJournalEntry"]');if(del){del.textContent='Void';del.title='Void or reverse this entry (keeps a record)'}
+  const ed=td.querySelector('button[onclick^="openJournalModal"]');if(ed&&(e.src==='rev'||e.qId||(e.reversedBy&&c.journalEntries.some(x=>x.id===e.reversedBy))))ed.remove();
+  const rev=e.reversedBy&&c.journalEntries.find(x=>x.id===e.reversedBy);
+  if(rev){tr.cells[1].insertAdjacentHTML('beforeend','<br><span class="aj-chip" title="Reversed by '+esc(rev.ref)+'">reversed · '+esc(rev.ref)+'</span>')}
+  if(e.src==='rev'){const o=c.journalEntries.find(x=>x.id===e.revOf);tr.cells[1].insertAdjacentHTML('beforeend','<br><span class="aj-chip warn">reversal'+(o?' of '+esc(o.ref):'')+'</span>')}
+  if(manualLike(e)&&e.src!=='rev'&&!rev){const b=document.createElement('button');b.type='button';b.className='btn btn-outline btn-sm';b.textContent='Reverse';b.style.marginLeft='4px';b.onclick=()=>openVoid(e.id,'','rev');td.appendChild(b)}
+ });
+ if(showVoided&&nV){
+  let rng=['0000-01-01','9999-12-31'];try{rng=getBooksRange()}catch(e){}
+  const q=(($('filterSearch')||{}).value||'').toLowerCase();
+  const V=c.voided.filter(v=>v.entry.date>=rng[0]&&v.entry.date<=rng[1]&&(!q||(v.entry.ref+' '+v.entry.desc+' '+v.reason).toLowerCase().includes(q))).slice().sort((a,b)=>a.entry.date.localeCompare(b.entry.date));
+  const acc=code=>{const a=c.chartOfAccounts.find(x=>x.code===code);return a?a.title:code};
+  const fm=v=>v?formatMoney(v,c.currency):'';
+  tb.insertAdjacentHTML('beforeend','<tr><td colspan="8" style="background:rgba(185,28,28,.06);font-weight:700;color:#991b1b">Voided entries ('+V.length+' in this period) – not counted in the books</td></tr>'
+   +V.map(v=>v.entry.lines.map((l,k)=>'<tr class="aj-void"><td>'+(k?'':esc(v.entry.date))+'</td><td>'+(k?'':'<strong>'+esc(v.entry.ref)+'</strong>')+'</td><td'+(k?'':' class="aj-keep"')+'>'+(k?'':esc(v.entry.desc)+'<br><small style="color:#991b1b">VOID · '+esc(v.reason)+' · '+esc(v.by)+', '+esc(new Date(v.at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}))+'</small>')+'</td><td>'+esc(acc(l.accountCode))+'</td><td class="number">'+fm(l.debit)+'</td><td class="number">'+fm(l.credit)+'</td><td></td><td class="aj-keep" style="text-align:center">'+(k||!isAdmin()||(v.entry.src&&v.entry.src!=='rev')?'':'<button type="button" class="btn btn-outline btn-sm" data-ajrestore="'+esc(v.id)+'">Restore</button>')+'</td></tr>').join('')).join(''));
+  tb.querySelectorAll('[data-ajrestore]').forEach(b=>b.onclick=()=>restoreOne(b.dataset.ajrestore));
+ }
+}
+
+// audit trail: show what changed
+const lineTxt=(c,L)=>(L||[]).map(l=>{const a=c&&c.chartOfAccounts.find(x=>x.code===l[0]);return (a?a.title:l[0])+(l[1]?' Dr '+(+l[1]).toFixed(2):'')+(l[2]?' Cr '+(+l[2]).toFixed(2):'')}).join('; ');
+const tbl=(c,L)=>'<table>'+(L||[]).map(l=>{const a=c&&c.chartOfAccounts.find(x=>x.code===l[0]);return '<tr><td>'+esc(a?a.title:l[0])+'</td><td class="number">'+(l[1]?'Dr '+esc((+l[1]).toFixed(2)):'')+'</td><td class="number">'+(l[2]?'Cr '+esc((+l[2]).toFixed(2)):'')+'</td></tr>'}).join('')+'</table>';
+window.AJAUD={
+ detail:x=>{const c=C();if(!x.before&&!x.lines&&!x.why)return '';let h='<details class="aj-aud"><summary>Details</summary>';
+  if(x.why)h+='<div><b>Reason:</b> '+esc(x.why)+'</div>';
+  if(x.before&&x.act==='Changed')h+='<div><b>Before</b> ('+esc(fdl(x.before.date))+(x.before.ref?' · '+esc(x.before.ref):'')+')</div>'+tbl(c,x.before.lines);
+  if(x.lines&&x.act!=='Deleted'&&x.act!=='Voided')h+='<div><b>'+(x.act==='Changed'?'After':'Lines')+'</b></div>'+tbl(c,x.lines);
+  if(x.before&&(x.act==='Deleted'||x.act==='Voided'))h+='<div><b>Lines removed</b></div>'+tbl(c,x.before.lines);
+  return h+'</details>'},
+ txt:o=>o&&o.lines?lineTxt(C(),o.lines):''};
+
+// =====================================================================
+// 3) PAYROLL: time, overtime, holiday, night differential, lates and absences
+// =====================================================================
+const r2=n=>Math.round(n);
+function cutoff(f){const y=f.year,m=f.month,last=new Date(y,m,0).getDate(),a=f.q===1?1:16,b=f.q===1?15:last,pad=n=>String(n).padStart(2,'0');return [y+'-'+pad(m)+'-'+pad(a),y+'-'+pad(m)+'-'+pad(b)]}
+function holsIn(f){const out=[];if(!window.AJHOL)return out;const [a,b]=cutoff(f),H=AJHOL(f.year)||{};Object.keys(H).sort().forEach(k=>{if(k>=a&&k<=b)H[k].forEach(h=>out.push({date:k,name:h.name,type:h.type}))});return out}
+function compute(r,emp,t){
+ const rate=Math.round((+r.rate||0)*100),H=rate/8,mo=!!(t.monthly),fac=+(emp&&emp.factor)||261;
+ const base=mo?fac/24:(+t.days||0);
+ const days=Math.max(0,base-(mo?(+t.abs||0):0)-(+t.late||0)/480);
+ const ot=r2((+t.ot||0)*H*1.25+(+t.nd||0)*H*0.10+(+t.rd||0)*H*1.30+(+t.rdot||0)*H*1.69+(+t.sp||0)*H*(mo?0.30:1.30)+(+t.spot||0)*H*1.69);
+ const hol=r2((+t.rh||0)*H*(mo?1.00:2.00)+(+t.rhot||0)*H*2.60+(mo?0:(+t.rhu||0)*rate));
+ const lateAmt=r2((+t.late||0)/480*rate),absAmt=mo?r2((+t.abs||0)*rate):0;
+ return {rate,H,days:Math.round(days*10000)/10000,ot,hol,lateAmt,absAmt,base};
+}
+function openTime(i){
+ const A=window.HRAPI;if(!A)return;const D=A.draft(),f=A.runF(),r=D[i];if(!r||!f)return;
+ const emp=A.EMP().find(x=>x.id===r.empId)||{},mo=emp.basis==='monthly'||(r.tm&&r.tm.monthly);
+ const hs=holsIn(f),regs=hs.filter(h=>/regular/i.test(h.type)).length;
+ const t=Object.assign({monthly:mo?1:0,days:mo?0:(+r.days||0),late:0,abs:0,ot:0,nd:0,rd:0,rdot:0,sp:0,spot:0,rh:0,rhot:0,rhu:mo?0:regs},r.tm||{});t.monthly=mo?1:0;
+ const n2=c=>formatMoney(c/100,(C()||{}).currency);
+ const F=(k,l,unit,step)=>'<div class="form-group"><label for="ajT_'+k+'">'+l+' <small style="font-weight:400;color:var(--text-muted)">('+unit+')</small></label><input type="number" min="0" step="'+(step||'0.25')+'" id="ajT_'+k+'" value="'+(+t[k]||'')+'" placeholder="0"></div>';
+ const m=modal('<h2 style="margin-top:0">Time and premiums – '+esc(r.name)+'</h2>'
+  +'<p class="hr-note" style="margin-top:-.4rem">'+(mo?'Monthly-paid ('+(+emp.factor||261)+' days a year)':'Daily-paid')+' · daily rate '+esc(n2(Math.round((+r.rate||0)*100)))+' · hourly '+esc(n2(Math.round((+r.rate||0)*100/8)))+' · '+esc(A.periodLabel(f.year,f.month,f.q))+'</p>'
+  +(hs.length?'<div class="rq-note" style="margin-bottom:.8rem">Holidays in this cutoff: '+hs.map(h=>esc(fdl(h.date))+' – '+esc(h.name)+' ('+esc(h.type.toLowerCase())+')').join('; ')+'</div>':'')
+  +'<div class="aj-tmgrid">'
+  +(mo?F('abs','Absences without pay','days','0.5'):F('days','Regular days worked','days','0.5'))
+  +F('late','Lates and undertime','minutes','1')
+  +F('ot','Overtime on a regular day','hours')+F('nd','Night shift hours (10 pm – 6 am)','hours')
+  +F('rd','Work on a rest day','hours')+F('rdot','Overtime on a rest day','hours')
+  +F('sp','Work on a special non-working day','hours')+F('spot','Overtime on a special day','hours')
+  +F('rh','Work on a regular holiday','hours')+F('rhot','Overtime on a regular holiday','hours')
+  +(mo?'':F('rhu','Regular holidays not worked (paid)','days','1'))
+  +'</div><div id="ajTOut" class="bk-kpis" style="margin-top:.8rem"></div>'
+  +'<details style="margin:.4rem 0 .8rem"><summary style="cursor:pointer;font-weight:700">Rates used</summary><p class="hr-note" style="line-height:1.6">Overtime on a regular day 125% of the hourly rate · night differential +10% per hour · rest day 130% (overtime 169%) · special non-working day 130% for daily-paid, +30% for monthly-paid (overtime 169%) · regular holiday worked 200% for daily-paid, +100% for monthly-paid (their monthly pay already covers the holiday), overtime 260% · regular holiday not worked 100% for daily-paid. Lates and undertime are deducted by the minute (daily rate ÷ 480). Holidays on a rest day and night shift on holidays use higher rates under DOLE rules; enter those as Additional pay if they apply. Confirm rates with your accountant or DOLE.</p></details>'
+  +'<div style="text-align:right"><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="ajTGo">Apply to payroll</button></div>',640);
+ const read=()=>{const o={monthly:t.monthly};['days','late','abs','ot','nd','rd','rdot','sp','spot','rh','rhot','rhu'].forEach(k=>{const el=m.querySelector('#ajT_'+k);if(el)o[k]=Math.max(0,parseFloat(el.value)||0)});return o};
+ const paint=()=>{const o=read(),x=compute(r,emp,o);m.querySelector('#ajTOut').innerHTML='<div class="bk-kpi"><span>Days worked</span><b>'+x.days+'</b><small>'+(mo?'half-month '+(Math.round(x.base*1000)/1000)+' days, less absences and lates':'less lates and undertime')+'</small></div><div class="bk-kpi"><span>Overtime pay</span><b>'+esc(n2(x.ot))+'</b><small>incl. night shift, rest and special days</small></div><div class="bk-kpi"><span>Holiday pay</span><b>'+esc(n2(x.hol))+'</b><small>regular holidays</small></div>'+((x.lateAmt||x.absAmt)?'<div class="bk-kpi warn"><span>Deducted</span><b>'+esc(n2(x.lateAmt+x.absAmt))+'</b><small>absences and lates</small></div>':'')};
+ m.querySelectorAll('input').forEach(el=>el.oninput=paint);paint();
+ m.querySelector('#ajTGo').onclick=()=>{const o=read(),x=compute(r,emp,o);if(!mo&&!(o.days>0)&&!(o.rd||o.sp||o.rh||o.rhu))return toast('Enter the regular days worked.');
+  if(x.days>16)return toast('Days worked cannot be more than 16 in one cutoff.');
+  r.tm=o;r.days=x.days;r.ot=x.ot/100;r.holiday=x.hol/100;
+  try{if(window.hrAutoRow){window.hrAutoRow(D,i,'days',f,false);window.hrAutoRow(D,i,'ot',f,false)}}catch(e){console.error(e)}
+  A.renderRun();m.remove();toast('Time and premiums applied for '+r.name+'.','success')};
+}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-ajtm]');if(b){e.preventDefault();openTime(+b.dataset.ajtm)}});
+
+// =====================================================================
+// 4) SIGN-IN SECURITY: lockout, idle sign-out, stronger company passwords
+// =====================================================================
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''),unhex=h=>new Uint8Array((String(h).match(/../g)||[]).map(x=>parseInt(x,16)));
+async function pbk(pw,salt,it){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);return hex(await crypto.subtle.deriveBits({name:'PBKDF2',salt:unhex(salt),iterations:it,hash:'SHA-256'},k,256))}
+window.ajMakeCompanyPw=async pw=>{const salt=hex(crypto.getRandomValues(new Uint8Array(16)).buffer),it=150000;return{salt,hash:await pbk(String(pw),salt,it),iter:it}};
+window.ajCompanyPwCheck=async(comp,pw)=>{const h=comp&&comp.passwordHash;if(!h)return true;pw=String(pw||'');
+ if(typeof h==='object'){const x=await pbk(pw,h.salt,h.iter||150000);let d=0;for(let i=0;i<Math.max(x.length,h.hash.length);i++)d|=(x.charCodeAt(i)||0)^(h.hash.charCodeAt(i)||0);return d===0}
+ if((await hashPassword(pw))!==h)return false;
+ try{comp.passwordHash=await window.ajMakeCompanyPw(pw);saveToLocalStorage()}catch(e){}return true};
+
+// lockout: 5 wrong passwords lock that login for 15 minutes (kept across reloads)
+const LK='aj_login_fail',MAXF=5,LOCKMIN=15;
+const lget=()=>{try{return JSON.parse(localStorage.getItem(LK)||'{}')||{}}catch(e){return{}}},lset=o=>{try{localStorage.setItem(LK,JSON.stringify(o))}catch(e){}};
+const oLS=window.handleLoginSubmit;
+window.handleLoginSubmit=async function(ev){
+ const cid=($('loginCompanySelect')||{}).value||'',un=(($('loginUsername')||{}).value||'').trim().toLowerCase(),key=cid+'|'+un,o=lget();let rec=o[key];
+ if(rec&&rec.until&&Date.now()>=rec.until){delete o[key];lset(o);rec=null}
+ if(rec&&rec.until){if(ev&&ev.preventDefault)ev.preventDefault();const mn=Math.ceil((rec.until-Date.now())/60000);return toast('Too many wrong passwords. This login is locked for '+mn+' more minute'+(mn===1?'':'s')+'.')}
+ const typed=!!(($('loginPassword')||{}).value);
+ const res=await oLS.apply(this,arguments);
+ const ok=$('loginScreen')&&$('loginScreen').classList.contains('hidden');
+ if(cid&&typed){const o2=lget();if(ok){delete o2[key];lset(o2)}else{const n=((o2[key]&&o2[key].n)||0)+1;o2[key]={n,until:n>=MAXF?Date.now()+LOCKMIN*60000:0};lset(o2);
+  setTimeout(()=>{if(n>=MAXF)toast(MAXF+' wrong passwords: this login is locked for '+LOCKMIN+' minutes.');else if(n>=3)toast((MAXF-n)+' attempt'+(MAXF-n===1?'':'s')+' left before this login is locked for '+LOCKMIN+' minutes.')},400)}}
+ if(ok)touch(true);
+ return res};
+
+// idle sign-out
+const AK='aj_last_act',IM='aj_idle_min';
+const idleMin=()=>{const c=C();if(c&&c.idleMin!==undefined)return +c.idleMin;return 15};
+let lastWrite=0,warnEl=null;
+function touch(force){const n=Date.now();if(!force&&n-lastWrite<4000)return;lastWrite=n;try{localStorage.setItem(AK,String(n))}catch(e){}if(warnEl){warnEl.remove();warnEl=null}}
+['mousedown','keydown','touchstart','wheel','mousemove','scroll'].forEach(t=>document.addEventListener(t,()=>{if(window.currentUser)touch()},{passive:true,capture:true}));
+try{const last=+localStorage.getItem(AK)||0,lim=+localStorage.getItem(IM);const m=Number.isFinite(lim)&&localStorage.getItem(IM)!==null?lim:15;if(m>0&&last&&Date.now()-last>m*60000&&window.AJSESSION)window.AJSESSION.clear()}catch(e){}
+setInterval(()=>{const c=C();if(!c||!window.currentUser)return;const m=idleMin();try{localStorage.setItem(IM,String(m))}catch(e){}if(!m)return;
+ const last=+localStorage.getItem(AK)||Date.now(),idle=Date.now()-last;
+ if(idle>=m*60000){if(warnEl){warnEl.remove();warnEl=null}logOff();setTimeout(()=>toast('You were signed out after '+m+' minutes with no activity.'),300);return}
+ if(idle>=m*60000-60000&&!warnEl){warnEl=document.createElement('div');warnEl.id='ajIdleWarn';warnEl.innerHTML='<span>No activity: you will be signed out in about a minute.</span><button type="button" class="btn btn-sm">Stay signed in</button>';warnEl.querySelector('button').onclick=()=>touch(true);document.body.appendChild(warnEl)}
+},5000);
+
+// settings card (Settings › Users & Access, Admin only)
+function secCard(){const host=$('rqUsers');if(!host||!host.innerHTML||$('ajSecCard'))return;const c=C();if(!c||!isAdmin())return;
+ const v=c.idleMin===undefined?15:+c.idleMin,o=lget(),lockedN=Object.keys(o).filter(k=>k.startsWith(c.id+'|')&&o[k].until&&o[k].until>Date.now()).length;
+ const d=document.createElement('div');d.id='ajSecCard';d.className='card';d.style.cssText='box-shadow:none;border:1px solid var(--border-color);margin-top:1rem';
+ d.innerHTML='<h3 style="margin-top:0;font-size:1rem">Sign-in security</h3><div class="hr-bar" style="align-items:flex-end"><div class="form-group"><label for="ajIdle">Sign out after no activity for</label><select id="ajIdle">'+[[5,'5 minutes'],[10,'10 minutes'],[15,'15 minutes'],[30,'30 minutes'],[60,'1 hour'],[0,'Never (not recommended)']].map(x=>'<option value="'+x[0]+'"'+(x[0]===v?' selected':'')+'>'+x[1]+'</option>').join('')+'</select></div>'
+  +'<div class="form-group"><button type="button" class="btn btn-outline" id="ajUnlockAll"'+(lockedN?'':' disabled')+'>Unlock logins ('+lockedN+')</button></div></div>'
+  +'<p class="hr-note" style="margin:0">After '+MAXF+' wrong passwords in a row, that login is locked for '+LOCKMIN+' minutes on this device. A warning shows one minute before an idle sign-out.</p>';
+ host.appendChild(d);
+ d.querySelector('#ajIdle').onchange=e=>{c.idleMin=+e.target.value;saveToLocalStorage();try{localStorage.setItem(IM,String(c.idleMin))}catch(x){}toast('Saved.','success')};
+ d.querySelector('#ajUnlockAll').onclick=()=>{const o2=lget();Object.keys(o2).forEach(k=>{if(k.startsWith(c.id+'|'))delete o2[k]});lset(o2);d.remove();secCard();toast('Logins unlocked.','success')};
+}
+{const host=$('rqUsers');if(host)new MutationObserver(()=>{if(!$('ajSecCard'))setTimeout(secCard,0)}).observe(host,{childList:true})}
+
+// =====================================================================
+// keep the new data in backups and shared files
+// =====================================================================
+const oSC=window.sanitizeCompany;
+window.sanitizeCompany=function(d){const o=oSC.apply(this,arguments);try{
+ if(DT.test(d.lockThrough||''))o.lockThrough=d.lockThrough;
+ if(Array.isArray(d.lockLog))o.lockLog=d.lockLog.filter(x=>x&&typeof x==='object').slice(-200).map(x=>({at:String(x.at||'').slice(0,40),by:String(x.by||'').slice(0,80),from:DT.test(x.from||'')?x.from:'',to:DT.test(x.to||'')?x.to:''}));
+ if([0,5,10,15,30,60].includes(+d.idleMin)&&d.idleMin!==null&&d.idleMin!==undefined)o.idleMin=+d.idleMin;
+ if(d.isLayout==='ifrs18')o.isLayout='ifrs18';if(d.coaV2)o.coaV2=true;
+ const money=v=>{const n=parseFloat(v);return Number.isFinite(n)&&n>0?n:0};
+ if(Array.isArray(d.voided))o.voided=d.voided.filter(v=>v&&v.entry&&DT.test(v.entry.date||'')&&Array.isArray(v.entry.lines)).slice(-20000).map(v=>({id:String(v.id||'').slice(0,60),at:String(v.at||'').slice(0,40),by:String(v.by||'').slice(0,80),reason:String(v.reason||'').slice(0,300),
+  entry:{id:String(v.entry.id||'').slice(0,100),date:v.entry.date,ref:String(v.entry.ref||'').slice(0,40),desc:String(v.entry.desc||'').slice(0,200),src:String(v.entry.src||'').slice(0,12),revOf:v.entry.revOf?String(v.entry.revOf).slice(0,100):undefined,lines:v.entry.lines.map(l=>({accountCode:parseInt(l.accountCode,10)||0,debit:money(l.debit),credit:money(l.credit)})),fileAttachment:null}}));
+ const by=new Map((d.journalEntries||[]).map(x=>[safeId(x.id),x]));
+ (o.journalEntries||[]).forEach(e=>{const x=by.get(e.id);if(!x)return;if(x.src==='rev'&&!e.src){e.src='rev';e.revOf=String(x.revOf||'').slice(0,100)}if(x.reversedBy)e.reversedBy=String(x.reversedBy).slice(0,100)});
+}catch(err){console.error(err)}return o};
 })();
 
 </script>
