@@ -13047,6 +13047,171 @@ window.sanitizeCompany=function(d){const o=oSC.apply(this,arguments);try{
 }catch(err){console.error(err)}return o};
 })();
 
+
+// ===== Import expenses from a spreadsheet (paste cells or a CSV file): map categories and payment modes once, preview, post, undo =====
+(function(){
+const $=id=>document.getElementById(id),C=()=>(typeof activeCompany==='function'?activeCompany():null);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const who=()=>window.currentUser?window.currentUser.name:'Admin';
+const fdl=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+const money=c=>formatMoney(c/100,(C()||{}).currency);
+function modal(html,w){const m=document.createElement('div');m.className='modal-overlay aj4-modal';m.innerHTML='<div class="modal" style="max-width:'+(w||900)+'px">'+html+'</div>';m.addEventListener('mousedown',e=>{if(e.target===m)m.remove()});document.body.appendChild(m);m.querySelectorAll('[data-x]').forEach(x=>x.onclick=()=>m.remove());return m}
+document.head.insertAdjacentHTML('beforeend','<style>.aj4 table{width:100%;border-collapse:collapse;font-size:.85rem}.aj4 th,.aj4 td{padding:5px 8px;border-bottom:1px solid var(--border-color);text-align:left;vertical-align:top}.aj4 td.n,.aj4 th.n{text-align:right;font-variant-numeric:tabular-nums}.aj4 .sc{max-height:340px;overflow:auto;border:1px solid var(--border-color);border-radius:8px}.aj4 .bad{color:#b42318}.aj4 .dup{color:#92400e}.aj4 .ok{color:#13795b}.aj4 textarea{width:100%;min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem}.aj4 .map{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:6px 12px;align-items:center}.aj4 .map select{width:100%}.aj4 .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.75rem;font-weight:700}.aj4 .pill.ok{background:#dcf3e8}.aj4 .pill.dup{background:#fbf0cf}.aj4 .pill.bad{background:#fde4e1}@media (max-width:640px){.aj4 .map{grid-template-columns:1fr}}</style>');
+
+// ---------- reading the sheet ----------
+function parseRows(text){
+ text=String(text||'').replace(/^﻿/,'');
+ const tab=text.split(/\r?\n/).slice(0,5).some(l=>l.includes('\t'));
+ if(tab)return text.split(/\r?\n/).map(l=>l.split('\t').map(x=>x.trim())).filter(r=>r.some(x=>x!==''));
+ const rows=[];let r=[],f='',q=false;
+ for(let i=0;i<text.length;i++){const ch=text[i];
+  if(q){if(ch==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=ch}
+  else if(ch==='"')q=true;else if(ch===','){r.push(f.trim());f=''}
+  else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;r.push(f.trim());f='';if(r.some(x=>x!==''))rows.push(r);r=[]}
+  else f+=ch}
+ r.push(f.trim());if(r.some(x=>x!==''))rows.push(r);return rows;
+}
+const COLS=[['date','Date',/^(date|transaction date|txn date|date paid)$/i,/date/i],['site','Site / property',/^(site|property|branch|location|building|business)$/i,/site|property|branch|building/i],['part','Particulars',/^(particulars|description|details|payee|item|remarks)$/i,/particular|descr|detail|payee|item/i],['mode','Mode of payment',/^(mode of payment|payment|paid (with|by|via)|mode)$/i,/mode|payment|paid/i],['cat','Category',/^(category|expense type|type|account)$/i,/categ|type|account/i],['amt','Amount',/^(amount|total|amount paid|cost)$/i,/amount|total|cost/i]];
+function detect(rows){
+ let h=rows.findIndex(r=>r.some(x=>/date/i.test(x))&&r.some(x=>/amount|total/i.test(x)));
+ const map={};if(h<0){h=-1;return{h,map}}
+ const hdr=rows[h];COLS.forEach(([k,,exact,loose])=>{let i=hdr.findIndex(x=>exact.test(x));if(i<0)i=hdr.findIndex((x,j)=>loose.test(x)&&!Object.values(map).includes(j));if(i>=0)map[k]=i});
+ return{h,map};
+}
+function parseDate(s,fmt){s=String(s||'').trim();if(!s)return '';let m;
+ if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+ if((m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))){let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;const mo=fmt==='dmy'?b:a,d=fmt==='dmy'?a:b;if(mo<1||mo>12||d<1||d>31)return '';const dt=new Date(y,mo-1,d);if(dt.getMonth()!==mo-1)return '';return localDateStr(dt)}
+ if((m=s.match(/^(\d{1,2})[\s\-]([A-Za-z]{3,})[\s\-,]+(\d{4})$/))||(m=s.match(/^([A-Za-z]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})$/))){const d=new Date(s.replace(/-/g,' '));if(!isNaN(d))return localDateStr(d)}
+ const n=+s;if(Number.isFinite(n)&&n>20000&&n<80000){const d=new Date(Math.round((n-25569)*864e5));return localDateStr(new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()))}
+ return '';
+}
+function parseAmt(s){s=String(s||'').trim();if(!s)return NaN;const neg=/^\(.*\)$/.test(s)||/^-/.test(s);const v=parseFloat(s.replace(/[^0-9.]/g,''));if(!Number.isFinite(v))return NaN;return neg?-v:v}
+
+// ---------- account suggestions ----------
+const SUG=[[/repair|mainten|carpent|construction|fix/i,['Repairs and Maintenance Expense']],[/water/i,['Water Expense','Utilities Expense']],[/electric|power|light/i,['Electricity Expense','Utilities Expense']],[/internet|telecom|phone|communication|mobile|load/i,['Communication Expense']],[/entertain|amuse|recreation|represent|meal/i,['Entertainment, Amusement and Recreation Expense','Meals and Representation Expense']],[/fuel|gas|diesel|transport|fare|toll|parking/i,['Fuel and Transportation Expense']],[/suppl/i,['Supplies Expense']],[/salar|wage|payroll|labor/i,['Salaries and Wages Expense']],[/tax|licen|permit/i,['Taxes and Licenses']],[/rent/i,['Rent Expense']],[/professional|legal|audit|accounting/i,['Professional Fees Expense']],[/insur/i,['Insurance Expense']],[/advert|promo|marketing/i,['Advertising and Promotions Expense']],[/bank|charge/i,['Bank Charges']],[/clean|janitor|laundry|garbage/i,['Janitorial and Cleaning Expense']],[/secur|guard/i,['Security Services Expense']],[/misc|other|sundry/i,['Miscellaneous Expense']]];
+const expAccts=()=>C().chartOfAccounts.filter(a=>a.category==='Expense'&&!a.isContra).sort((a,b)=>a.code-b.code);
+function suggestCat(cat){const c=C(),mem=(c.impMap||{}).cat||{};if(mem[cat.toLowerCase()]&&c.chartOfAccounts.some(a=>a.code===mem[cat.toLowerCase()]))return String(mem[cat.toLowerCase()]);
+ const ex=expAccts(),t=cat.toLowerCase();let a=ex.find(x=>x.title.toLowerCase()===t||x.title.toLowerCase()===t+' expense');if(a)return String(a.code);
+ const s=SUG.find(x=>x[0].test(cat));if(s){for(const name of s[1]){a=ex.find(x=>x.title.toLowerCase()===name.toLowerCase());if(a)return String(a.code)}return 'new:'+s[1][0]}
+ return 'new:'+(/(expense|cost|fee|charges?)$/i.test(cat)?cat:cat+' Expense').replace(/\s*&\s*/g,' and ')}
+const payAccts=()=>C().chartOfAccounts.filter(a=>!a.isContra&&(a.roleTag==='cash'||a.roleTag==='ap'||(a.category==='Liability'&&/advances? from|due to|accrued/i.test(a.title))||(a.category==='Equity'&&a.normal==='Credit'&&!/retained|beginning/i.test(a.title)))).sort((a,b)=>a.code-b.code);
+function suggestPay(mode){const c=C(),mem=(c.impMap||{}).pay||{},k=mode.toLowerCase();if(mem[k]&&c.chartOfAccounts.some(a=>a.code===mem[k]))return String(mem[k]);
+ const P=payAccts(),find=rx=>P.find(a=>rx.test(a.title));
+ let a=null;const wallet=/gcash|maya|paymaya|e-?wallet|grabpay|shopeepay/i.test(mode);
+ if(wallet)a=find(new RegExp(mode.replace(/[^a-z]/gi,''),'i'))||null;
+ else if(/cash|petty|store/i.test(mode))a=find(/cash on hand|petty|cash$/i);
+ else if(/bank|transfer|deposit|online|check|cheque|debit/i.test(mode))a=find(/bank/i);
+ else if(/credit|unpaid|payable|later|charge/i.test(mode))a=P.find(x=>x.roleTag==='ap');
+ else if(/owner|personal/i.test(mode))a=P.find(x=>x.category==='Equity'||/advances? from/i.test(x.title));
+ if(a)return String(a.code);
+ if(/gcash|maya|paymaya|e-?wallet/i.test(mode))return 'new:'+mode.trim()+' Wallet';
+ const cash=P.find(x=>x.roleTag==='cash');return cash?String(cash.code):''}
+function ensure(sel,cat){if(!String(sel).startsWith('new:'))return +sel;const title=String(sel).slice(4).trim();const X=window.ERPX;
+ if(cat==='Expense')return X.ensureAcct(6000,title,'Expense');
+ const code=X.ensureAcct(1010,title,'Asset',{roleTag:'cash'});const a=C().chartOfAccounts.find(x=>x.code===code);if(a&&(!a.roleTag||a.roleTag==='none'))a.roleTag='cash';return code}
+const keyOf=(date,amt,part,site)=>[date,amt,String(part).trim().toLowerCase(),String(site).trim().toLowerCase()].join('|');
+
+// ---------- the import window ----------
+function openImport(){
+ const c=C();if(!c)return;if(window.currentUser&&!['admin','bookkeeper','custom'].includes(window.currentUser.role))return toast('Your role cannot post to the books.');
+ let rows=[],det={h:-1,map:{}},fmt='mdy',fileName='';
+ const m=modal('<div class="aj4"><h2 style="margin-top:0">Import expenses</h2>'
+  +'<p class="hr-note" style="margin-top:-.4rem">Bring in an expense list such as your Google Sheets <b>Expenses Log</b>. Each row becomes one journal entry: debit the expense account for its category, credit the account for its mode of payment.</p>'
+  +'<div class="form-group"><label for="aj4Paste">1. Paste the cells (select the whole table in Google Sheets, including the header row, and copy)</label><textarea id="aj4Paste" placeholder="Date&#9;Site&#9;Particulars&#9;Mode of Payment&#9;Category&#9;Amount&#10;8/18/2026&#9;HNU&#9;Fuel Expense for carpenters&#9;Cash&#9;Repairs &amp; Maintenance&#9;₱1,000.00"></textarea></div>'
+  +'<div class="hr-bar" style="align-items:flex-end"><div class="form-group"><label for="aj4File">…or choose a CSV file (File › Download › CSV in Google Sheets)</label><input type="file" id="aj4File" accept=".csv,.tsv,.txt,text/csv"></div><div class="form-group"><label for="aj4Fmt">Dates are written as</label><select id="aj4Fmt"><option value="mdy">Month/Day/Year (8/18/2026)</option><option value="dmy">Day/Month/Year (18/8/2026)</option></select></div></div>'
+  +'<div id="aj4Body"></div>'
+  +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:1rem"><button type="button" class="btn btn-outline" id="aj4Hist">Past imports</button><span><button type="button" class="btn btn-outline" data-x>Cancel</button> <button type="button" class="btn" id="aj4Go" disabled>Post entries</button></span></div></div>',960);
+ const q=s=>m.querySelector(s);
+ const load=text=>{rows=parseRows(text);det=detect(rows);paint()};
+ q('#aj4Paste').oninput=e=>{fileName='pasted';load(e.target.value)};
+ q('#aj4File').onchange=e=>{const f=e.target.files[0];if(!f)return;fileName=f.name;const r=new FileReader();r.onload=()=>{q('#aj4Paste').value='';load(r.result)};r.readAsText(f)};
+ q('#aj4Fmt').onchange=e=>{fmt=e.target.value;paint()};
+ q('#aj4Hist').onclick=()=>{m.remove();openHistory()};
+ let plan=[];
+ function build(){
+  const mp=det.map,body=rows.slice(det.h+1),seen=new Set(),existing=new Set((c.journalEntries||[]).filter(e=>e.impKey).map(e=>e.impKey));
+  const catSel={},paySel={};m.querySelectorAll('[data-cat]').forEach(s=>catSel[s.dataset.cat]=s.value);m.querySelectorAll('[data-pay]').forEach(s=>paySel[s.dataset.pay]=s.value);
+  return body.map((r,i)=>{const g=k=>mp[k]!=null?String(r[mp[k]]||'').trim():'';
+   const o={n:det.h+2+i,date:parseDate(g('date'),fmt),rawDate:g('date'),site:g('site'),part:g('part'),mode:g('mode')||'Cash',cat:g('cat')||'Uncategorized',amt:parseAmt(g('amt'))};
+   o.cents=Math.round(o.amt*100);o.key=keyOf(o.date,o.cents,o.part,o.site);
+   if(!g('date')&&!g('amt')&&!o.part)o.status='skip';
+   else if(!o.date)o.status='bad',o.why='Date not recognised: '+(o.rawDate||'(blank)');
+   else if(!(o.amt>0))o.status='bad',o.why=o.amt<0?'Negative amount (enter refunds as income or a journal entry)':'No amount';
+   else if(window.AJLOCK&&AJLOCK.is(o.date))o.status='bad',o.why='Date is in the locked period';
+   else if(existing.has(o.key))o.status='dup',o.why='Already imported';
+   else if(seen.has(o.key))o.status='dup',o.why='Same row appears twice in this list';
+   else o.status='ok';
+   if(o.status!=='skip')seen.add(o.key);o.catSel=catSel[o.cat];o.paySel=paySel[o.mode];return o}).filter(o=>o.status!=='skip');
+ }
+ function paint(){
+  const box=q('#aj4Body');
+  if(!rows.length){box.innerHTML='';q('#aj4Go').disabled=true;return}
+  if(det.h<0||det.map.date==null||det.map.amt==null){box.innerHTML='<div class="rq-note">I could not find a header row with <b>Date</b> and <b>Amount</b>. Include the header row when you copy.</div>';q('#aj4Go').disabled=true;return}
+  const hdr=rows[det.h],colSel=(k,l)=>'<div class="form-group"><label>'+l+'</label><select data-col="'+k+'"><option value="">(none)</option>'+hdr.map((h,i)=>'<option value="'+i+'"'+(det.map[k]===i?' selected':'')+'>'+esc(h||'Column '+(i+1))+'</option>').join('')+'</select></div>';
+  const prev=build();const cats=[...new Set(prev.map(o=>o.cat))].sort(),modes=[...new Set(prev.map(o=>o.mode))].sort();
+  const EX=expAccts(),PA=payAccts();
+  const catOpt=cat=>{const s=suggestCat(cat);const isNew=s.startsWith('new:');return '<option value="new:'+esc(isNew?s.slice(4):(cat+' Expense'))+'"'+(isNew?' selected':'')+'>+ New account: '+esc(isNew?s.slice(4):cat+' Expense')+'</option>'+EX.map(a=>'<option value="'+a.code+'"'+(String(a.code)===s?' selected':'')+'>'+esc(a.code+' – '+a.title)+'</option>').join('')};
+  const payOpt=mode=>{const s=suggestPay(mode);const isNew=s.startsWith('new:');return (isNew?'<option value="'+esc(s)+'" selected>+ New cash account: '+esc(s.slice(4))+'</option>':'')+PA.map(a=>'<option value="'+a.code+'"'+(String(a.code)===s?' selected':'')+'>'+esc(a.code+' – '+a.title)+(a.roleTag==='ap'?' (not yet paid)':'')+'</option>').join('')};
+  const keepCat={},keepPay={};m.querySelectorAll('[data-cat]').forEach(s=>keepCat[s.dataset.cat]=s.value);m.querySelectorAll('[data-pay]').forEach(s=>keepPay[s.dataset.pay]=s.value);
+  box.innerHTML='<h3 style="font-size:1rem;margin:1rem 0 .4rem">2. Check the columns</h3><div class="hr-bar">'+COLS.map(([k,l])=>colSel(k,l)).join('')+'</div>'
+   +'<h3 style="font-size:1rem;margin:1rem 0 .4rem">3. Choose the accounts</h3><p class="hr-note" style="margin-top:0">Your choices are remembered for the next import.</p>'
+   +'<div class="map" style="margin-bottom:.6rem"><b>Category</b><b>Expense account (debit)</b>'+cats.map(cat=>'<span>'+esc(cat)+' <small class="bk-mut">('+prev.filter(o=>o.cat===cat).length+')</small></span><select data-cat="'+esc(cat)+'">'+catOpt(cat)+'</select>').join('')+'</div>'
+   +'<div class="map"><b>Mode of payment</b><b>Paid from (credit)</b>'+modes.map(md=>'<span>'+esc(md)+' <small class="bk-mut">('+prev.filter(o=>o.mode===md).length+')</small></span><select data-pay="'+esc(md)+'">'+payOpt(md)+'</select>').join('')+'</div>'
+   +'<h3 style="font-size:1rem;margin:1rem 0 .4rem">4. Preview</h3><div id="aj4Prev"></div>';
+  m.querySelectorAll('[data-cat]').forEach(s=>{if(keepCat[s.dataset.cat]&&[...s.options].some(o=>o.value===keepCat[s.dataset.cat]))s.value=keepCat[s.dataset.cat];s.onchange=prevPaint});
+  m.querySelectorAll('[data-pay]').forEach(s=>{if(keepPay[s.dataset.pay]&&[...s.options].some(o=>o.value===keepPay[s.dataset.pay]))s.value=keepPay[s.dataset.pay];s.onchange=prevPaint});
+  m.querySelectorAll('[data-col]').forEach(s=>s.onchange=()=>{const k=s.dataset.col;if(s.value==='')delete det.map[k];else det.map[k]=+s.value;paint()});
+  prevPaint();
+ }
+ function prevPaint(){
+  plan=build();const ok=plan.filter(o=>o.status==='ok'),dup=plan.filter(o=>o.status==='dup'),bad=plan.filter(o=>o.status==='bad'),tot=ok.reduce((s,o)=>s+o.cents,0);
+  const lbl=v=>{if(!v)return '';if(v.startsWith('new:'))return v.slice(4)+' (new)';const a=C().chartOfAccounts.find(x=>String(x.code)===v);return a?a.title:v};
+  q('#aj4Prev').innerHTML='<p style="margin:.2rem 0 .5rem"><span class="pill ok">'+ok.length+' to post · '+money(tot)+'</span> '+(dup.length?'<span class="pill dup">'+dup.length+' duplicate'+(dup.length===1?'':'s')+' skipped</span> ':'')+(bad.length?'<span class="pill bad">'+bad.length+' with problems skipped</span>':'')+'</p>'
+   +'<div class="sc"><table><thead><tr><th>Row</th><th>Date</th><th>Site</th><th>Particulars</th><th>Debit</th><th>Credit</th><th class="n">Amount</th><th>Status</th></tr></thead><tbody>'
+   +plan.map(o=>'<tr><td>'+o.n+'</td><td>'+esc(o.date?fdl(o.date):o.rawDate)+'</td><td>'+esc(o.site)+'</td><td>'+esc(o.part)+'</td><td>'+esc(lbl(o.catSel))+'</td><td>'+esc(lbl(o.paySel))+'</td><td class="n">'+(Number.isFinite(o.amt)?money(o.cents):'')+'</td><td class="'+o.status+'">'+(o.status==='ok'?'Ready':esc(o.why))+'</td></tr>').join('')+'</tbody></table></div>';
+  q('#aj4Go').disabled=!ok.length;q('#aj4Go').textContent=ok.length?'Post '+ok.length+' entr'+(ok.length===1?'y':'ies'):'Post entries';
+ }
+ q('#aj4Go').onclick=()=>{
+  plan=build();const ok=plan.filter(o=>o.status==='ok');if(!ok.length)return;
+  if(ok.some(o=>!o.catSel||!o.paySel))return toast('Choose an account for every category and mode of payment.');
+  const codes={},getCode=(sel,cat)=>codes[cat+sel]!=null?codes[cat+sel]:(codes[cat+sel]=ensure(sel,cat));
+  const bid='imp_'+Date.now().toString(36);if(!c.impMap)c.impMap={cat:{},pay:{}};let tot=0;
+  ok.forEach((o,i)=>{const dr=getCode(o.catSel,'Expense'),cr=getCode(o.paySel,'Pay');c.impMap.cat[o.cat.toLowerCase()]=dr;c.impMap.pay[o.mode.toLowerCase()]=cr;tot+=o.cents;
+   c.journalEntries.push({id:'entry_'+bid+'_'+i,date:o.date,ref:('EXP-'+o.date.replace(/-/g,'').slice(2)+'-'+String(i+1).padStart(3,'0')).slice(0,40),desc:String(o.part+(o.site?' · '+o.site:'')+' · '+o.cat).slice(0,200),lines:[{accountCode:dr,debit:o.cents/100,credit:0},{accountCode:cr,debit:0,credit:o.cents/100}],fileAttachment:null,imp:bid,impKey:o.key,site:o.site||undefined})});
+  if(!Array.isArray(c.imports))c.imports=[];c.imports.push({id:bid,at:new Date().toISOString(),by:who(),file:fileName||'pasted',n:ok.length,total:tot/100,from:ok.reduce((a,o)=>o.date<a?o.date:a,'9999'),to:ok.reduce((a,o)=>o.date>a?o.date:a,'')});
+  c.chartOfAccounts.sort((a,b)=>a.code-b.code);
+  saveToLocalStorage();try{fillLedgerFilter();renderCOA();calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}
+  m.remove();toast('Posted '+ok.length+' expense entr'+(ok.length===1?'y':'ies')+' ('+money(tot)+').'+(plan.length>ok.length?' '+(plan.length-ok.length)+' skipped.':''),'success');
+ };
+}
+function openHistory(){
+ const c=C();if(!c)return;const L=(c.imports||[]).slice().reverse();
+ const m=modal('<div class="aj4"><h2 style="margin-top:0">Past expense imports</h2>'+(L.length?'<div class="sc"><table><thead><tr><th>When</th><th>By</th><th>Source</th><th>Dates</th><th class="n">Entries</th><th class="n">Total</th><th></th></tr></thead><tbody>'
+  +L.map(x=>{const live=c.journalEntries.filter(e=>e.imp===x.id).length;return '<tr><td>'+esc(new Date(x.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}))+'</td><td>'+esc(x.by)+'</td><td>'+esc(x.file)+'</td><td>'+esc(fdl(x.from))+' – '+esc(fdl(x.to))+'</td><td class="n">'+live+' of '+x.n+'</td><td class="n">'+esc(formatMoney(x.total,c.currency))+'</td><td>'+(live?'<button type="button" class="btn btn-outline btn-sm" data-undo="'+esc(x.id)+'">Undo import</button>':'<span class="bk-mut">undone</span>')+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="hr-note">No imports yet.</p>')
+  +'<div style="text-align:right;margin-top:1rem"><button type="button" class="btn btn-outline" data-x>Close</button></div></div>',820);
+ m.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>{
+  const id=b.dataset.undo,E=c.journalEntries.filter(e=>e.imp===id);if(!E.length)return;
+  if(!confirm('Undo this import? Its '+E.length+' entries are voided (they stay listed under “Show voided” with the reason “Import undone”). Entries in a locked period are kept.'))return;
+  let n=0;E.forEach(e=>{if(window.AJVOID?AJVOID.voidOne(c,e,'Import undone',true):(c.journalEntries=c.journalEntries.filter(x=>x.id!==e.id),true))n++});
+  if(typeof window.onJournalChanged==='function')window.onJournalChanged();saveToLocalStorage();try{calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}
+  m.remove();toast(n+' entr'+(n===1?'y':'ies')+' voided.'+(n<E.length?' '+(E.length-n)+' in a locked period were kept.':''),'success')});
+}
+window.AJIMPORT={open:openImport,history:openHistory,parseRows,detect,parseDate,parseAmt};
+
+// ---------- where to find it: Books › Journal toolbar, Payables and Jump to ----------
+const addBtn=()=>{const bar=$('ajJBar');if(!bar||bar.querySelector('#aj4Btn'))return;const b=document.createElement('button');b.type='button';b.id='aj4Btn';b.className='btn btn-outline btn-sm';b.textContent='Import expenses';b.title='Paste or upload an expense list (for example the Expenses Log in Google Sheets)';b.onclick=openImport;bar.appendChild(b)};
+const oRJ=window.renderFullJournalLog;window.renderFullJournalLog=function(){const r=oRJ.apply(this,arguments);try{addBtn()}catch(e){}return r};
+const ap=()=>{const h=$('ap-bill');if(!h||h.querySelector('#aj4Ap'))return;const head=h.querySelector('.erp-head .acts')||h.querySelector('.erp-head');if(!head)return;const b=document.createElement('button');b.type='button';b.id='aj4Ap';b.className='btn btn-outline';b.textContent='Import expenses';b.onclick=openImport;head.appendChild(b)};
+const oST=window.showTab;window.showTab=function(t){const r=oST.apply(this,arguments);try{if(t==='ap-bill')setTimeout(ap,0)}catch(e){}return r};
+
+// ---------- keep import links in backups ----------
+const oSC=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=oSC.apply(this,arguments);try{
+ const by=new Map((d.journalEntries||[]).map(x=>[safeId(x.id),x]));(o.journalEntries||[]).forEach(e=>{const x=by.get(e.id);if(!x)return;if(x.imp)e.imp=String(x.imp).slice(0,40);if(x.impKey)e.impKey=String(x.impKey).slice(0,300);if(x.site)e.site=String(x.site).slice(0,60)});
+ if(Array.isArray(d.imports))o.imports=d.imports.filter(x=>x&&typeof x==='object').slice(-500).map(x=>({id:String(x.id||'').slice(0,40),at:String(x.at||'').slice(0,40),by:String(x.by||'').slice(0,80),file:String(x.file||'').slice(0,120),n:parseInt(x.n,10)||0,total:+x.total||0,from:String(x.from||'').slice(0,10),to:String(x.to||'').slice(0,10)}));
+ if(d.impMap&&typeof d.impMap==='object'){const cl=s=>{const r={};if(s&&typeof s==='object')Object.keys(s).slice(0,300).forEach(k=>{const v=parseInt(s[k],10);if(v)r[String(k).slice(0,80)]=v});return r};o.impMap={cat:cl(d.impMap.cat),pay:cl(d.impMap.pay)}}
+}catch(err){console.error(err)}return o};
+})();
+
 </script>
 </body>
 </html>
