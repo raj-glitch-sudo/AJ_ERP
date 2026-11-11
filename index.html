@@ -2694,7 +2694,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                         currentEntryAttachment = { ...entry.fileAttachment };
                         renderEntryFilePreview();
                     }
-                    entry.lines.forEach(line => addJournalRow(line.accountCode, line.debit, line.credit));
+                    entry.lines.forEach(line => addJournalRow(line.accountCode, line.debit, line.credit, line.memo));
                 }
             } else {
                 document.getElementById('journalModalTitle').innerText = "Data Entry - Transaction Input";
@@ -2766,14 +2766,14 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
 
             for (let i = 0; i < accounts.length; i++) {
                 const code = parseInt(accounts[i].value);
-                const dr = parseFloat(debits[i].value) || 0;
-                const cr = parseFloat(credits[i].value) || 0;
+                const dr = Math.round((parseFloat(debits[i].value) || 0) * 100) / 100;
+                const cr = Math.round((parseFloat(credits[i].value) || 0) * 100) / 100;
 
                 if (dr < 0 || cr < 0) return toast('Negative amounts are not allowed. Put the amount on the opposite side instead.');
                 if (dr > 0 && cr > 0) return toast('A line cannot have both a debit and a credit. Use two lines.');
                 if (!code && (dr > 0 || cr > 0)) return toast('A line has an amount but no account selected.');
                 if (code && (dr > 0 || cr > 0)) {
-                    lines.push({ accountCode: code, debit: dr, credit: cr });
+                    lines.push(Object.assign({ accountCode: code, debit: dr, credit: cr }, window.AJJE ? AJJE.lineExtra(accounts[i]) : {}));
                     drCents += toCents(dr);
                     crCents += toCents(cr);
                 }
@@ -2796,6 +2796,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                 fileAttachment: currentEntryAttachment ? { ...currentEntryAttachment } : null
             };
 
+            if (window.AJJE) AJJE.stamp(entryData, editingId);
             if (editingId) {
                 const idx = comp.journalEntries.findIndex(e => e.id === editingId);
                 if (idx !== -1) comp.journalEntries[idx] = Object.assign({}, comp.journalEntries[idx], entryData); // keep module links (src, reId...)
@@ -2809,6 +2810,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             calculateDashboardMetrics();
             renderDashboardJournalLog();
             applyBooksFilter();
+            if (window.AJJE) AJJE.after(entryData, !!editingId);
         }
 
         // --- UPLOADED FILES DATABASE MODULE LOGIC ---
@@ -3057,7 +3059,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                 preparedBy: document.getElementById('rptPreparedBy').value || 'Prepared Signature',
                 approvedBy: document.getElementById('rptApprovedBy').value || 'Management',
                 basisKey: basisKeyFromLabel(document.getElementById('rptBasis').value),
-                isLayout: (document.getElementById('rptIsLayout') || {}).value === 'ifrs18' ? 'ifrs18' : 'classic',
+                isLayout: (document.getElementById('rptIsLayout') || {}).value === 'ifrs18' ? 'ifrs18' : 'classic', tbLayout: (document.getElementById('rptTbLayout') || {}).value || 'std', isCols: (document.getElementById('rptIsCols') || {}).value || 'total', cfMethod: (document.getElementById('rptCfMethod') || {}).value || 'direct',
                 startDateStr, endDateStr, compare, prevStartDateStr, prevEndDateStr,
                 curCol: curColLbl, prevCol: prevColLbl
             };
@@ -3085,7 +3087,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             const prevAll = cmp ? computeAccountBalances(ents, params.prevEndDateStr) : null;
             const prevPeriod = cmp ? computeAccountBalances(ents, params.prevEndDateStr, params.prevStartDateStr) : null;
 
-            if (params.type === 'tb') {
+            if (window.AJFS && AJFS.handles(params)) { bodyHTML = AJFS.body(comp, params, cmp); } else if (params.type === 'tb') {
                 let rows = "", totalDr = 0, totalCr = 0;
                 comp.chartOfAccounts.forEach(acc => {
                     const b = balancesAllTime.get(acc.code) || { drCents: 0, crCents: 0 };
@@ -3404,7 +3406,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                 document.getElementById('accCategory').value = a.category;
                 document.getElementById('accTitle').value = a.title;
                 document.getElementById('accSubCategoryClass').value = ({ 'Non-current Asset': 'Non-Current Asset', 'Non-current Liability': 'Non-Current Liability', 'Other Revenue': 'Other Income' })[a.subCategoryClass] || a.subCategoryClass;
-                document.getElementById('accIfrs18').value = a.ifrs18 || '';
+                document.getElementById('accIfrs18').value = a.ifrs18 || ''; if (document.getElementById('accCf')) document.getElementById('accCf').value = a.cf || '';
                 if (window.syncAccForm) syncAccForm();
                 document.getElementById('accRoleTag').value = a.roleTag || 'none';
                 document.getElementById('accIsContra').checked = !!a.isContra;
@@ -3470,7 +3472,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
                 code, title: document.getElementById('accTitle').value.trim(), category: document.getElementById('accCategory').value,
                 subCategoryClass: document.getElementById('accSubCategoryClass').value, roleTag: document.getElementById('accRoleTag').value,
                 isContra: document.getElementById('accIsContra').checked, normal: document.getElementById('accNormal').value,
-                ifrs18: (document.getElementById('accIfrs18') || {}).value || '',
+                ifrs18: (document.getElementById('accIfrs18') || {}).value || '', cf: (document.getElementById('accCf') || {}).value || '',
                 initialBalance: initBal, initialBalanceType: initBalType
             };
 
@@ -3611,7 +3613,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             const [from, to] = getBooksRange();
             const q = ((document.getElementById('filterSearch') || {}).value || '').trim().toLowerCase();
             return comp.journalEntries
-                .filter(e => e.date >= from && e.date <= to && (!q || (e.ref || '').toLowerCase().includes(q) || (e.desc || '').toLowerCase().includes(q)))
+                .filter(e => e.date >= from && e.date <= to && (!window.AJJE || AJJE.pass(comp, e)) && (!q || (e.ref || '').toLowerCase().includes(q) || (e.desc || '').toLowerCase().includes(q) || (window.AJJE && AJJE.match(comp, e, q))))
                 .sort((a, b) => b.date.localeCompare(a.date));
         }
         function exportJournalCSV() {
@@ -3701,6 +3703,7 @@ window.BIROFF_IMG={"0619-E_0":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABKY
             if (a.contraOf && Number.isInteger(a.contraOf)) out.contraOf = a.contraOf;
             if (['Debit','Credit'].includes(a.initialBalanceType)) out.initialBalanceType = a.initialBalanceType;
             if (['operating','investing','financing','tax'].includes(a.ifrs18)) out.ifrs18 = a.ifrs18;
+            if (['operating','investing','financing'].includes(a.cf)) out.cf = a.cf;
             return out;
         }
         function sanitizeHTML(html) {
@@ -7418,7 +7421,7 @@ function defaultTarget(comp){
  const re=eqAccts(comp).find(a=>/retained/i.test(a.title)),cap=eqAccts(comp).find(a=>/capital/i.test(a.title));
  return corp?(re?re.code:'new'):(cap||re||eqAccts(comp)[0]||{}).code||'new';
 }
-const isDrawing=a=>a.category==='Equity'&&a.normal==='Debit'&&!a.isContra;
+const isDrawing=a=>a.category==='Equity'&&a.normal==='Debit'&&(!a.isContra||/draw|dividend|withdraw/i.test(a.title||''));
 function buildClosing(comp,end,target,entries){
  const bal=computeAccountBalances((entries||comp.journalEntries).filter(e=>e.id!=='preview_close'),end);
  const lines=[];let rev=0,exp=0,draw=0;
@@ -13486,6 +13489,646 @@ const oSC=window.sanitizeCompany;window.sanitizeCompany=function(d){const o=oSC.
  if(d.siteMap&&typeof d.siteMap==='object'){o.siteMap={};Object.keys(d.siteMap).slice(0,500).forEach(k=>{const v=String(d.siteMap[k]||'').slice(0,60);if(v)o.siteMap[String(k).slice(0,80)]=v})}
  if(Array.isArray(d.siteList))o.siteList=d.siteList.map(s=>String(s).slice(0,60)).filter(Boolean).slice(0,100);
 }catch(err){console.error(err)}return o};
+})();
+
+
+// ===== v7 (A) Financial statement engine: classified Balance Sheet with retained earnings worked out per fiscal year,
+// Trial Balance formats (balances, period activity, worksheet), Statement of Cash Flows with line items (direct or indirect),
+// drill-down from any report line to the account ledger and the entry, and CSV export of reports =====
+(function(){
+const $=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml,X=window.ERPX||{};
+const E0={drCents:0,crCents:0};
+const money=(v,c)=>formatMoney(fromCents(v),c.currency);
+const fdl=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+const isClose=e=>!!e&&e.src==='close';
+const SUBFIX={'Non-current Asset':'Non-Current Asset','Non-current Liability':'Non-Current Liability'};
+const subOf=a=>SUBFIX[a.subCategoryClass]||a.subCategoryClass||'';
+const fyStartOf=(c,d)=>fyStartStr(c,new Date(d+'T00:00'));
+const isPL=a=>a&&(a.category==='Revenue'||a.category==='Expense');
+// equity accounts that hold the owners' withdrawals for the year (closed to capital / retained earnings at year-end)
+const isDist=a=>!!a&&a.category==='Equity'&&a.normal==='Debit'&&(!a.isContra||/draw|dividend|withdraw/i.test(a.title||''));
+function closeTarget(c){
+ const eq=c.chartOfAccounts.filter(a=>a.category==='Equity'&&!a.isContra&&a.normal==='Credit');
+ const mem=c.closeTarget&&eq.find(a=>a.code===c.closeTarget);if(mem)return mem.code;
+ const corp=/corporation/i.test(c.entity||''),re=eq.find(a=>/retained/i.test(a.title)),cap=eq.find(a=>/capital/i.test(a.title)&&!/paid-in|premium/i.test(a.title));
+ return corp?(re?re.code:null):((cap||re||eq.find(a=>!/beginning balance/i.test(a.title))||{}).code||null);
+}
+// journal without closing entries, in the chosen basis (statements work out retained earnings themselves)
+function plainEntries(c,basis){
+ const base=c.journalEntries.some(isClose)?Object.assign({},c,{journalEntries:c.journalEntries.filter(e=>!isClose(e))}):c;
+ return basis==='cash'?cashBasisEntries(base):base.journalEntries;
+}
+const netIncome=(c,bal)=>{let n=0;c.chartOfAccounts.forEach(a=>{const b=bal.get(a.code);if(!b)return;if(a.category==='Revenue')n+=b.crCents-b.drCents;else if(a.category==='Expense')n-=b.drCents-b.crCents});return n};
+
+// ---------------------------------------------------------------- Balance Sheet
+function bsModel(c,basis,end,ents){
+ ents=ents||plainEntries(c,basis);
+ const fyS=fyStartOf(c,end),before=prevDay(fyS);
+ const bal=computeAccountBalances(ents,end),balB=computeAccountBalances(ents,before),balY=computeAccountBalances(ents,end,fyS);
+ const byCode=new Map(c.chartOfAccounts.map(a=>[a.code,a]));
+ const parent=a=>{const p=a.isContra&&a.contraOf?byCode.get(a.contraOf):null;return p&&!p.isContra&&p.category===a.category?p:a};
+ const net=(a,m)=>{const b=m.get(a.code)||E0;return (a.isContra?-1:1)*(a.normal==='Debit'?b.drCents-b.crCents:b.crCents-b.drCents)};
+ const S={ca:[],nca:[],cl:[],ncl:[],eq:[]};
+ orderWithContras(c.chartOfAccounts).forEach(a=>{
+  if(a.category==='Asset')S[subOf(parent(a))==='Non-Current Asset'?'nca':'ca'].push({key:'a'+a.code,code:a.code,acc:a,v:net(a,bal)});
+  else if(a.category==='Liability')S[subOf(parent(a))==='Non-Current Liability'?'ncl':'cl'].push({key:'a'+a.code,code:a.code,acc:a,v:net(a,bal)});
+ });
+ // equity: prior years' results and withdrawals sit in retained earnings / capital whether or not the year was formally closed
+ const priorPL=netIncome(c,balB),curNI=netIncome(c,balY),tgt=closeTarget(c);
+ let priorDist=0;c.chartOfAccounts.filter(isDist).forEach(a=>{const b=balB.get(a.code)||E0;priorDist+=b.drCents-b.crCents});
+ const carry=priorPL-priorDist,tA_=tgt&&byCode.get(tgt),corp=/corporation/i.test(c.entity||'');
+ const tName=tA_?tA_.title:(corp?'Retained Earnings':'Accumulated Results');
+ // other equity accounts first, then the retained earnings / capital roll-forward for the year
+ orderWithContras(c.chartOfAccounts).filter(a=>a.category==='Equity'&&!isDist(a)&&a.code!==tgt).forEach(a=>S.eq.push({key:'a'+a.code,code:a.code,acc:a,v:net(a,bal)}));
+ // opening balances entered in the chart of accounts count as the beginning balance, even when the books open mid-year
+ const hasInit=ents.some(e=>isInit(e)&&e.date>before&&e.date<=end);
+ const tb0=tA_?net(tA_,hasInit?computeAccountBalances(ents.filter(e=>e.date<=before||isInit(e)),end):balB):0,tMov=tA_?net(tA_,hasInit?computeAccountBalances(ents.filter(e=>!isInit(e)),end,fyS):balY):0;
+ S.eq.push({key:'reB',code:tgt||undefined,label:tName+', beginning of year',v:tb0+carry});
+ if(tMov)S.eq.push({key:'reM',code:tgt,label:corp?'Other changes in '+tName+' this year':'Additional investments and other changes this year',v:tMov,indent:true});
+ S.eq.push({key:'ni',label:'Net Income / (Loss) for the Year'+(end<lastOfFy(c,fyS)?' to Date':''),v:curNI,indent:true});
+ let distY=0;
+ c.chartOfAccounts.filter(isDist).forEach(a=>{const b=balY.get(a.code)||E0,v=-(b.drCents-b.crCents);distY+=v;if(v)S.eq.push({key:'a'+a.code,code:a.code,label:'Less: '+a.title,v,indent:true})});
+ S.eq.push({key:'reE',label:tName+', end of period',v:tb0+carry+tMov+curNI+distY,sub:true});
+ const sum=k=>S[k].reduce((t,r)=>t+(r.sub?0:r.v),0);
+ let adj=0;
+ if(basis==='cash'){adj=sum('ca')+sum('nca')-sum('cl')-sum('ncl')-sum('eq');if(adj)S.eq.push({key:'cashadj',label:'Cash-basis adjustment (unpaid receivables / payables)',v:adj})}
+ return{S,fyS,tA:sum('ca')+sum('nca'),tL:sum('cl')+sum('ncl'),tE:sum('eq'),ni:curNI};
+}
+function lastOfFy(c,fyS){const d=new Date(fyS+'T00:00');return localDateStr(new Date(d.getFullYear(),d.getMonth()+12,0))}
+function bsBody(c,p,cmp){
+ const cur=bsModel(c,p.basisKey||'accrual',p.endDateStr),prev=cmp?bsModel(c,p.basisKey||'accrual',p.prevEndDateStr):null;
+ const span=cmp?5:2,ccy=c.currency;
+ const head=cmp?`<thead><tr><th></th><th class="number">${esc(p.curCol)}</th><th class="number">${esc(p.prevCol)}</th><th class="number">Change</th><th class="number">%</th></tr></thead>`:'';
+ const merge=k=>{const out=cur.S[k].map(r=>Object.assign({},r,{p:0}));if(prev)prev.S[k].forEach(r=>{const o=out.find(x=>x.key===r.key);if(o)o.p=r.v;else{const n=Object.assign({},r,{v:0,p:r.v}),at=out.findIndex(x=>x.key==='reE');if(k==='eq'&&at>=0&&r.key!=='cashadj')out.splice(at,0,n);else out.push(n)}});return out.filter(r=>r.v||r.p||r.sub)};
+ const tot=(lbl,v,pv,cls)=>`<tr class="${cls||'aj-sub'}" style="font-weight:bold;"><td>${lbl}</td>${cmpCells(v,pv,ccy,cmp)}</tr>`;
+ const row=r=>r.sub?tot(esc(r.label),r.v,r.p):`<tr${r.code?` data-acct="${r.code}"`:''}><td>${r.acc?acctLabel(r.acc):`<span${r.indent?' style="padding-left:18px;"':''}>${esc(r.label)}</span>`}</td>${cmpCells(r.v,r.p,ccy,cmp)}</tr>`;
+ const grp=t=>`<tr class="aj-grp"><td colspan="${span}">${t}</td></tr>`;
+ const sm=L=>[L.reduce((t,r)=>t+r.v,0),L.reduce((t,r)=>t+r.p,0)];
+ const h4=(t,first)=>`<h4 style="border-bottom: 1px solid #d3e6df; padding-bottom: 4px;${first?'':' margin-top: 1.5rem;'}">${t}</h4>`;
+ const two=(A,B,ta,tb,none)=>{const sa=sm(A),sb=sm(B);let h='';
+  if(A.length){h+=(B.length?grp(ta):'')+A.map(row).join('')+(B.length?tot('Total '+ta,sa[0],sa[1]):'')}
+  if(B.length){h+=grp(tb)+B.map(row).join('')+(A.length?tot('Total '+tb,sb[0],sb[1]):'')}
+  return h||`<tr><td colspan="${span}" style="color:var(--text-muted)">${none}</td></tr>`};
+ const CA=merge('ca'),NCA=merge('nca'),CL=merge('cl'),NCL=merge('ncl'),EQ=merge('eq');
+ const pA=prev?prev.tA:0,pL=prev?prev.tL:0,pE=prev?prev.tE:0;
+ const diff=cur.tA-cur.tL-cur.tE,pdiff=prev?pA-pL-pE:0;
+ const warn=(diff||pdiff)?`<p style="color:#b91c1c;font-weight:bold;">Out of balance by ${money(diff,c)}${pdiff?` (prior period: ${money(pdiff,c)})`:''}. Run Settings › Health Check.</p>`:'';
+ return h4('Assets',true)+`<table class="aj-fs">${head}<tbody>${two(CA,NCA,'Current Assets','Non-Current Assets','No assets recorded.')}</tbody><tfoot>${tot('Total Assets',cur.tA,pA,'aj-tot')}</tfoot></table>`
+  +h4('Liabilities')+`<table class="aj-fs">${head}<tbody>${two(CL,NCL,'Current Liabilities','Non-Current Liabilities','No liabilities recorded.')}</tbody><tfoot>${tot('Total Liabilities',cur.tL,pL,'aj-tot')}</tfoot></table>`
+  +h4(esc(equityHeading(c)))+`<table class="aj-fs">${head}<tbody>${EQ.map(row).join('')||`<tr><td colspan="${span}" style="color:var(--text-muted)">No equity recorded.</td></tr>`}</tbody><tfoot>${tot('Total Equity',cur.tE,pE,'aj-tot')}</tfoot></table>`
+  +`<table class="aj-fs" style="margin-top:1.2rem;border:2px solid var(--fiery-navy-deep);"><tfoot>${tot('Total Liabilities and Equity',cur.tL+cur.tE,pL+pE,'aj-tot')}</tfoot></table>`+warn
+  +`<p style="font-size:.8rem;color:#475569;margin-top:1rem;">The fiscal year began ${esc(fdl(cur.fyS))}. Results and withdrawals of earlier fiscal years are part of the beginning balance of ${esc(tgtName(c))}, whether or not those years were formally closed.</p>`;
+}
+const tgtName=c=>{const t=closeTarget(c),a=t&&c.chartOfAccounts.find(x=>x.code===t);return a?a.title:(/corporation/i.test(c.entity||'')?'Retained Earnings':'the owners’ capital')};
+
+// ---------------------------------------------------------------- Trial Balance
+function tbBody(c,p){
+ const ents=p.entries||c.journalEntries,start=p.startDateStr,end=p.endDateStr,cash=p.basisKey==='cash';
+ const layout=cash?'std':(p.tbLayout||'std');
+ const f=v=>v?money(v,c):'-';
+ const split=v=>v>0?[v,0]:[0,-v];
+ const accts=c.chartOfAccounts,note=[];
+ let head,rows='',tot=[];
+ const add=(a,cols)=>{if(cols.every(x=>!x))return;cols.forEach((x,i)=>tot[i]=(tot[i]||0)+x);rows+=`<tr data-acct="${a.code}"><td>${a.code}</td><td>${esc(a.title)}</td>${cols.map(x=>`<td class="number">${f(x)}</td>`).join('')}</tr>`};
+ if(layout==='activity'){
+  const b0=computeAccountBalances(ents,prevDay(start)),bp=computeAccountBalances(ents,end,start);
+  head='<tr><th rowspan="2">Code</th><th rowspan="2">Account Title</th><th colspan="2" class="number">Beginning Balance</th><th colspan="2" class="number">Period Activity</th><th colspan="2" class="number">Ending Balance</th></tr><tr><th class="number">Debit</th><th class="number">Credit</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Debit</th><th class="number">Credit</th></tr>';
+  accts.forEach(a=>{const x=b0.get(a.code)||E0,y=bp.get(a.code)||E0,beg=x.drCents-x.crCents;add(a,[...split(beg),y.drCents,y.crCents,...split(beg+y.drCents-y.crCents)])});
+  note.push('Beginning balances are as of '+fdl(prevDay(start))+'; activity is from '+fdl(start)+' to '+fdl(end)+'.');
+ }else if(layout==='worksheet'){
+  const adjE=ents.filter(e=>e.adj&&e.date>=start&&e.date<=end),ids=new Set(adjE.map(e=>e.id));
+  const un=computeAccountBalances(ents.filter(e=>!ids.has(e.id)),end),ad=computeAccountBalances(adjE,end);
+  head='<tr><th rowspan="2">Code</th><th rowspan="2">Account Title</th><th colspan="2" class="number">Unadjusted Trial Balance</th><th colspan="2" class="number">Adjustments</th><th colspan="2" class="number">Adjusted Trial Balance</th></tr><tr><th class="number">Debit</th><th class="number">Credit</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Debit</th><th class="number">Credit</th></tr>';
+  accts.forEach(a=>{const x=un.get(a.code)||E0,y=ad.get(a.code)||E0,u=x.drCents-x.crCents;add(a,[...split(u),y.drCents,y.crCents,...split(u+y.drCents-y.crCents)])});
+  note.push(adjE.length?adjE.length+' adjusting entr'+(adjE.length===1?'y':'ies')+' dated '+fdl(start)+' to '+fdl(end)+' ('+adjE.map(e=>e.ref).slice(0,12).join(', ')+(adjE.length>12?'…':'')+').':'No entries are marked as adjusting entries in this period. Tick “Adjusting entry” when recording accruals, depreciation and other period-end adjustments (Books › Journal).');
+ }else{
+  const b=computeAccountBalances(ents,end);
+  head='<tr><th>Code</th><th>Account Title</th><th class="number">Debit</th><th class="number">Credit</th></tr>';
+  accts.forEach(a=>{const x=b.get(a.code)||E0;add(a,split(x.drCents-x.crCents))});
+  if(cash&&(tot[0]||0)!==(tot[1]||0)){const d=(tot[0]||0)-(tot[1]||0);rows+=`<tr><td></td><td><em>Cash-basis adjustment (receivables / payables)</em></td><td class="number">${d<0?f(-d):'-'}</td><td class="number">${d>0?f(d):'-'}</td></tr>`;if(d>0)tot[1]=(tot[1]||0)+d;else tot[0]=(tot[0]||0)-d}
+  if(cash&&p.tbLayout&&p.tbLayout!=='std')note.push('The period activity and worksheet formats are available on the accrual basis.');
+ }
+ // income and expenses of earlier years still sitting in the ledger because those years were never closed
+ if(!cash&&reportTitles.tb==='Trial Balance'){const fyS=fyStartOf(c,end),pb=computeAccountBalances(ents,prevDay(fyS));
+  if(c.chartOfAccounts.some(a=>{const x=pb.get(a.code);return isPL(a)&&x&&x.drCents!==x.crCents}))
+   note.push('Income and expense balances include fiscal years before '+fdl(fyS)+' that are not closed yet. Close them in Books › Period Locks & Closing so each year starts from zero. The Balance Sheet and Income Statement already separate the years.')}
+ const n=layout==='std'?2:6,ok=layout==='std'?(tot[0]||0)===(tot[1]||0):[0,2,4].every(i=>(tot[i]||0)===(tot[i+1]||0));
+ let foot='<tr style="font-weight:bold;"><td>Totals</td><td></td>';for(let i=0;i<n;i++)foot+=`<td class="number">${money(tot[i]||0,c)}</td>`;foot+='</tr>';
+ return `<div style="overflow-x:auto"><table class="aj-fs aj-tb"><thead>${head}</thead><tbody>${rows||`<tr><td colspan="${n+2}" style="color:var(--text-muted)">No balances.</td></tr>`}</tbody><tfoot>${foot}</tfoot></table></div>`
+  +(ok?'':'<p style="color:#b91c1c;font-weight:bold;">Debits and credits do not agree. Run Settings › Health Check.</p>')
+  +note.map(t=>`<p style="font-size:.8rem;color:#475569;margin-top:.6rem;">${esc(t)}</p>`).join('');
+}
+
+// ---------------------------------------------------------------- Statement of Cash Flows
+const FIN_L=/loan|notes? payable|borrowing|mortgage|lease liabilit|dividends? payable|advances? from (stockholder|shareholder|owner|partner|officer|director|related|affiliate)|due to (stockholder|shareholder|owner|partner|officer|director|related|affiliate)/i;
+const INV_A=/investment|time deposit|loans? receivable|advances? to (stockholder|shareholder|officer|director|related|affiliate)|due from (stockholder|shareholder|officer|director|related|affiliate)/i;
+const GAIN=/(gain|loss)\b.*\b(sale|disposal|retirement)|\b(sale|disposal|retirement)\b.*\b(asset|equipment|property|investment)/i;
+function cfAct(a){
+ if(!a)return 'operating';
+ if(['operating','investing','financing'].includes(a.cf))return a.cf;
+ if(a.category==='Asset')return subOf(a)==='Non-Current Asset'||INV_A.test(a.title||'')?'investing':'operating';
+ if(a.category==='Liability')return subOf(a)==='Non-Current Liability'||FIN_L.test(a.title||'')?'financing':'operating';
+ if(a.category==='Equity')return 'financing';
+ return GAIN.test(a.title||'')?'investing':'operating';
+}
+function opCaption(a,amt){
+ const t=(a&&a.title)||'';
+ if(/income tax/i.test(t))return 'Income taxes paid';
+ if(/interest/i.test(t)&&a.category==='Expense')return 'Interest paid';
+ if(/interest/i.test(t)&&a.category==='Revenue')return 'Interest received';
+ if(/output vat/i.test(t))return amt>=0?'Cash received from customers':'Cash paid to suppliers, for taxes and operating expenses';
+ if(!/expanded/i.test(t)&&/salar|wage|payroll|13th|sss|philhealth|pag-?ibig|hdmf|employee|bonus|benefit|withholding tax payable|tax on compensation/i.test(t))return 'Cash paid to and for employees';
+ if(a&&(a.category==='Revenue'&&subOf(a)!=='Other Income'||a.roleTag==='ar'||/receivable|creditable withholding|customer|unearned|deferred (income|revenue)|deposits? from|advances? from (customer|client|tenant)|security deposit/i.test(t)))return 'Cash received from customers';
+ if(a&&a.category==='Revenue')return 'Other operating receipts';
+ return 'Cash paid to suppliers, for taxes and operating expenses';
+}
+function cfModel(c,start,end){
+ const byCode=new Map(c.chartOfAccounts.map(a=>[a.code,a])),isCash=code=>{const a=byCode.get(code);return !!a&&a.roleTag==='cash'};
+ const ents=c.journalEntries.filter(e=>!isInit(e)&&!isClose(e)&&e.date>=start&&e.date<=end);
+ const op=new Map(),inv=new Map(),fin=new Map(),X_=new Map(),T=new Map(),Z=new Map(),noncash=[];
+ const bump=(m,k,v)=>{if(v)m.set(k,(m.get(k)||0)+v)};
+ let ni=0;
+ ents.forEach(e=>{
+  const L=e.lines.map(l=>({a:byCode.get(l.accountCode),code:l.accountCode,amt:toCents(l.credit)-toCents(l.debit)})),hasCash=L.some(l=>isCash(l.code)),non=L.filter(l=>!isCash(l.code));
+  non.forEach(l=>{if(isPL(l.a))ni+=l.amt;else bump(T,l.code,l.amt)});
+  const act=l=>cfAct(l.a),bsInv=non.some(l=>!isPL(l.a)&&act(l)==='investing');
+  const kind=l=>{const k=act(l);if(k==='operating'&&bsInv&&isPL(l.a)&&/^Other/i.test(subOf(l.a)))return 'investing';return k};
+  if(!hasCash){ // non-cash entry: it changes investing/financing accounts without cash (depreciation, declared dividends, asset bought on loan)
+   const nf=non.filter(l=>!isPL(l.a)&&act(l)!=='operating');if(nf.length>1&&nf.reduce((s,l)=>s+l.amt,0)===0){nf.forEach(l=>bump(Z,l.code,l.amt));noncash.push({ref:e.ref,desc:e.desc,amt:nf.reduce((s,l)=>s+Math.max(0,l.amt),0)})}return}
+  const invL=non.filter(l=>kind(l)==='investing');
+  if(invL.length){const tot=invL.reduce((s,l)=>s+l.amt,0),main=invL.filter(l=>l.a&&!isPL(l.a)&&!l.a.isContra).sort((x,y)=>Math.abs(y.amt)-Math.abs(x.amt))[0]||invL[0];
+   const nm=main&&main.a?main.a.title:'other assets';bump(inv,(tot>=0?'Proceeds from sale or collection of ':'Acquisition of ')+nm,tot);
+   invL.forEach(l=>bump(X_,l.code,l.amt))}
+  non.filter(l=>kind(l)==='financing').forEach(l=>{const t=l.a?l.a.title:String(l.code);let cap;
+   if(isDist(l.a)||/dividends? payable/i.test(t))cap=/dividend/i.test(t)?'Dividends paid':'Withdrawals by owners ('+t+')';
+   else if(l.a&&l.a.category==='Equity')cap=l.amt>=0?(/share|stock|paid-in|premium/i.test(t)?'Proceeds from issuance of shares':'Contributions from owners ('+t+')'):'Return of capital ('+t+')';
+   else cap=(l.amt>=0?'Proceeds from ':'Payments of ')+t;
+   bump(fin,cap,l.amt);bump(X_,l.code,l.amt)});
+  non.filter(l=>kind(l)==='operating').forEach(l=>bump(op,opCaption(l.a,l.amt),l.amt));
+ });
+ const S=m=>[...m.values()].reduce((s,v)=>s+v,0);
+ const all=c.journalEntries.filter(e=>!isClose(e));
+ const cashAt=d=>{const bal=computeAccountBalances(all.filter(e=>e.date<=d||(isInit(e)&&e.date<=end)),end);let t=0;c.chartOfAccounts.filter(a=>a.roleTag==='cash').forEach(a=>{const b=bal.get(a.code)||E0;t+=b.drCents-b.crCents});return t};
+ const begin=cashAt(prevDay(start)),endCash=cashAt(end);
+ return{op,inv,fin,tOp:S(op),tInv:S(inv),tFin:S(fin),begin,endCash,ni,T,X:X_,Z,byCode,noncash};
+}
+function cfBody(c,p){
+ const m=cfModel(c,p.startDateStr,p.endDateStr),ind=p.cfMethod==='indirect';
+ const row=(t,v,ind_)=>`<tr><td${ind_?' style="padding-left:18px;"':''}>${esc(t)}</td><td class="number">${money(v,c)}</td></tr>`;
+ const tot=(t,v)=>`<tr class="aj-tot" style="font-weight:bold;"><td>${esc(t)}</td><td class="number">${money(v,c)}</td></tr>`;
+ const h4=(t,first)=>`<h4 style="border-bottom:1px solid #d3e6df; padding-bottom:4px;${first?'':' margin-top:1.5rem;'}">${t}</h4>`;
+ const ORDER=['Cash received from customers','Other operating receipts','Interest received','Cash paid to suppliers, for taxes and operating expenses','Cash paid to and for employees','Interest paid','Income taxes paid'];
+ const lines=(mp,order)=>{const k=[...mp.keys()].filter(x=>mp.get(x));if(order)k.sort((a,b)=>(order.indexOf(a)+1||99)-(order.indexOf(b)+1||99));else k.sort((a,b)=>mp.get(b)-mp.get(a));return k.map(x=>row(x,mp.get(x))).join('')};
+ const none='<tr><td colspan="2" style="color:var(--text-muted)">None for this period.</td></tr>';
+ let opRows;
+ if(ind){
+  // net income, then non-cash items, items shown under investing/financing, and changes in working capital
+  const adj=[],wc=[];let dep=0;
+  m.byCode.forEach((a,code)=>{if(a.roleTag==='cash'||isPL(a))return;const T=m.T.get(code)||0,Xv=m.X.get(code)||0;
+   if(cfAct(a)==='operating'){if(T)wc.push([(a.category==='Asset'?(T<0?'Increase in ':'Decrease in '):(T>0?'Increase in ':'Decrease in '))+a.title,T])}
+   else{const n=T-Xv-(m.Z.get(code)||0);if(!n)return;if(/accumulated|depreciation|amorti[sz]ation/i.test(a.title))dep+=n;else adj.push(['Non-cash change in '+a.title,n])}});
+  // income and expense lines that the direct analysis placed under investing (gains and losses on disposals)
+  const moved=m.tOp-(m.ni+dep+adj.reduce((s,x)=>s+x[1],0)+wc.reduce((s,x)=>s+x[1],0));
+  opRows=row('Net income / (loss) for the period',m.ni)
+   +'<tr class="aj-grp"><td colspan="2">Adjustments for non-cash and non-operating items</td></tr>'
+   +(dep?row('Depreciation and amortization',dep,true):'')+adj.map(x=>row(x[0],x[1],true)).join('')
+   +(moved?row(moved<0?'Gains and other income shown under investing or financing activities':'Losses and other charges shown under investing or financing activities',moved,true):'')
+   +(!dep&&!adj.length&&!moved?'<tr><td colspan="2" style="color:var(--text-muted);padding-left:18px">None.</td></tr>':'')
+   +'<tr class="aj-grp"><td colspan="2">Changes in operating assets and liabilities</td></tr>'
+   +(wc.map(x=>row(x[0],x[1],true)).join('')||'<tr><td colspan="2" style="color:var(--text-muted);padding-left:18px">None.</td></tr>');
+ }else opRows=lines(m.op,ORDER)||none;
+ const net=m.tOp+m.tInv+m.tFin,gap=m.begin+net-m.endCash;
+ return h4('Cash Flows from Operating Activities',true)+`<table class="aj-fs"><tbody>${opRows}</tbody><tfoot>${tot('Net Cash Provided by (Used in) Operating Activities',m.tOp)}</tfoot></table>`
+  +h4('Cash Flows from Investing Activities')+`<table class="aj-fs"><tbody>${lines(m.inv)||none}</tbody><tfoot>${tot('Net Cash Provided by (Used in) Investing Activities',m.tInv)}</tfoot></table>`
+  +h4('Cash Flows from Financing Activities')+`<table class="aj-fs"><tbody>${lines(m.fin)||none}</tbody><tfoot>${tot('Net Cash Provided by (Used in) Financing Activities',m.tFin)}</tfoot></table>`
+  +`<table class="aj-fs" style="margin-top:2rem;"><tbody>${row('Net Increase / (Decrease) in Cash',net)}${row('Cash at Beginning of Period',m.begin)}</tbody><tfoot><tr style="font-weight:bold; border-top:2px solid var(--fiery-navy-deep);"><td>Cash at End of Period</td><td class="number">${money(m.begin+net,c)}</td></tr></tfoot></table>`
+  +(m.noncash.length?`<p style="font-size:.85rem;margin-top:1rem;"><strong>Non-cash investing and financing transactions</strong> (not included above): ${m.noncash.slice(0,12).map(x=>esc((x.desc||x.ref||'Entry')+' '+money(x.amt,c))).join('; ')}${m.noncash.length>12?'; and '+(m.noncash.length-12)+' more':''}.</p>`:'')
+  +(gap?`<p style="color:#b91c1c;font-weight:bold;">Does not agree with the cash accounts by ${money(gap,c)}. Run Settings › Health Check.</p>`:'')
+  +`<p style="font-size:0.8rem; color:#475569;margin-top:1rem;">${ind?'Indirect method: net income adjusted for non-cash items and changes in working capital.':'Direct method: each receipt and payment is grouped by the account on the other side of the cash entry.'} Cash means the accounts tagged “cash” in the Chart of Accounts. Interest paid and received are shown under operating activities; an account’s activity can be changed in Settings › Chart of Accounts.</p>`;
+}
+
+
+// ---------------------------------------------------------------- Income Statement by month or quarter
+function isColsBody(c,p){
+ const ents=p.entries||c.journalEntries,q=p.isCols==='quarter',MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+ const P=[];let d=new Date(p.startDateStr+'T00:00');const endD=new Date(p.endDateStr+'T00:00');
+ if(isNaN(d)||isNaN(endD)||d.getFullYear()<1990)d=new Date(endD.getFullYear(),0,1);
+ while(d<=endD&&P.length<24){const s=localDateStr(d),nx=new Date(d.getFullYear(),d.getMonth()+(q?3:1),1),e0=new Date(nx.getTime()-864e5),e=e0>endD?endD:e0;
+  P.push({s:s<p.startDateStr?p.startDateStr:s,e:localDateStr(e),label:q?MN[d.getMonth()]+'–'+MN[e.getMonth()]+' '+String(e.getFullYear()).slice(2):MN[d.getMonth()]+' '+String(d.getFullYear()).slice(2)});d=nx}
+ const bals=P.map(x=>computeAccountBalances(ents,x.e,x.s)),byCode=new Map(c.chartOfAccounts.map(a=>[a.code,a]));
+ const base=a=>{const pa=a.isContra&&a.contraOf?byCode.get(a.contraOf):null;return pa&&!pa.isContra&&pa.category===a.category?pa:a};
+ const rows=[];
+ orderWithContras(c.chartOfAccounts).forEach(a=>{if(!isPL(a))return;const rev=a.category==='Revenue';
+  const v=bals.map(m=>{const b=m.get(a.code)||E0;return rev?b.crCents-b.drCents:b.drCents-b.crCents});if(v.every(x=>!x))return;
+  rows.push({a,rev,sec:ISCLASS.isSection(base(a)),v,eff:v.map(x=>rev?x:-x)})});
+ const n=P.length,f=x=>x?((x<0?'(':'')+(Math.abs(x)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+(x<0?')':'')):'–';
+ const tot=a=>a.reduce((s,x)=>s+x,0),sum=(L,k)=>P.map((_,i)=>L.reduce((s,r)=>s+r[k][i],0)),sub=(A,B)=>A.map((x,i)=>x-B[i]),addv=(A,B)=>A.map((x,i)=>x+B[i]);
+ const cells=v=>v.map(x=>`<td class="number">${f(x)}</td>`).join('')+`<td class="number"><b>${f(tot(v))}</b></td>`;
+ const line=(r,k)=>`<tr data-acct="${r.a.code}"><td>${r.a.isContra?'<span style="display:block;padding-left:18px;">Less: '+esc(r.a.title)+'</span>':esc(r.a.title)}</td>${cells(r[k])}</tr>`;
+ const total=(lbl,v,cls)=>`<tr class="${cls||'aj-sub'}" style="font-weight:bold;"><td>${lbl}</td>${cells(v)}</tr>`;
+ const grp=t=>`<tr class="aj-grp"><td colspan="${n+2}">${t}</td></tr>`;
+ const g=k=>rows.filter(r=>r.sec===k),R=g('rev'),COS=g('cos'),OX=g('opex'),OT=g('oi').concat(g('ox')),TX=g('tax');
+ if(!rows.length)return '<p style="color:var(--text-muted)">No revenues or expenses recorded for this period.</p>';
+ let h=grp('Revenues')+R.map(r=>line(r,'v')).join('')+total('Total Revenues',sum(R,'v')),run=sum(R,'v');
+ if(COS.length){h+=grp('Cost of Sales')+COS.map(r=>line(r,'v')).join('')+total('Total Cost of Sales',sum(COS,'v'));run=sub(run,sum(COS,'v'));h+=total('Gross Profit',run,'aj-tot')}
+ if(OX.length){h+=grp('Operating Expenses')+OX.map(r=>line(r,'v')).join('')+total('Total Operating Expenses',sum(OX,'v'));run=sub(run,sum(OX,'v'))}
+ if(OT.length||TX.length)h+=total('Operating Income / (Loss)',run,'aj-tot');
+ if(OT.length){h+=grp('Other Income and (Expenses)')+OT.map(r=>line(r,'eff')).join('')+total('Total Other Income (Expenses), net',sum(OT,'eff'));run=addv(run,sum(OT,'eff'))}
+ if(TX.length){h+=total('Income Before Income Tax',run,'aj-tot')+grp('Income Tax Expense')+TX.map(r=>line(r,'v')).join('');run=sub(run,sum(TX,'v'))}
+ h+=total('Net Income / (Loss)',run,'aj-tot');
+ return `<div style="overflow-x:auto"><table class="aj-fs aj-cols"><thead><tr><th></th>${P.map(x=>`<th class="number">${esc(x.label)}</th>`).join('')}<th class="number">Total</th></tr></thead><tbody>${h}</tbody></table></div>`
+  +`<p style="font-size:.8rem;color:#475569;margin-top:.8rem;">Amounts in ${esc(c.currency||'PHP')}. ${P.length===24?'Showing the first 24 columns. ':''}Print in landscape for wide periods.</p>`;
+}
+
+// ---------------------------------------------------------------- hook into the report builder
+let curP=null;
+window.AJFS={
+ handles:p=>p&&(p.type==='bs'||p.type==='cf'||p.type==='tb'||(p.type==='is'&&(p.isCols==='month'||p.isCols==='quarter')&&p.isLayout!=='ifrs18')),
+ body(comp,p,cmp){curP=p;if(p.type==='is')return isColsBody(comp,p);if(p.type==='bs')return bsBody(comp,p,cmp);if(p.type==='cf')return cfBody(comp,p);return tbBody(comp,p)},
+ bsModel,cfModel,cfAct,closeTarget,isDist,plainEntries,fyStartOf,ledger:openLedger
+};
+reportTitles.tb='Trial Balance';
+const oTitle=window.reportTitleFor;
+window.reportTitleFor=function(comp,type){
+ if(curP&&curP.type===type){
+  if(type==='tb'&&reportTitles.tb==='Trial Balance'&&curP.basisKey!=='cash'){if(curP.tbLayout==='worksheet')return 'Trial Balance Worksheet';if(curP.tbLayout==='activity')return 'Trial Balance with Period Activity'}
+  if(type==='is'&&AJFS.handles(curP))return 'Income Statement by '+(curP.isCols==='quarter'?'Quarter':'Month');
+  if(type==='cf')return 'Statement of Cash Flows ('+(curP.cfMethod==='indirect'?'Indirect':'Direct')+' Method)';
+ }
+ return oTitle.apply(this,arguments)};
+const oRR=window.renderReportHTMLString;
+window.renderReportHTMLString=function(comp,params){
+ curP=null;let h;
+ try{h=oRR.apply(this,arguments)}finally{curP=null}
+ try{const meta=`<i class="aj-rptmeta" hidden data-t="${esc(params.type||'')}" data-s="${esc(params.startDateStr||'')}" data-e="${esc(params.endDateStr||'')}" data-b="${params.basisKey==='cash'?'cash':'accrual'}" data-l="${esc(params.tbLayout||'')}"></i>`;
+  const i=h.lastIndexOf('<div class="report-footer">');if(i>0)h=h.slice(0,i)+meta+h.slice(i)}catch(e){}
+ return h};
+// account lines carry their code so a click can open the ledger
+const oAL=window.acctLabel;
+window.acctLabel=function(acc){const s=oAL.apply(this,arguments);return acc&&acc.code?`<span data-acct="${acc.code}">${s}</span>`:s};
+
+// ---------------------------------------------------------------- report options (Trial Balance format, Cash Flow method)
+(function(){const g=$('rptIsLayoutGroup');if(!g)return;
+ g.insertAdjacentHTML('afterend','<div class="form-group hidden" id="rptTbLayoutGroup"><label for="rptTbLayout">Trial Balance Format</label><select id="rptTbLayout"><option value="std">Balances – one debit and one credit column</option><option value="activity">Period activity – beginning balance, debits, credits, ending balance</option><option value="worksheet">Worksheet – unadjusted, adjustments, adjusted</option></select><small style="color:var(--text-muted);">The worksheet uses the entries you marked as adjusting entries.</small></div>'
+  +'<div class="form-group hidden" id="rptIsColsGroup"><label for="rptIsCols">Income Statement Columns</label><select id="rptIsCols"><option value="total">One total for the period</option><option value="month">Month by month, with a total</option><option value="quarter">Quarter by quarter, with a total</option></select><small style="color:var(--text-muted);">Month and quarter columns use the Standard format and replace the comparative columns.</small></div>'
+  +'<div class="form-group hidden" id="rptCfMethodGroup"><label for="rptCfMethod">Cash Flow Method</label><select id="rptCfMethod"><option value="direct">Direct – receipts from customers, payments to suppliers and employees</option><option value="indirect">Indirect – net income adjusted for non-cash items and working capital</option></select></div>');
+ const o=window.openReportPromptModal;
+ window.openReportPromptModal=function(type){const r=o.apply(this,arguments);try{$('rptTbLayoutGroup').classList.toggle('hidden',type!=='tb');$('rptCfMethodGroup').classList.toggle('hidden',type!=='cf');$('rptIsColsGroup').classList.toggle('hidden',type!=='is');$('rptIsCols').value='total';const c=C();if(c){$('rptCfMethod').value=c.cfMethod==='indirect'?'indirect':'direct';if(type!=='tb')$('rptTbLayout').value='std'}}catch(e){}return r};
+ const og=window.generateFinancialReport;
+ window.generateFinancialReport=function(e){try{const c=C(),t=($('rptTargetType')||{}).value;if(c&&t==='cf')c.cfMethod=$('rptCfMethod').value==='indirect'?'indirect':'direct';if(t==='is'&&$('rptIsCols').value!=='total'&&$('rptIsLayout').value!=='ifrs18')$('rptCompare').value='none'}catch(err){}return og.apply(this,arguments)};
+})();
+
+// ---------------------------------------------------------------- account form: cash flow activity
+(function(){const g=$('accIfrs18Group');if(!g||$('accCfGroup'))return;
+ g.insertAdjacentHTML('afterend','<div class="form-group" id="accCfGroup"><label for="accCf">Cash Flow Statement Activity</label><select id="accCf"><option value="">Automatic (from the account type)</option><option value="operating">Operating</option><option value="investing">Investing</option><option value="financing">Financing</option></select><small style="color:var(--text-muted);">Where cash movements of this account appear in the Statement of Cash Flows. Automatic: non-current assets are investing; loans, owner advances and equity are financing; everything else is operating.</small></div>');
+})();
+
+// ---------------------------------------------------------------- drill-down: report line -> account ledger -> entry
+function openLedger(code,from,to,basis){
+ const c=C();if(!c)return;const a=c.chartOfAccounts.find(x=>x.code===+code);if(!a)return;
+ const src=basis==='cash'?plainEntries(c,'cash'):c.journalEntries.filter(e=>!(isPL(a)&&isClose(e)));
+ const sorted=src.slice().sort((x,y)=>x.date.localeCompare(y.date));
+ let open=0;const rows=[];
+ sorted.forEach(e=>e.lines.forEach(l=>{if(l.accountCode!==a.code)return;const d=toCents(l.debit),k=toCents(l.credit),delta=a.normal==='Debit'?d-k:k-d;
+  if(e.date<from){open+=delta;return}if(e.date>to)return;rows.push({e,l,d,k,delta})}));
+ let run=open,td=0,tc=0;const MAX=600;
+ const body=rows.map((r,i)=>{run+=r.delta;td+=r.d;tc+=r.k;if(i>=MAX)return '';
+  return `<tr class="aj-clk" data-entry="${esc(r.e.id)}"><td>${esc(r.e.date)}</td><td><strong>${esc(r.e.ref||'')}</strong></td><td>${esc(r.e.desc||'')}${r.l.memo?'<br><small style="color:var(--text-muted)">'+esc(r.l.memo)+'</small>':''}</td><td class="number">${r.d?money(r.d,c):''}</td><td class="number">${r.k?money(r.k,c):''}</td><td class="number"><b>${money(run,c)}</b></td></tr>`}).join('');
+ const m=X.modal(`<h2 style="margin-top:0">${esc(a.code+' '+a.title)}</h2><p class="hr-note" style="margin-top:-.4rem">${esc(fdl(from))} to ${esc(fdl(to))} · ${basis==='cash'?'cash basis':'accrual basis'} · normal balance: ${esc(a.normal.toLowerCase())}${isPL(a)&&basis!=='cash'?' · closing entries left out':''}</p>`
+  +`<div class="hr-scroll" style="max-height:56vh"><table class="hr-tbl"><thead><tr><th>Date</th><th>Ref</th><th>Particulars</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Balance</th></tr></thead><tbody>`
+  +`<tr><td colspan="5"><em>Balance brought forward</em></td><td class="number">${money(open,c)}</td></tr>${body||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No entries in this period.</td></tr>'}</tbody>`
+  +`<tfoot><tr style="font-weight:bold"><td colspan="3">Period totals · ending balance</td><td class="number">${money(td,c)}</td><td class="number">${money(tc,c)}</td><td class="number">${money(run,c)}</td></tr></tfoot></table></div>`
+  +(rows.length>MAX?`<p class="hr-note">Showing the first ${MAX} of ${rows.length} lines. Download the CSV for all of them.</p>`:'')
+  +`<p class="hr-note">Click a line to open the whole entry.</p><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-outline" id="ajLgCsv">Download CSV</button><button type="button" class="btn" data-x>Close</button></div>`,900);
+ m.querySelector('#ajLgCsv').onclick=()=>{let r=open;X.dl(X.slug(c.name)+'_ledger_'+a.code+'_'+from+'_'+to+'.csv',X.csv([['Account',a.code+' '+a.title],['Period',from+' to '+to],['Date','Ref','Particulars','Line note','Debit','Credit','Balance'],['','','Balance brought forward','','','',(open/100).toFixed(2)]].concat(rows.map(x=>{r+=x.delta;return[x.e.date,x.e.ref||'',x.e.desc||'',x.l.memo||'',x.d?(x.d/100).toFixed(2):'',x.k?(x.k/100).toFixed(2):'',(r/100).toFixed(2)]}))))};
+ m.addEventListener('click',ev=>{const tr=ev.target.closest('tr[data-entry]');if(tr&&window.AJJE)AJJE.view(tr.dataset.entry)});
+}
+document.addEventListener('click',ev=>{
+ const area=ev.target.closest&&ev.target.closest('#reportDisplayArea');if(!area)return;
+ const tr=ev.target.closest('tr');if(!tr)return;const meta=area.querySelector('.aj-rptmeta');if(!meta)return;
+ const el=tr.dataset.acct?tr:tr.querySelector('[data-acct]');if(!el)return;const c=C();if(!c)return;
+ const t=meta.dataset.t,e=meta.dataset.e,asOf=t==='bs'||(t==='tb'&&(meta.dataset.l||'std')==='std')||t==='pctb';
+ const s=asOf?fyStartOf(c,e):meta.dataset.s;
+ openLedger(el.dataset.acct,s,e,meta.dataset.b);
+});
+// toolbar: CSV download and a hint
+(function(){const pr=document.querySelector('#reportPaperWrapper .filter-bar button[onclick="window.print()"]');if(!pr||$('ajRptCsv'))return;
+ const b=document.createElement('button');b.type='button';b.id='ajRptCsv';b.className='btn btn-outline btn-sm';b.textContent='Download CSV (Excel)';b.style.marginRight='6px';
+ const w=document.createElement('span');pr.parentElement.insertBefore(w,pr);w.appendChild(b);w.appendChild(pr);
+ const num=s=>{const t=s.replace(/\s/g,'');const m=/^(\()?[₱$]?(-?[\d,]+\.\d{2})\)?$/.exec(t);if(!m)return s;const v=parseFloat(m[2].replace(/,/g,''));return (m[1]||/^\(/.test(t)?-v:v).toFixed(2)};
+ b.onclick=()=>{const area=$('reportDisplayArea'),rows=[];if(!area||!area.children.length)return;
+  area.querySelectorAll('.report-header h2,.report-header h3,.report-header p').forEach(x=>rows.push([x.textContent.trim()]));rows.push([]);
+  const walk=n=>{[...n.children].forEach(el=>{if(el.classList.contains('report-header'))return;
+   if(el.tagName==='TABLE'){el.querySelectorAll('tr').forEach(tr=>rows.push([...tr.cells].map(td=>num(td.textContent.trim()))));rows.push([])}
+   else if(/^H[1-6]$/.test(el.tagName)){rows.push([el.textContent.trim()])}
+   else if(el.tagName==='P'){const t=el.textContent.trim();if(t)rows.push([t])}
+   else if(el.classList.contains('report-footer')){rows.push([el.textContent.replace(/\s+/g,' ').trim()])}
+   else walk(el)})};walk(area);
+  const c=C(),ttl=(area.querySelector('.report-header h3')||{}).textContent||'report';
+  X.dl(X.slug((c?c.name:'company')+' '+ttl)+'.csv',X.csv(rows))};
+ const hint=document.createElement('p');hint.className='hr-note aj-noprint';hint.id='ajRptHint';hint.style.margin='0 0 .6rem';hint.textContent='Tip: click an account line in the report to see its ledger for the period, then click an entry to open it.';
+ const pc=$('reportPaperContainer');if(pc)pc.insertAdjacentElement('beforebegin',hint);
+})();
+document.head.insertAdjacentHTML('beforeend','<style>'
+ +'#reportDisplayArea tr[data-acct],#reportDisplayArea tr:has([data-acct]){cursor:pointer}#reportDisplayArea tr[data-acct]:hover td,#reportDisplayArea tr:has([data-acct]):hover td{background:var(--tint,rgba(1,99,81,.06))}'
+ +'.aj-fs tr.aj-grp td{font-weight:700;font-size:.82rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted,#475569);padding-top:.8rem;border-bottom:none}'
+ +'.aj-fs tr.aj-sub td{border-top:1px solid var(--border-color,#cbd5e1)}.aj-fs tr.aj-tot td{border-top:2px solid var(--fiery-navy-deep,#01231d)}'
+ +'.aj-cols td,.aj-cols th{white-space:nowrap;font-size:.86rem}.aj-cols td:first-child{white-space:normal;min-width:200px}'
+ +'.aj-tb th{white-space:nowrap}tr.aj-clk{cursor:pointer}tr.aj-clk:hover td{background:var(--tint,rgba(1,99,81,.06))}'
+ +'@media print{.aj-noprint{display:none!important}#reportDisplayArea tr[data-acct]{cursor:auto}}'
+ +'</style>');
+
+// ---------------------------------------------------------------- keep the new fields when a backup is imported
+const oSC=window.sanitizeCompany;
+window.sanitizeCompany=function(d){const o=oSC.apply(this,arguments);
+ try{if(d.cfMethod==='indirect')o.cfMethod='indirect';
+  (d.chartOfAccounts||[]).forEach(a=>{if(['operating','investing','financing'].includes(a&&a.cf)){const x=o.chartOfAccounts.find(y=>y.code===a.code);if(x)x.cf=a.cf}})}catch(e){console.error(e)}
+ return o};
+})();
+
+
+// ===== v7 (B) Journal entry window: searchable accounts, line notes, adjusting entries with automatic reversal, VAT split,
+// balancing help, templates, Post & New, stronger checks. Journal list: account and type filters, wider search, totals, View and Copy.
+// Health Check: statement tie-outs. =====
+(function(){
+const $=id=>document.getElementById(id),C=()=>activeCompany(),esc=escapeHtml,X=window.ERPX||{};
+const fm=v=>formatMoney(fromCents(v),(C()||{}).currency);
+const fdl=s=>s?new Date(s+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+const today=()=>localDateStr(new Date());
+const who=()=>window.currentUser?window.currentUser.name:'Admin';
+const r2=v=>Math.round((parseFloat(v)||0)*100)/100;
+const SRC={re:'Real Estate',hr:'Payroll',bank:'Banking',inv:'Inventory',close:'Year-end closing',tax:'Taxes & Filings',rev:'Reversal',ar:'Receivables',ap:'Payables',fa:'Fixed Assets',sv:'Services',cl:'Commercial Leasing',imp:'Spreadsheet import'};
+const label=a=>a.code+' - '+a.title;
+const acct=code=>{const c=C();return c&&c.chartOfAccounts.find(a=>a.code===+code)};
+// what the user typed in an account box -> account
+function resolve(val){
+ const c=C(),t=String(val||'').trim();if(!c||!t)return null;
+ const m=/^(\d+)\b/.exec(t);if(m){const a=c.chartOfAccounts.find(x=>x.code===+m[1]);if(a)return a}
+ const lo=t.toLowerCase(),ex=c.chartOfAccounts.filter(a=>a.title.toLowerCase()===lo);if(ex.length===1)return ex[0];
+ const part=c.chartOfAccounts.filter(a=>label(a).toLowerCase().includes(lo));return part.length===1?part[0]:null;
+}
+
+// ---------------------------------------------------------------- styles and one-time form additions
+document.head.insertAdjacentHTML('beforeend','<style>'
+ +'#journalModal .modal{max-width:980px}'
+ +'.j-row,.j-head{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-bottom:8px}'
+ +'.j-row input{min-width:0;width:100%}.j-row input.j-debit,.j-row input.j-credit{text-align:right;font-variant-numeric:tabular-nums}'
+ +'.j-head{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}.j-head span:nth-child(3),.j-head span:nth-child(4){text-align:right}'
+ +'.j-row .j-vat{padding:4px 8px;font-size:.72rem}.j-row .j-x{padding:4px 10px}.j-row input[aria-invalid="true"]{border-color:#b42318;box-shadow:0 0 0 2px rgba(180,35,24,.15)}'
+ +'#ajJTplBar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 .8rem}#ajJTplBar select{max-width:320px}'
+ +'#ajJHint{font-size:.82rem;color:var(--text-muted);margin:.4rem 0 0;min-height:1.2em}'
+ +'#ajJBar select{max-width:230px;padding:5px 8px;font-size:.85rem}#ajJTot{font-size:.85rem;color:var(--text-muted);margin-left:auto}'
+ +'.aj-jmemo{color:var(--text-muted);font-size:.8rem}'
+ +'#fullJournalBody .aj-acts{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;align-items:center;min-width:190px;max-width:262px;margin-left:auto}#fullJournalBody .aj-acts .btn{margin:0!important;padding:3px 9px;font-size:.76rem}'
+ +'table.aj-noatt tr>*:nth-child(7):not([colspan]){display:none}#fullJournalBody td:nth-child(4){min-width:200px}'
+ +'@media(max-width:700px){.j-head{display:none}.j-row{grid-template-columns:1fr 1fr auto auto;padding-bottom:8px;border-bottom:1px dashed var(--border-color)}.j-row .j-account,.j-row .j-memo{grid-column:1/-1}}'
+ +'</style>');
+function ensureUI(){
+ const f=$('journalForm');if(!f||$('ajJTypeG'))return;
+ const rows=$('journalRows'),file=$('entryFileInput'),card=file&&file.closest('.form-group');
+ const g=document.createElement('div');g.className='grid-2';g.id='ajJTypeG';
+ g.innerHTML='<div class="form-group"><label for="ajJType">Entry type</label><select id="ajJType"><option value="">Regular entry</option><option value="adj">Adjusting entry (accruals, depreciation, period-end corrections)</option></select></div>'
+  +'<div class="form-group" id="ajJRevG" style="display:none"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ajJRevOn" style="width:auto"> Reverse it automatically on</label><input type="date" id="ajJRevDate" aria-label="Reversal date"><small style="color:var(--text-muted)">For accruals that are paid or billed next period.</small></div>';
+ (card||rows).insertAdjacentElement('beforebegin',g);
+ rows.insertAdjacentHTML('beforebegin','<div id="ajJTplBar"><select id="ajJTpl" aria-label="Templates"></select><button type="button" class="btn btn-outline btn-sm" id="ajJTplSave">Save as template</button><button type="button" class="btn btn-outline btn-sm btn-danger" id="ajJTplDel" style="display:none">Delete template</button></div>'
+  +'<div class="j-head"><span>Account (type a code or name)</span><span>Line note</span><span>Debit</span><span>Credit</span><span></span><span></span></div>');
+ rows.insertAdjacentHTML('afterend','<datalist id="ajAcctDL"></datalist>');
+ const sub=$('btnSaveJournal');
+ if(sub){const b=document.createElement('button');b.type='button';b.className='btn btn-outline';b.id='ajJSaveNew';b.textContent='Post & New';sub.insertAdjacentElement('beforebegin',b);
+  b.onclick=()=>{saveNew=true;try{f.requestSubmit()}finally{setTimeout(()=>{saveNew=false},0)}}}
+ const st=$('txtBalanceStatus');if(st)st.parentElement.insertAdjacentHTML('afterend','<p id="ajJHint"></p>');
+ $('ajJType').onchange=syncType;
+ $('ajJTpl').onchange=()=>applyTpl($('ajJTpl').value);
+ $('ajJTplSave').onclick=saveTpl;$('ajJTplDel').onclick=delTpl;
+ rows.addEventListener('input',e=>{const t=e.target,row=t.closest('.j-row');if(!row)return;
+  if(t.classList.contains('j-debit')&&t.value)row.querySelector('.j-credit').value='';
+  if(t.classList.contains('j-credit')&&t.value)row.querySelector('.j-debit').value='';
+  if(t.classList.contains('j-account'))t.removeAttribute('aria-invalid');
+  updateJournalTotals()});
+ rows.addEventListener('change',e=>{const t=e.target;if(!t.classList.contains('j-account'))return;const a=resolve(t.value);if(a)t.value=label(a);else if(t.value.trim())t.setAttribute('aria-invalid','true');updateJournalTotals()});
+ rows.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const row=b.closest('.j-row');if(!row)return;
+  if(b.classList.contains('j-x')){row.remove();updateJournalTotals()}else if(b.classList.contains('j-vat'))splitVat(row)});
+ rows.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList.contains('j-account')){enterAt=Date.now();enterEl=e.target;return}
+  if(e.key==='Enter'&&e.target.closest('.j-row')){e.preventDefault();const last=e.target.closest('.j-row')===rows.lastElementChild;if(last)addJournalRow();const nx=e.target.closest('.j-row').nextElementSibling;if(nx)nx.querySelector('.j-account').focus()}});
+}
+let saveNew=false,enterAt=0,enterEl=null;
+function syncType(){const adj=$('ajJType').value==='adj',g=$('ajJRevG');g.style.display=adj?'':'none';if(!adj)$('ajJRevOn').checked=false;
+ if(adj&&!$('ajJRevDate').value){const d=$('entryDate').value||today(),n=new Date(+d.slice(0,4),+d.slice(5,7),1);$('ajJRevDate').value=localDateStr(n)}}
+function fillDL(){const c=C(),dl=$('ajAcctDL');if(c&&dl)dl.innerHTML=c.chartOfAccounts.map(a=>'<option value="'+esc(label(a))+'">').join('')}
+const isVatCo=c=>!!c&&/^vat/i.test(c.vat||'')&&c.chartOfAccounts.some(a=>/input vat/i.test(a.title))&&c.chartOfAccounts.some(a=>/output vat/i.test(a.title));
+
+// ---------------------------------------------------------------- line rows
+function diffCents(){let d=0;document.querySelectorAll('#journalRows .j-row').forEach(r=>{d+=toCents(r.querySelector('.j-debit').value)-toCents(r.querySelector('.j-credit').value)});return d}
+window.addJournalRow=function(selectedCode,debitVal,creditVal,memo){
+ const c=C();if(!c)return;ensureUI();
+ const cont=$('journalRows'),a=selectedCode!==undefined&&selectedCode!==''?acct(selectedCode):null;
+ if(arguments.length===0&&cont.children.length){const d=diffCents();if(d>0)creditVal=fromCents(d);else if(d<0)debitVal=fromCents(-d)}
+ const row=document.createElement('div');row.className='j-row';
+ row.innerHTML='<input type="text" class="j-account" list="ajAcctDL" autocomplete="off" placeholder="Account" aria-label="Account" value="'+esc(a?label(a):(selectedCode||''))+'">'
+  +'<input type="text" class="j-memo" maxlength="120" placeholder="Optional" aria-label="Line note" value="'+esc(memo||'')+'">'
+  +'<input type="number" step="0.01" min="0" class="j-debit" placeholder="0.00" aria-label="Debit" value="'+(debitVal?esc(String(debitVal)):'')+'">'
+  +'<input type="number" step="0.01" min="0" class="j-credit" placeholder="0.00" aria-label="Credit" value="'+(creditVal?esc(String(creditVal)):'')+'">'
+  +'<button type="button" class="btn btn-outline btn-sm j-vat" title="Take the VAT out of this amount (the amount includes VAT)"'+(isVatCo(c)?'':' style="visibility:hidden"')+'>VAT</button>'
+  +'<button type="button" class="btn btn-danger btn-sm j-x" aria-label="Remove this line">×</button>';
+ cont.appendChild(row);return row;
+};
+function splitVat(row){
+ const c=C(),dr=r2(row.querySelector('.j-debit').value),cr=r2(row.querySelector('.j-credit').value),gross=dr||cr;
+ if(!gross)return toast('Enter the VAT-inclusive amount on this line first, then press VAT.');
+ const rate=(Number.isFinite(+c.vatRate)?+c.vatRate:12)/100,net=Math.round(gross/(1+rate)*100)/100,vat=Math.round((gross-net)*100)/100;
+ const va=c.chartOfAccounts.find(a=>(dr?/input vat/i:/output vat/i).test(a.title));if(!va)return toast('No '+(dr?'Input VAT':'Output VAT')+' account in the chart of accounts.');
+ row.querySelector(dr?'.j-debit':'.j-credit').value=net.toFixed(2);
+ const nr=addJournalRow(va.code,dr?vat.toFixed(2):'',dr?'':vat.toFixed(2),(c.vatRate||12)+'% VAT');row.insertAdjacentElement('afterend',nr);updateJournalTotals();
+}
+const oUT=window.updateJournalTotals;
+window.updateJournalTotals=function(){const r=oUT.apply(this,arguments);try{const d=diffCents(),st=$('txtBalanceStatus'),h=$('ajJHint');
+ if(st&&d)st.innerText='Out by '+fm(Math.abs(d))+' ('+(d>0?'debits':'credits')+' higher)';
+ if(h){const c=C(),msgs=[];document.querySelectorAll('#journalRows .j-row').forEach(row=>{const a=resolve(row.querySelector('.j-account').value);if(!a||a.roleTag!=='cash')return;const out=toCents(row.querySelector('.j-credit').value);if(!out)return;const bal=cashBal(c,a.code,$('entryDate').value,$('editingEntryId').value);if(bal-out<0)msgs.push(a.title+' would go to '+fm(bal-out)+' on this date')});h.textContent=msgs.join(' · ');h.style.color=msgs.length?'#b45309':''}}catch(e){}return r};
+function cashBal(c,code,date,skipId){let t=0;c.journalEntries.forEach(e=>{if(e.id===skipId||(date&&e.date>date))return;e.lines.forEach(l=>{if(l.accountCode===code)t+=toCents(l.debit)-toCents(l.credit)})});return t}
+
+// ---------------------------------------------------------------- opening the window
+const oOpen=window.openJournalModal;
+window.openJournalModal=function(id){
+ ensureUI();const r=oOpen.apply(this,arguments);
+ try{if($('journalModal').classList.contains('hidden'))return r;
+  const c=C(),e=id&&c.journalEntries.find(x=>x.id===id);fillDL();fillTpl();
+  $('ajJType').value=e&&e.adj?'adj':'';$('ajJRevOn').checked=false;$('ajJRevDate').value='';syncType();
+  $('ajJTplDel').style.display='none';const sn=$('ajJSaveNew');if(sn)sn.style.display=e?'none':'';
+  updateJournalTotals();
+  if(!e)setTimeout(()=>{const d=$('entryDesc');if(d&&!d.value)d.focus()},50);
+ }catch(err){console.error(err)}
+ return r};
+
+// ---------------------------------------------------------------- templates
+function fillTpl(){const c=C(),s=$('ajJTpl');if(!c||!s)return;const L=Array.isArray(c.jtpl)?c.jtpl:[];
+ s.innerHTML='<option value="">'+(L.length?'Use a template…':'No templates yet')+'</option>'+L.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');s.disabled=!L.length}
+function applyTpl(id){const c=C(),t=(c.jtpl||[]).find(x=>x.id===id);$('ajJTplDel').style.display=t?'':'none';if(!t)return;
+ $('entryDesc').value=t.desc||'';$('ajJType').value=t.adj?'adj':'';syncType();const cont=$('journalRows');cont.innerHTML='';
+ t.lines.forEach(l=>addJournalRow(l.accountCode,l.debit||'',l.credit||'',l.memo||''));updateJournalTotals()}
+function saveTpl(){const c=C(),lines=[];
+ document.querySelectorAll('#journalRows .j-row').forEach(row=>{const a=resolve(row.querySelector('.j-account').value);if(!a)return;lines.push({accountCode:a.code,debit:r2(row.querySelector('.j-debit').value),credit:r2(row.querySelector('.j-credit').value),memo:row.querySelector('.j-memo').value.trim().slice(0,120)})});
+ if(lines.length<2)return toast('Fill in at least two lines with accounts first.');
+ const name=(prompt('Name for this template (for example “Monthly rent” or “Depreciation”):',$('entryDesc').value||'')||'').trim().slice(0,60);if(!name)return;
+ if(!Array.isArray(c.jtpl))c.jtpl=[];c.jtpl=c.jtpl.filter(t=>t.name.toLowerCase()!==name.toLowerCase());
+ c.jtpl.push({id:'jt_'+Date.now().toString(36),name,desc:$('entryDesc').value.slice(0,200),adj:$('ajJType').value==='adj',lines});c.jtpl=c.jtpl.slice(-60);
+ saveToLocalStorage();fillTpl();toast('Template “'+name+'” saved. Pick it from the list next time.','success')}
+function delTpl(){const c=C(),id=$('ajJTpl').value,t=(c.jtpl||[]).find(x=>x.id===id);if(!t||!confirm('Delete the template “'+t.name+'”?'))return;c.jtpl=c.jtpl.filter(x=>x.id!==id);saveToLocalStorage();fillTpl();$('ajJTplDel').style.display='none'}
+
+// ---------------------------------------------------------------- checks before saving
+const oSave=window.saveJournalEntry;
+window.saveJournalEntry=function(ev){
+ const stop=msg=>{if(ev&&ev.preventDefault)ev.preventDefault();if(msg)toast(msg)};
+ // Enter pressed while choosing an account picks the account; it does not post the entry
+ if(Date.now()-enterAt<500&&!saveNew){enterAt=0;stop();try{const a=resolve(enterEl.value);if(a)enterEl.value=label(a);const row=enterEl.closest('.j-row');(row.querySelector('.j-debit').value||!row.querySelector('.j-credit').value?row.querySelector('.j-debit'):row.querySelector('.j-credit')).focus();updateJournalTotals()}catch(e){}return}
+ try{
+  const c=C();if(!c)return oSave.apply(this,arguments);
+  const rows=[...document.querySelectorAll('#journalRows .j-row')],seen=new Map();let n=0;
+  for(const row of rows){n++;const inp=row.querySelector('.j-account'),val=inp.value.trim(),dr=r2(row.querySelector('.j-debit').value),cr=r2(row.querySelector('.j-credit').value);
+   if(!val&&!dr&&!cr)continue;
+   const a=resolve(val);
+   if(!a){inp.setAttribute('aria-invalid','true');inp.focus();return stop(val?'Line '+n+': “'+val+'” is not in the chart of accounts. Pick an account from the list.':'Line '+n+' has an amount but no account.')}
+   inp.value=label(a);inp.removeAttribute('aria-invalid');
+   const s=seen.get(a.code)||{dr:0,cr:0,a};s.dr+=dr;s.cr+=cr;seen.set(a.code,s)}
+  const both=[...seen.values()].find(s=>s.dr>0&&s.cr>0);
+  if(both)return stop(both.a.title+' is both debited and credited in this entry. Combine it into one line with the net amount.');
+  const date=$('entryDate').value,od=getOpeningDate(c),editing=$('editingEntryId').value;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(date)){
+   if(date>today()&&!confirm('This entry is dated in the future ('+fdl(date)+'). Post it anyway?'))return stop();
+   if(date<od&&!confirm('This entry is dated before the books’ opening date ('+fdl(od)+'). Reports that start at the opening date will treat it as part of the beginning balance. Post it anyway?'))return stop();
+   const low=[];seen.forEach(s=>{if(s.a.roleTag!=='cash'||!s.cr)return;const bal=cashBal(c,s.a.code,date,editing)+Math.round((s.dr-s.cr)*100);if(bal<0)low.push(s.a.title+' would be '+fm(bal))});
+   if(low.length&&!confirm(low.join('; ')+' as of '+fdl(date)+'.\n\nCash cannot be negative. Check the amount, the date or the account. Post anyway?'))return stop();
+  }
+  if($('ajJType').value==='adj'&&$('ajJRevOn').checked){const rd=$('ajJRevDate').value;
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(rd)||rd<=date)return stop('The automatic reversal date must be after the entry date.');
+   if(window.AJLOCK&&AJLOCK.is(rd,c))return stop('The automatic reversal date falls in a locked period.')}
+ }catch(err){console.error(err)}
+ pending=null;const r=oSave.apply(this,arguments);
+ if(pending){const p=pending;pending=null;try{finish(p.entry,p.wasEdit)}catch(err){console.error(err)}}
+ return r;
+};
+let pending=null;
+// called from inside the core save routine
+function lineExtra(accEl){const row=accEl&&accEl.closest&&accEl.closest('.j-row'),m=row&&row.querySelector('.j-memo');const memo=m?m.value.trim().slice(0,120):'';return memo?{memo}:{}}
+function stamp(entry,editingId){
+ const t=$('ajJType');entry.adj=t&&t.value==='adj'?true:undefined;
+ if(editingId){entry.editedBy=who();entry.editedAt=new Date().toISOString()}else{entry.by=who();entry.at=new Date().toISOString()}
+}
+function after(entry,wasEdit){pending={entry,wasEdit}}
+function finish(entry,wasEdit){
+ const c=C();if(!c)return;
+ try{if(entry.adj&&$('ajJRevOn')&&$('ajJRevOn').checked&&window.AJVOID){const e=c.journalEntries.find(x=>x.id===entry.id),rd=$('ajJRevDate').value;
+  if(e&&!(e.reversedBy&&c.journalEntries.some(x=>x.id===e.reversedBy))){const err=AJVOID.reverseOne(c,e,rd,'automatic reversal of '+(e.desc||'accrual'));
+   if(err)toast('Entry posted, but the automatic reversal was not: '+err);else{const rv=c.journalEntries.find(x=>x.id===e.reversedBy);if(rv){rv.autoRev=true;if(e.site)rv.site=e.site;rv.desc=String('Reversing entry – '+(e.desc||e.ref)).slice(0,200);rv.by=who();rv.at=new Date().toISOString();saveToLocalStorage();refreshBooksSafe()}toast('Posted, with an automatic reversal on '+fdl(rd)+'.','success')}}}}catch(err){console.error(err)}
+ if(saveNew&&!wasEdit){const keep={date:entry.date,adj:entry.adj};setTimeout(()=>{openJournalModal();if(!$('journalModal').classList.contains('hidden')){$('entryDate').value=keep.date;$('ajJType').value=keep.adj?'adj':'';syncType();toast((entry.ref||'Entry')+' posted.','success')}},0)}
+}
+function refreshBooksSafe(){try{calculateDashboardMetrics();renderDashboardJournalLog();applyBooksFilter()}catch(e){}}
+
+// ---------------------------------------------------------------- journal list: filters, search, totals, View, Copy
+let fAcct='',fType='';
+function pass(c,e){
+ if(fAcct&&!e.lines.some(l=>String(l.accountCode)===fAcct))return false;
+ if(fType==='manual')return !e.src&&!isInit(e);if(fType==='adj')return !!e.adj;if(fType==='rev')return e.src==='rev';if(fType==='close')return e.src==='close';
+ if(fType==='mod')return !!e.src&&e.src!=='rev'&&e.src!=='close';return true;
+}
+function match(c,e,q){
+ const amt=q.replace(/[,₱\s]/g,'');
+ return e.lines.some(l=>{const a=c.chartOfAccounts.find(x=>x.code===l.accountCode);
+  if(a&&label(a).toLowerCase().includes(q))return true;if(l.memo&&l.memo.toLowerCase().includes(q))return true;
+  if(/^\d+(\.\d+)?$/.test(amt)){const v=(+l.debit||+l.credit||0).toFixed(2);if(v===(+amt).toFixed(2)||(amt.length>=3&&v.startsWith(amt)))return true}return false})||(e.site||'').toLowerCase().includes(q);
+}
+const oRJ=window.renderFullJournalLog;
+window.renderFullJournalLog=function(){const r=oRJ.apply(this,arguments);try{decorate()}catch(e){console.error(e)}return r};
+function decorate(){
+ const c=C(),tb=$('fullJournalBody');if(!c||!tb)return;
+ let list=[];try{list=getFilteredJournal(c)}catch(e){}
+ const rows=[...tb.rows];let i=0,td=0,tc=0;
+ list.forEach(e=>{const n=Math.max(1,e.lines.length),first=rows[i];
+  for(let k=0;k<e.lines.length;k++){const tr=rows[i+k];if(!tr||tr.cells.length<8||tr.classList.contains('aj-void'))break;const l=e.lines[k],a=c.chartOfAccounts.find(x=>x.code===l.accountCode);
+   td+=toCents(l.debit);tc+=toCents(l.credit);
+   tr.cells[3].innerHTML='<span class="aj-jmemo">'+esc(l.accountCode)+'</span> '+esc(a?a.title:'(unknown account)')+(l.memo?'<br><span class="aj-jmemo">'+esc(l.memo)+'</span>':'')}
+  i+=n;if(!first||first.cells.length<8)return;
+  if(e.adj)first.cells[1].insertAdjacentHTML('beforeend','<br><span class="aj-chip" title="Adjusting entry">adjusting</span>');
+  const cell=first.cells[first.cells.length-1];
+  const mk=(t,fn,title)=>{const b=document.createElement('button');b.type='button';b.className='btn btn-outline btn-sm';b.textContent=t;b.title=title;b.style.marginLeft='4px';b.onclick=fn;cell.appendChild(b)};
+  mk('View',()=>view(e.id),'See the whole entry');
+  if(!e.src&&!isInit(e))mk('Copy',()=>copy(e.id),'Start a new entry with the same lines');
+  if(!cell.querySelector('.aj-acts')){const w=document.createElement('div');w.className='aj-acts';while(cell.firstChild)w.appendChild(cell.firstChild);cell.appendChild(w)}
+ });
+ const tbl=tb.closest('table');if(tbl)tbl.classList.toggle('aj-noatt',!list.some(e=>e.fileAttachment)&&!(c.voided||[]).some(v=>v.entry&&v.entry.fileAttachment));
+ const bar=$('ajJBar');if(!bar)return;
+ if(!$('ajJFAcct')){
+  const used=new Set();c.journalEntries.forEach(e=>e.lines.forEach(l=>used.add(l.accountCode)));
+  bar.insertAdjacentHTML('beforeend','<select id="ajJFAcct" aria-label="Filter by account"><option value="">All accounts</option>'+c.chartOfAccounts.filter(a=>used.has(a.code)).map(a=>'<option value="'+a.code+'"'+(String(a.code)===fAcct?' selected':'')+'>'+esc(label(a))+'</option>').join('')+'</select>'
+   +'<select id="ajJFType" aria-label="Filter by type">'+[['','All entries'],['manual','Typed in the journal'],['adj','Adjusting entries'],['mod','Posted by modules'],['rev','Reversals'],['close','Closing entries']].map(o=>'<option value="'+o[0]+'"'+(o[0]===fType?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'
+   +'<span id="ajJTot"></span>');
+  $('ajJFAcct').onchange=e=>{fAcct=e.target.value;renderFullJournalLog()};$('ajJFType').onchange=e=>{fType=e.target.value;renderFullJournalLog()};
+ }
+ const t=$('ajJTot');if(t)t.textContent=list.length+' entr'+(list.length===1?'y':'ies')+' · debits '+fm(td)+' · credits '+fm(tc);
+ const s=$('filterSearch');if(s&&!s.dataset.aj7){s.dataset.aj7='1';s.placeholder='Search ref, description, account, amount…'}
+}
+['switchCompany'].forEach(n=>{const o=window[n];if(typeof o==='function')window[n]=function(){fAcct='';fType='';return o.apply(this,arguments)}});
+
+function view(id){
+ const c=C(),e=c&&c.journalEntries.find(x=>x.id===id);if(!e)return;
+ let td=0,tc=0;const body=e.lines.map(l=>{const a=c.chartOfAccounts.find(x=>x.code===l.accountCode),d=toCents(l.debit),k=toCents(l.credit);td+=d;tc+=k;
+  return '<tr><td'+(k?' style="padding-left:24px"':'')+'>'+esc(l.accountCode+' '+(a?a.title:'(unknown account)'))+'</td><td>'+esc(l.memo||'')+'</td><td class="number">'+(d?fm(d):'')+'</td><td class="number">'+(k?fm(k):'')+'</td></tr>'}).join('');
+ const chips=[];
+ if(isInit(e))chips.push('Opening balances');else if(e.src)chips.push(SRC[e.src]||e.src);else chips.push('Typed in the journal');
+ if(e.adj)chips.push('Adjusting entry');if(e.autoRev)chips.push('Automatic reversal');if(e.site)chips.push('Site: '+e.site);
+ const rv=e.reversedBy&&c.journalEntries.find(x=>x.id===e.reversedBy),orig=e.revOf&&c.journalEntries.find(x=>x.id===e.revOf);
+ const locked=window.AJLOCK&&AJLOCK.is(e.date,c);
+ const m=X.modal('<h2 style="margin-top:0">'+esc(e.ref||'Entry')+'</h2><p class="hr-note" style="margin-top:-.4rem">'+esc(fdl(e.date))+' · '+esc(e.desc||'')+'</p>'
+  +'<p style="display:flex;gap:6px;flex-wrap:wrap;margin:.2rem 0 .8rem">'+chips.map(t=>'<span class="aj-chip">'+esc(t)+'</span>').join('')+(locked?'<span class="aj-chip warn">🔒 locked period</span>':'')+'</p>'
+  +'<div class="hr-scroll"><table class="hr-tbl"><thead><tr><th>Account</th><th>Line note</th><th class="number">Debit</th><th class="number">Credit</th></tr></thead><tbody>'+body+'</tbody><tfoot><tr style="font-weight:bold"><td colspan="2">Total</td><td class="number">'+fm(td)+'</td><td class="number">'+fm(tc)+'</td></tr></tfoot></table></div>'
+  +'<p class="hr-note" style="margin-top:.8rem">'+[e.by?'Posted by '+esc(e.by)+(e.at?' on '+esc(new Date(e.at).toLocaleString()):''):'',e.editedBy?'Last edited by '+esc(e.editedBy)+(e.editedAt?' on '+esc(new Date(e.editedAt).toLocaleString()):''):'',rv?'Reversed by <a href="#" data-v="'+esc(rv.id)+'">'+esc(rv.ref)+'</a> ('+esc(fdl(rv.date))+')':'',orig?'Reversal of <a href="#" data-v="'+esc(orig.id)+'">'+esc(orig.ref)+'</a> ('+esc(fdl(orig.date))+')':''].filter(Boolean).join(' · ')+'</p>'
+  +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>'+(e.fileAttachment?'<button type="button" class="btn btn-outline" id="ajVFile">View attachment</button> ':'')+(!e.src&&!isInit(e)?'<button type="button" class="btn btn-outline" id="ajVCopy">Copy to a new entry</button>':'')+'</span><button type="button" class="btn" data-x>Close</button></div>',760);
+ m.querySelectorAll('[data-v]').forEach(a=>a.onclick=ev=>{ev.preventDefault();m.remove();view(a.dataset.v)});
+ const f=m.querySelector('#ajVFile');if(f)f.onclick=()=>{m.remove();openFilePreviewModal(e.id)};
+ const cp=m.querySelector('#ajVCopy');if(cp)cp.onclick=()=>{document.querySelectorAll('.erp-modal').forEach(x=>x.remove());copy(e.id)};
+}
+function copy(id){
+ const c=C(),e=c&&c.journalEntries.find(x=>x.id===id);if(!e)return;
+ openJournalModal();if($('journalModal').classList.contains('hidden'))return;
+ $('entryDesc').value=e.desc||'';$('ajJType').value=e.adj?'adj':'';syncType();
+ const cont=$('journalRows');cont.innerHTML='';e.lines.forEach(l=>addJournalRow(l.accountCode,l.debit||'',l.credit||'',l.memo||''));updateJournalTotals();
+ toast('Copied from '+(e.ref||'the entry')+'. Check the date and amounts, then post.');
+}
+window.AJJE={lineExtra,stamp,after,pass,match,view,copy,resolve};
+
+// ---------------------------------------------------------------- Health Check: statement tie-outs
+const oHC=window.renderHealthCheck;
+window.renderHealthCheck=function(){const r=oHC.apply(this,arguments);try{
+ const c=C(),box=$('healthResults');if(!c||!box||!window.AJFS)return r;
+ const checks=[],add=(ok,title,detail)=>checks.push({ok,title,detail}),t=today();
+ const bs=AJFS.bsModel(c,'accrual',t),d=bs.tA-bs.tL-bs.tE;
+ add(d===0,'Balance Sheet balances (assets = liabilities + equity)',d?'Out by '+fm(d)+'. Usually an entry uses an account that was deleted, or an account has the wrong category.':'');
+ const fyS=AJFS.fyStartOf(c,t),cf=AJFS.cfModel(c,fyS,t),g=cf.begin+cf.tOp+cf.tInv+cf.tFin-cf.endCash;
+ add(g===0,'Statement of Cash Flows agrees with the cash accounts (this fiscal year)',g?'Differs by '+fm(g)+'.':'');
+ if(window.CLOSEMOD){const ct=CLOSEMOD.closedThrough(c),open=CLOSEMOD.fyList(c).filter(y=>y.end<t&&(!ct||y.end>ct));
+  add(!open.length,'Fiscal years that have ended are closed',open.length?open.map(y=>'FY '+y.y).join(', ')+' ended but '+(open.length===1?'is':'are')+' not closed. Statements still separate the years, but closing locks them (Books › Period Locks & Closing).':'');
+  if(ct){const bal=computeAccountBalances(c.journalEntries,ct),left=c.chartOfAccounts.filter(a=>AJFS.isDist(a)&&(()=>{const b=bal.get(a.code);return b&&b.drCents!==b.crCents})());
+   add(!left.length,'Drawings and dividends of closed years were closed to equity',left.length?left.map(a=>a.title).join(', ')+' still carr'+(left.length===1?'ies':'y')+' a balance from closed years. Reopen the latest closed year and close it again; the closing entry will now include '+(left.length===1?'it':'them')+'.':'')}}
+ const manual=c.journalEntries.filter(e=>!isInit(e));
+ const both=manual.filter(e=>{const m=new Map();e.lines.forEach(l=>{const s=m.get(l.accountCode)||[0,0];s[0]+=+l.debit||0;s[1]+=+l.credit||0;m.set(l.accountCode,s)});return [...m.values()].some(s=>s[0]>0&&s[1]>0)});
+ add(!both.length,'No entry debits and credits the same account',both.slice(0,15).map(e=>e.ref).join(', ')+(both.length>15?'…':''));
+ const frac=manual.filter(e=>e.lines.some(l=>[l.debit,l.credit].some(v=>Math.abs((+v||0)*100-Math.round((+v||0)*100))>1e-6)));
+ add(!frac.length,'All amounts are in whole centavos',frac.slice(0,15).map(e=>e.ref).join(', ')+(frac.length>15?'…':''));
+ const bad=checks.filter(x=>!x.ok).length;
+ box.insertAdjacentHTML('beforeend','<p style="margin-top:1.2rem"><strong>Statement checks: '+(bad?bad+' issue(s) found':'all passed <svg class="i" aria-hidden="true"><use href="#i-check"/></svg>')+'</strong></p>'+checks.map(x=>
+  '<div style="padding:8px 10px;margin-bottom:6px;border-left:4px solid '+(x.ok?'#16a34a':'#d00027')+';background:rgba(128,128,128,0.08);">'+(x.ok?'<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>':'<svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>')+' <strong>'+esc(x.title)+'</strong>'+(!x.ok&&x.detail?'<br><small>'+esc(x.detail)+'</small>':'')+'</div>').join(''));
+ }catch(err){console.error(err)}return r};
+
+// ---------------------------------------------------------------- keep the new fields when a backup is imported
+const oSC=window.sanitizeCompany;
+window.sanitizeCompany=function(d){const o=oSC.apply(this,arguments);
+ try{const S=(v,n)=>String(v==null?'':v).slice(0,n);
+  (d.journalEntries||[]).forEach(x=>{if(!x)return;const e=o.journalEntries.find(y=>y.id===safeId(x.id));if(!e)return;
+   if(x.adj)e.adj=true;if(x.autoRev)e.autoRev=true;if(x.by)e.by=S(x.by,80);if(x.at)e.at=S(x.at,40);if(x.editedBy)e.editedBy=S(x.editedBy,80);if(x.editedAt)e.editedAt=S(x.editedAt,40);
+   (x.lines||[]).forEach((l,i)=>{if(l&&l.memo&&e.lines[i]&&e.lines[i].accountCode===parseInt(l.accountCode))e.lines[i].memo=S(l.memo,120)})});
+  if(Array.isArray(d.jtpl))o.jtpl=d.jtpl.filter(t=>t&&t.name&&Array.isArray(t.lines)).slice(0,60).map(t=>({id:safeId(t.id)||'jt_'+Math.random().toString(36).slice(2,8),name:S(t.name,60),desc:S(t.desc,200),adj:!!t.adj,
+   lines:t.lines.slice(0,60).map(l=>({accountCode:parseInt(l.accountCode)||0,debit:Math.max(0,r2(l.debit)),credit:Math.max(0,r2(l.credit)),memo:S(l.memo,120)})).filter(l=>l.accountCode)}));
+ }catch(e){console.error(e)}return o};
+setTimeout(ensureUI,0);
 })();
 
 </script>
